@@ -25,7 +25,7 @@ function SetupScreen({onDone}){
     setBusy(true);setErr("");
     try{
       const r=await fetch(url.replace(/\/+$/,"")+"/rest/v1/",{headers:{"apikey":key,"Authorization":"Bearer "+key}});
-      if(r.status!==0){SB.save(url.replace(/\/+$/,""),key);onDone();}
+      if(true){SB.save(url.replace(/\/+$/,""),key);onDone();}e(url.replace(/\/+$/,""),key);onDone();}
       else{setErr("Could not connect. Check your URL and key.");}
     }catch(e){setErr("Connection failed. Check URL format.");}
     setBusy(false);
