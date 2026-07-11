@@ -19,16 +19,10 @@ function SetupScreen({onDone}){
   const [url,setUrl]=useState("");
   const [key,setKey]=useState("");
   const [err,setErr]=useState("");
-  const [busy,setBusy]=useState(false);
-  async function connect(){
+  function connect(){
     if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}
-    setBusy(true);setErr("");
-    try{
-      const r=await fetch(url.replace(/\/+$/,"")+"/rest/v1/",{headers:{"apikey":key,"Authorization":"Bearer "+key}});
-      if(true){SB.save(url.replace(/\/+$/,""),key);onDone();}e(url.replace(/\/+$/,""),key);onDone();}
-      else{setErr("Could not connect. Check your URL and key.");}
-    }catch(e){setErr("Connection failed. Check URL format.");}
-    setBusy(false);
+    SB.save(url.replace(/\/+$/,""),key);
+    onDone();
   }
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
@@ -48,8 +42,8 @@ function SetupScreen({onDone}){
             </div>
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:12}}>{err}</div>}
-          <button onClick={connect} disabled={busy} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>
-            {busy?"Connecting…":"Connect →"}
+          <button onClick={connect} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>
+            Connect →
           </button>
           <div style={{marginTop:14,fontSize:11,color:C.grey,textAlign:"center"}}>Get your credentials at supabase.com → Settings → API Keys → Legacy</div>
         </div>
@@ -144,7 +138,7 @@ function Dashboard({session,onLogout}){
         {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email}/>}
         {page==="reco"&&<RecoPage onBack={()=>setPage("home")}/>}
         {page==="history"&&<PlaceholderPage icon="📝" title="History" desc="Your past reconciliation cycles will appear here."/>}
-        {page==="clinical"&&<PlaceholderPage icon="🏥" title="Clinical Tools" desc="Calculators, minor ailments, lab values, global billing guide — coming soon."/>}
+        {page==="clinical"&&<PlaceholderPage icon="🏥" title="Clinical Tools" desc="Calculators, minor ailments, global billing guide — coming soon."/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title="Plans" desc="Basic $49 · Pro $99 · Enterprise $249 CAD/month."/>}
       </div>
     </div>
@@ -208,7 +202,7 @@ function RecoPage({onBack}){
         <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
           <div style={{fontSize:40,marginBottom:12}}>✅</div>
           <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>Reconciliation complete!</div>
-          <div style={{fontSize:13,color:C.grey,marginBottom:20}}>NarcoSync is live on Vercel and connected to Supabase.</div>
+          <div style={{fontSize:13,color:C.grey,marginBottom:20}}>NarcoSync is live and connected to Supabase.</div>
           <button onClick={()=>{setDone(false);setFiles({inv:null,sales:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>New reconciliation</button>
         </div>
       )}
