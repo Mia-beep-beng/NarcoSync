@@ -1,0 +1,7001 @@
+import React, { useState } from "react";
+import * as XLSX from "xlsx";
+
+// Supabase (pure REST -- no SDK needed)
+const SB = {
+  getConfig: () => {
+    try {
+      return {
+        url: localStorage.getItem("ns_sb_url")||"",
+        key: localStorage.getItem("ns_sb_key")||""
+      };
+    } catch { return {url:"",key:""}; }
+  },
+  saveConfig: (url,key) => {
+    localStorage.setItem("ns_sb_url", url.replace(/\/+$/,""));
+    localStorage.setItem("ns_sb_key", key);
+  },
+  isConfigured: () => {
+    try {
+      return !!(localStorage.getItem("ns_sb_url")&&localStorage.getItem("ns_sb_key"));
+    } catch { return false; }
+  },
+  getSession: () => {
+    try {
+      const s = localStorage.getItem("ns_sb_session");
+      if (!s) return null;
+      const session = JSON.parse(s);
+      if (session.expires_at && Date.now() > session.expires_at*1000) {
+        localStorage.removeItem("ns_sb_session");
+        return null;
+      }
+      return session;
+    } catch { return null; }
+  },
+  saveSession: (session) => {
+    try { localStorage.setItem("ns_sb_session", JSON.stringify(session)); } catch {}
+  },
+  clearSession: () => {
+    try { localStorage.removeItem("ns_sb_session"); } catch {}
+  },
+
+  headers: (token) => {
+    const {key} = SB.getConfig();
+    const h = {"Content-Type":"application/json","apikey":key};
+    if (token) h["Authorization"] = "Bearer "+token;
+    return h;
+  },
+
+  signUp: async (email, password) => {
+    const {url,key} = SB.getConfig();
+    const r = await fetch(url+"/auth/v1/signup", {
+      method:"POST", headers:{"Content-Type":"application/json","apikey":key},
+      body:JSON.stringify({email,password})
+    });
+    return r.json();
+  },
+
+  signIn: async (email, password) => {
+    const {url,key} = SB.getConfig();
+    const r = await fetch(url+"/auth/v1/token?grant_type=password", {
+      method:"POST", headers:{"Content-Type":"application/json","apikey":key},
+      body:JSON.stringify({email,password})
+    });
+    const data = await r.json();
+    if (data.access_token) SB.saveSession(data);
+    return data;
+  },
+
+  signOut: async () => {
+    const session = SB.getSession();
+    if (session) {
+      const {url} = SB.getConfig();
+      await fetch(url+"/auth/v1/logout", {
+        method:"POST", headers:SB.headers(session.access_token)
+      }).catch(()=>{});
+    }
+    SB.clearSession();
+  },
+
+  getProfile: async (userId, token) => {
+    const {url} = SB.getConfig();
+    const r = await fetch(url+"/rest/v1/profiles?id=eq."+userId+"&select=*", {
+      headers:SB.headers(token)
+    });
+    const data = await r.json();
+    return Array.isArray(data) ? data[0]||null : null;
+  },
+
+  saveProfile: async (profile, userId, token) => {
+    const {url} = SB.getConfig();
+    const r = await fetch(url+"/rest/v1/profiles", {
+      method:"POST",
+      headers:{...SB.headers(token),"Prefer":"resolution=merge-duplicates"},
+      body:JSON.stringify({...profile, id:userId})
+    });
+    return r.ok;
+  },
+
+  saveReco: async (data, userId, token) => {
+    const {url} = SB.getConfig();
+    const r = await fetch(url+"/rest/v1/reconciliations", {
+      method:"POST", headers:SB.headers(token),
+      body:JSON.stringify({...data, user_id:userId})
+    });
+    return r.ok;
+  },
+
+  getRecos: async (userId, token) => {
+    const {url} = SB.getConfig();
+    const r = await fetch(url+"/rest/v1/reconciliations?user_id=eq."+userId+"&order=created_at.desc&limit=50", {
+      headers:SB.headers(token)
+    });
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
+  },
+};
+
+
+const C = {
+  navy:"#0F2744",blue:"#1E4D8C",sky:"#2E86DE",
+  green:"#1A9E5F",red:"#D63031",orange:"#E67E22",
+  gold:"#F0B429",light:"#F4F7FB",white:"#FFFFFF",
+  grey:"#6B7280",border:"#E2E8F0",purple:"#7C3AED",
+};
+
+// TRANSLATIONS
+const T = {
+  en:{name:"English",flag:"🇬🇧",dir:"ltr",
+    tagline:"Narcotics reconciliation · Universal",
+    login:"Login",signup:"Create account",email:"Email address",password:"Password",
+    signIn:"Sign in →",createAcc:"Create my account →",loading:"...",
+    pwdShort:"Password too short (min. 6 characters).",restricted:"Restricted access · Confidential data",
+    signupNote:"After signup, you will configure your pharmacy.",
+    welcome:"Welcome to NarcoSync",setupStep:"Pharmacy setup · Step",of:"of",
+    whichLang:"Choose your language",
+    whichCountry:"Which country are you in?",countryNote:"NarcoSync adapts to your country's systems and regulations.",
+    whichPharmacy:"Your pharmacy",pharmacyName:"Pharmacy name",pharmacyPlaceholder:"e.g. Goudreault Pharmacy",
+    whichChain:"Which chain or banner?",chainNote:"Choose your main affiliation.",
+    whichSystems:"Your software systems",dispensingSystem:"Dispensing system (sales)",dispensingNote:"The software used to prepare and sell medications.",
+    inventorySystem:"Narcotics inventory system",inventoryNote:"The register or software for controlled substances inventory.",
+    detectedConfig:"✅ Detected configuration",detectedNote:"NarcoSync is optimized for",plus:"and",
+    salesFormat:"Recommended format for sales:",invFormat:"Recommended format for inventory:",
+    back:"← Back",next:"Next →",start:"Get started →",
+    dashboard:"Dashboard",reconciliation:"Reconciliation",history:"History",settings:"Settings",
+    newReco:"+ New reconciliation",cycle:"Cycle V75 · Universal · All systems",
+    dispensing:"DISPENSING SYSTEM",inventory:"NARCOTICS INVENTORY",country:"COUNTRY",
+    howWorks:"How it works",upload:"Upload",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- any format, any system",
+    aiReads:"Reads everything",aiDesc:"NarcoSync extracts your data automatically",
+    recoTitle:"Reconciliation",recoDesc:"Discrepancies identified in seconds, regardless of pharmacy chain",
+    startNow:"Get started now →",compatible:"✅ Compatible systems & chains",
+    newRecoTitle:"New reconciliation",newRecoSubtitle:"Works with any system -- photo, CSV, Excel, PDF",
+    universal:"Universal compatibility",universalNote:"Adapts to your system automatically",
+    sourcesLoaded:"Sources loaded",srcInv:"Inventory",srcSales:"Sales",srcReceipts:"Purchases",
+    entries:"entries",none:"--",
+    reconcileNow:"⚡ Reconcile now",reconciling:"Reconciling…",crossChecking:"Cross-checking inventory · sales · purchases",
+    results:"Results",products:"products",discrepancies:"discrepancies",ok:"OK",
+    medication:"Medication",format:"Format",inventoryCol:"Inventory",purchases:"Purchases",
+    sales:"Sales",theoretical:"Theoretical",discrepancy:"Discrepancy",status:"Status",
+    all:"All",logout:"🔒 Sign out",historyTitle:"History",historyNote:"Connect Supabase to save past reconciliations.",
+    settingsTitle:"Settings",settingsNote:"Pharmacy config · System connections · In development.",
+    photoHint:"Scan · CSV · Excel · PDF · Photo",
+    aiReading:"⏳ Reading…",extracted:"entries extracted",
+    unreadable:"⚠️ Unreadable -- try a photo",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  fr:{name:"Français",flag:"🇫🇷",dir:"ltr",
+    tagline:"Réconciliation des narcotiques · Universel",
+    login:"Connexion",signup:"Créer un compte",email:"Adresse email",password:"Mot de passe",
+    signIn:"Se connecter →",createAcc:"Créer mon compte →",loading:"...",
+    pwdShort:"Mot de passe trop court (min. 6 caractères).",restricted:"Accès restreint · Données confidentielles",
+    signupNote:"Après inscription, vous configurerez votre pharmacie.",
+    welcome:"Bienvenue sur NarcoSync",setupStep:"Configuration · Étape",of:"sur",
+    whichLang:"Choisissez votre langue",
+    whichCountry:"Dans quel pays êtes-vous?",countryNote:"NarcoSync s'adapte aux systèmes et réglementations de votre pays.",
+    whichPharmacy:"Votre pharmacie",pharmacyName:"Nom de votre pharmacie",pharmacyPlaceholder:"Ex: Pharmacie Goudreault",
+    whichChain:"Quelle chaîne ou bannière?",chainNote:"Choisissez votre affiliation principale.",
+    whichSystems:"Vos systèmes informatiques",dispensingSystem:"Système de dispensation (ventes)",dispensingNote:"Le logiciel utilisé pour préparer et vendre les médicaments.",
+    inventorySystem:"Système d'inventaire narcotiques",inventoryNote:"Le registre ou logiciel pour les substances contrôlées.",
+    detectedConfig:"✅ Configuration détectée",detectedNote:"NarcoSync est optimisé pour",plus:"et",
+    salesFormat:"Format recommandé pour les ventes :",invFormat:"Format recommandé pour l'inventaire :",
+    back:"← Retour",next:"Suivant →",start:"Commencer →",
+    dashboard:"Tableau de bord",reconciliation:"Réconciliation",history:"Historique",settings:"Paramètres",
+    newReco:"+ Nouvelle réconciliation",cycle:"Cycle V75 · Universel · Tout système",
+    dispensing:"SYSTÈME DE DISPENSATION",inventory:"INVENTAIRE NARCOTIQUES",country:"PAYS",
+    howWorks:"Comment ça marche",upload:"Uploadez",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- n'importe quel format, n'importe quel système",
+    aiReads:"Lit tout",aiDesc:"NarcoSync lit et extrait vos données automatiquement",
+    recoTitle:"Réconciliation",recoDesc:"Écarts identifiés en secondes, peu importe la chaîne de pharmacie",
+    startNow:"Commencer maintenant →",compatible:"✅ Systèmes & chaînes compatibles",
+    newRecoTitle:"Nouvelle réconciliation",newRecoSubtitle:"Fonctionne avec tout système -- photo, CSV, Excel, PDF",
+    universal:"Compatibilité universelle",universalNote:"S'adapte à votre système automatiquement",
+    sourcesLoaded:"Sources chargées",srcInv:"Inventaire",srcSales:"Ventes",srcReceipts:"Achats",
+    entries:"entrées",none:"--",
+    reconcileNow:"⚡ Réconcilier maintenant",reconciling:"Réconciliation en cours…",crossChecking:"Croisement inventaire · ventes · achats",
+    results:"Résultats",products:"produits",discrepancies:"écarts",ok:"OK",
+    medication:"Médicament",format:"Format",inventoryCol:"Inventaire",purchases:"Achats",
+    sales:"Ventes",theoretical:"Théorique",discrepancy:"Écart",status:"Statut",
+    all:"Tout",logout:"🔒 Déconnexion",historyTitle:"Historique",historyNote:"Connecter Supabase pour sauvegarder les réconciliations passées.",
+    settingsTitle:"Paramètres",settingsNote:"Configuration pharmacie · Connexions systèmes · En développement.",
+    photoHint:"Scan · CSV · Excel · PDF · Photo",
+    aiReading:"⏳ Lecture…",extracted:"entrées extraites",
+    unreadable:"⚠️ Impossible de lire -- essayer une photo",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  es:{name:"Español",flag:"🇪🇸",dir:"ltr",
+    tagline:"Reconciliación narco inteligente · Universal",
+    login:"Iniciar sesión",signup:"Crear cuenta",email:"Correo electrónico",password:"Contraseña",
+    signIn:"Iniciar sesión →",createAcc:"Crear mi cuenta →",loading:"...",
+    pwdShort:"Contraseña demasiado corta (mín. 6 caracteres).",restricted:"Acceso restringido · Datos confidenciales",
+    signupNote:"Después del registro, configurará su farmacia.",
+    welcome:"Bienvenido a NarcoSync",setupStep:"Configuración · Paso",of:"de",
+    whichLang:"Elija su idioma",
+    whichCountry:"¿En qué país está?",countryNote:"NarcoSync se adapta a los sistemas y reglamentos de su país.",
+    whichPharmacy:"Su farmacia",pharmacyName:"Nombre de la farmacia",pharmacyPlaceholder:"Ej: Farmacia García",
+    whichChain:"¿Qué cadena o grupo?",chainNote:"Elija su afiliación principal.",
+    whichSystems:"Sus sistemas informáticos",dispensingSystem:"Sistema de dispensación (ventas)",dispensingNote:"El software para preparar y dispensar medicamentos.",
+    inventorySystem:"Sistema de inventario narcóticos",inventoryNote:"El registro o software para sustancias controladas.",
+    detectedConfig:"✅ Configuración detectada",detectedNote:"NarcoSync está optimizado para",plus:"y",
+    salesFormat:"Formato recomendado para ventas:",invFormat:"Formato recomendado para inventario:",
+    back:"← Atrás",next:"Siguiente →",start:"Comenzar →",
+    dashboard:"Panel",reconciliation:"Reconciliación",history:"Historial",settings:"Configuración",
+    newReco:"+ Nueva reconciliación",cycle:"Ciclo V75 · Universal · Todo sistema",
+    dispensing:"SISTEMA DE DISPENSACIÓN",inventory:"INVENTARIO NARCÓTICOS",country:"PAÍS",
+    howWorks:"Cómo funciona",upload:"Suba",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- cualquier formato",
+    aiReads:"Lee todo",aiDesc:"NarcoSync lee y extrae sus datos automáticamente",
+    recoTitle:"Reconciliación",recoDesc:"Discrepancias identificadas en segundos",
+    startNow:"Comenzar ahora →",compatible:"✅ Sistemas y cadenas compatibles",
+    newRecoTitle:"Nueva reconciliación",newRecoSubtitle:"Funciona con cualquier sistema",
+    universal:"Compatibilidad universal",universalNote:"Se adapta a su sistema automáticamente",
+    sourcesLoaded:"Fuentes cargadas",srcInv:"Inventario",srcSales:"Ventas",srcReceipts:"Compras",
+    entries:"entradas",none:"--",
+    reconcileNow:"⚡ Reconciliar ahora",reconciling:"Reconciliando…",crossChecking:"Cruzando inventario · ventas · compras",
+    results:"Resultados",products:"productos",discrepancies:"discrepancias",ok:"OK",
+    medication:"Medicamento",format:"Formato",inventoryCol:"Inventario",purchases:"Compras",
+    sales:"Ventas",theoretical:"Teórico",discrepancy:"Discrepancia",status:"Estado",
+    all:"Todo",logout:"🔒 Cerrar sesión",historyTitle:"Historial",historyNote:"Conectar Supabase para guardar reconciliaciones.",
+    settingsTitle:"Configuración",settingsNote:"Config farmacia · Conexiones · En desarrollo.",
+    photoHint:"Foto de cualquier informe impreso",
+    aiReading:"⏳ Leyendo documento…",extracted:"entradas extraídas",
+    unreadable:"⚠️ No legible -- intentar con foto",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  pt:{name:"Português",flag:"🇧🇷",dir:"ltr",
+    tagline:"Reconciliação narco inteligente · Universal",
+    login:"Entrar",signup:"Criar conta",email:"Endereço de email",password:"Senha",
+    signIn:"Entrar →",createAcc:"Criar minha conta →",loading:"...",
+    pwdShort:"Senha muito curta (mín. 6 caracteres).",restricted:"Acesso restrito · Dados confidenciais",
+    signupNote:"Após o cadastro, você configurará sua farmácia.",
+    welcome:"Bem-vindo ao NarcoSync",setupStep:"Configuração · Passo",of:"de",
+    whichLang:"Escolha seu idioma",
+    whichCountry:"Em qual país você está?",countryNote:"NarcoSync se adapta aos sistemas do seu país.",
+    whichPharmacy:"Sua farmácia",pharmacyName:"Nome da farmácia",pharmacyPlaceholder:"Ex: Farmácia Silva",
+    whichChain:"Qual rede ou bandeira?",chainNote:"Escolha sua afiliação principal.",
+    whichSystems:"Seus sistemas de software",dispensingSystem:"Sistema de dispensação (vendas)",dispensingNote:"O software para preparar e dispensar medicamentos.",
+    inventorySystem:"Sistema de inventário narcóticos",inventoryNote:"O registro para substâncias controladas.",
+    detectedConfig:"✅ Configuração detectada",detectedNote:"NarcoSync está otimizado para",plus:"e",
+    salesFormat:"Formato recomendado para vendas:",invFormat:"Formato recomendado para inventário:",
+    back:"← Voltar",next:"Próximo →",start:"Começar →",
+    dashboard:"Painel",reconciliation:"Reconciliação",history:"Histórico",settings:"Configurações",
+    newReco:"+ Nova reconciliação",cycle:"Ciclo V75 · Universal · Todo sistema",
+    dispensing:"SISTEMA DE DISPENSAÇÃO",inventory:"INVENTÁRIO NARCÓTICOS",country:"PAÍS",
+    howWorks:"Como funciona",upload:"Envie",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- qualquer formato",
+    aiReads:"Lê tudo",aiDesc:"NarcoSync lê e extrai seus dados automaticamente",
+    recoTitle:"Reconciliação",recoDesc:"Discrepâncias identificadas em segundos",
+    startNow:"Começar agora →",compatible:"✅ Sistemas e redes compatíveis",
+    newRecoTitle:"Nova reconciliação",newRecoSubtitle:"Funciona com qualquer sistema",
+    universal:"Compatibilidade universal",universalNote:"Se adapta ao seu sistema automaticamente",
+    sourcesLoaded:"Fontes carregadas",srcInv:"Inventário",srcSales:"Vendas",srcReceipts:"Compras",
+    entries:"entradas",none:"--",
+    reconcileNow:"⚡ Reconciliar agora",reconciling:"Reconciliando…",crossChecking:"Cruzando inventário · vendas · compras",
+    results:"Resultados",products:"produtos",discrepancies:"discrepâncias",ok:"OK",
+    medication:"Medicamento",format:"Formato",inventoryCol:"Inventário",purchases:"Compras",
+    sales:"Vendas",theoretical:"Teórico",discrepancy:"Discrepância",status:"Status",
+    all:"Tudo",logout:"🔒 Sair",historyTitle:"Histórico",historyNote:"Conectar Supabase para salvar reconciliações.",
+    settingsTitle:"Configurações",settingsNote:"Config farmácia · Conexões · Em desenvolvimento.",
+    photoHint:"Foto de qualquer relatório impresso",
+    aiReading:"⏳ Lendo documento…",extracted:"entradas extraídas",
+    unreadable:"⚠️ Ilegível -- tentar com foto",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  de:{name:"Deutsch",flag:"🇩🇪",dir:"ltr",
+    tagline:"Betäubungsmittel-Abgleichung · Universal",
+    login:"Anmelden",signup:"Konto erstellen",email:"E-Mail-Adresse",password:"Passwort",
+    signIn:"Anmelden →",createAcc:"Konto erstellen →",loading:"...",
+    pwdShort:"Passwort zu kurz (min. 6 Zeichen).",restricted:"Eingeschränkter Zugang · Vertrauliche Daten",
+    signupNote:"Nach der Registrierung konfigurieren Sie Ihre Apotheke.",
+    welcome:"Willkommen bei NarcoSync",setupStep:"Einrichtung · Schritt",of:"von",
+    whichLang:"Sprache wählen",
+    whichCountry:"In welchem Land sind Sie?",countryNote:"NarcoSync passt sich an Ihr Land an.",
+    whichPharmacy:"Ihre Apotheke",pharmacyName:"Apothekenname",pharmacyPlaceholder:"z.B. Apotheke Müller",
+    whichChain:"Welche Kette?",chainNote:"Wählen Sie Ihre Hauptzugehörigkeit.",
+    whichSystems:"Ihre Softwaresysteme",dispensingSystem:"Abgabesystem (Verkäufe)",dispensingNote:"Die Software zur Vorbereitung und Abgabe von Medikamenten.",
+    inventorySystem:"Betäubungsmittel-Inventarsystem",inventoryNote:"Das Register für kontrollierte Substanzen.",
+    detectedConfig:"✅ Konfiguration erkannt",detectedNote:"NarcoSync ist optimiert für",plus:"und",
+    salesFormat:"Empfohlenes Format für Verkäufe:",invFormat:"Empfohlenes Format für Inventar:",
+    back:"← Zurück",next:"Weiter →",start:"Loslegen →",
+    dashboard:"Dashboard",reconciliation:"Abgleichung",history:"Verlauf",settings:"Einstellungen",
+    newReco:"+ Neue Abgleichung",cycle:"Zyklus V75 · Universal",
+    dispensing:"ABGABESYSTEM",inventory:"BtM-INVENTAR",country:"LAND",
+    howWorks:"Wie es funktioniert",upload:"Hochladen",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- jedes Format",
+    aiReads:"Liest alles",aiDesc:"NarcoSync liest und extrahiert Ihre Daten automatisch",
+    recoTitle:"Abgleichung",recoDesc:"Abweichungen in Sekunden identifiziert",
+    startNow:"Jetzt loslegen →",compatible:"✅ Kompatible Systeme",
+    newRecoTitle:"Neue Abgleichung",newRecoSubtitle:"Funktioniert mit jedem System",
+    universal:"Universelle Kompatibilität",universalNote:"Passt sich automatisch an Ihr System an",
+    sourcesLoaded:"Geladene Quellen",srcInv:"Inventar",srcSales:"Verkäufe",srcReceipts:"Einkäufe",
+    entries:"Einträge",none:"--",
+    reconcileNow:"⚡ Jetzt abgleichen",reconciling:"Abgleichung läuft…",crossChecking:"Inventar · Verkäufe · Einkäufe werden abgeglichen",
+    results:"Ergebnisse",products:"Produkte",discrepancies:"Abweichungen",ok:"OK",
+    medication:"Medikament",format:"Format",inventoryCol:"Inventar",purchases:"Einkäufe",
+    sales:"Verkäufe",theoretical:"Theoretisch",discrepancy:"Abweichung",status:"Status",
+    all:"Alle",logout:"🔒 Abmelden",historyTitle:"Verlauf",historyNote:"Supabase verbinden zum Speichern.",
+    settingsTitle:"Einstellungen",settingsNote:"Apothekenkonfiguration · In Entwicklung.",
+    photoHint:"Foto eines beliebigen gedruckten Berichts",
+    aiReading:"⏳ Dokument wird gelesen…",extracted:"Einträge extrahiert",
+    unreadable:"⚠️ Nicht lesbar -- Foto versuchen",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  ar:{name:"العربية",flag:"🇸🇦",dir:"rtl",
+    tagline:"مطابقة المخدرات الذكية · عالمي",
+    login:"تسجيل الدخول",signup:"إنشاء حساب",email:"البريد الإلكتروني",password:"كلمة المرور",
+    signIn:"تسجيل الدخول ←",createAcc:"إنشاء حسابي ←",loading:"...",
+    pwdShort:"كلمة المرور قصيرة جداً (الحد الأدنى 6 أحرف).",restricted:"وصول مقيد · بيانات سرية",
+    signupNote:"بعد التسجيل، ستقوم بإعداد صيدليتك.",
+    welcome:"مرحباً بك في NarcoSync",setupStep:"الإعداد · الخطوة",of:"من",
+    whichLang:"اختر لغتك",
+    whichCountry:"في أي دولة أنت؟",countryNote:"يتكيف NarcoSync مع أنظمة ولوائح بلدك.",
+    whichPharmacy:"صيدليتك",pharmacyName:"اسم الصيدلية",pharmacyPlaceholder:"مثال: صيدلية الأمل",
+    whichChain:"أي سلسلة أو علامة تجارية؟",chainNote:"اختر انتمائك الرئيسي.",
+    whichSystems:"أنظمتك البرمجية",dispensingSystem:"نظام الصرف (المبيعات)",dispensingNote:"البرنامج المستخدم لتحضير وصرف الأدوية.",
+    inventorySystem:"نظام جرد المخدرات",inventoryNote:"السجل أو البرنامج للمواد الخاضعة للرقابة.",
+    detectedConfig:"✅ تم اكتشاف الإعداد",detectedNote:"NarcoSync محسّن لـ",plus:"و",
+    salesFormat:"التنسيق الموصى به للمبيعات:",invFormat:"التنسيق الموصى به للجرد:",
+    back:"رجوع →",next:"→ التالي",start:"→ ابدأ",
+    dashboard:"لوحة التحكم",reconciliation:"المطابقة",history:"السجل",settings:"الإعدادات",
+    newReco:"+ مطابقة جديدة",cycle:"الدورة V75 · عالمي",
+    dispensing:"نظام الصرف",inventory:"جرد المخدرات",country:"الدولة",
+    howWorks:"كيف يعمل",upload:"رفع",uploadDesc:"صورة · Excel · CSV · PDF -- أي تنسيق",
+    aiReads:"يقرأ كل شيء",aiDesc:"يقرأ NarcoSync بياناتك ويستخرجها تلقائياً",
+    recoTitle:"المطابقة",recoDesc:"تحديد التناقضات في ثوانٍ",
+    startNow:"→ ابدأ الآن",compatible:"✅ الأنظمة والسلاسل المتوافقة",
+    newRecoTitle:"مطابقة جديدة",newRecoSubtitle:"يعمل مع أي نظام",
+    universal:"توافق عالمي",universalNote:"يتكيف مع نظامك تلقائياً",
+    sourcesLoaded:"المصادر المحملة",srcInv:"الجرد",srcSales:"المبيعات",srcReceipts:"المشتريات",
+    entries:"إدخالات",none:"--",
+    reconcileNow:"⚡ مطابقة الآن",reconciling:"جارٍ المطابقة…",crossChecking:"مقارنة الجرد · المبيعات · المشتريات",
+    results:"النتائج",products:"منتجات",discrepancies:"تناقضات",ok:"موافق",
+    medication:"الدواء",format:"التنسيق",inventoryCol:"الجرد",purchases:"المشتريات",
+    sales:"المبيعات",theoretical:"نظري",discrepancy:"فارق",status:"الحالة",
+    all:"الكل",logout:"🔒 تسجيل الخروج",historyTitle:"السجل",historyNote:"اتصل بـ Supabase لحفظ المطابقات السابقة.",
+    settingsTitle:"الإعدادات",settingsNote:"إعداد الصيدلية · قيد التطوير.",
+    photoHint:"صورة لأي تقرير مطبوع",
+    aiReading:"⏳ جارٍ القراءة…",extracted:"إدخالات مستخرجة",
+    unreadable:"⚠️ غير قابل للقراءة -- حاول مع صورة",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+  it:{name:"Italiano",flag:"🇮🇹",dir:"ltr",
+    tagline:"Riconciliazione stupefacenti · Universale",
+    login:"Accedi",signup:"Crea account",email:"Indirizzo email",password:"Password",
+    signIn:"Accedi →",createAcc:"Crea il mio account →",loading:"...",
+    pwdShort:"Password troppo corta (min. 6 caratteri).",restricted:"Accesso limitato · Dati riservati",
+    signupNote:"Dopo la registrazione, configurerai la tua farmacia.",
+    welcome:"Benvenuto in NarcoSync",setupStep:"Configurazione · Passo",of:"di",
+    whichLang:"Scegli la tua lingua",
+    whichCountry:"In quale paese sei?",countryNote:"NarcoSync si adatta ai sistemi del tuo paese.",
+    whichPharmacy:"La tua farmacia",pharmacyName:"Nome della farmacia",pharmacyPlaceholder:"Es: Farmacia Rossi",
+    whichChain:"Quale catena o gruppo?",chainNote:"Scegli la tua affiliazione principale.",
+    whichSystems:"I tuoi sistemi software",dispensingSystem:"Sistema di dispensazione (vendite)",dispensingNote:"Il software per preparare e dispensare i farmaci.",
+    inventorySystem:"Sistema inventario stupefacenti",inventoryNote:"Il registro per le sostanze controllate.",
+    detectedConfig:"✅ Configurazione rilevata",detectedNote:"NarcoSync è ottimizzato per",plus:"e",
+    salesFormat:"Formato consigliato per le vendite:",invFormat:"Formato consigliato per l'inventario:",
+    back:"← Indietro",next:"Avanti →",start:"Inizia →",
+    dashboard:"Dashboard",reconciliation:"Riconciliazione",history:"Cronologia",settings:"Impostazioni",
+    newReco:"+ Nuova riconciliazione",cycle:"Ciclo V75 · Universale",
+    dispensing:"SISTEMA DI DISPENSAZIONE",inventory:"INVENTARIO STUPEFACENTI",country:"PAESE",
+    howWorks:"Come funziona",upload:"Carica",uploadDesc:"Scan · Excel · CSV · PDF · Photo -- qualsiasi formato",
+    aiReads:"Legge tutto",aiDesc:"NarcoSync legge ed estrae i tuoi dati automaticamente",
+    recoTitle:"Riconciliazione",recoDesc:"Discrepanze identificate in secondi",
+    startNow:"Inizia ora →",compatible:"✅ Sistemi e catene compatibili",
+    newRecoTitle:"Nuova riconciliazione",newRecoSubtitle:"Funziona con qualsiasi sistema",
+    universal:"Compatibilità universale",universalNote:"Si adatta automaticamente al tuo sistema",
+    sourcesLoaded:"Fonti caricate",srcInv:"Inventario",srcSales:"Vendite",srcReceipts:"Acquisti",
+    entries:"voci",none:"--",
+    reconcileNow:"⚡ Riconcilia ora",reconciling:"Riconciliazione in corso…",crossChecking:"Incrociando inventario · vendite · acquisti",
+    results:"Risultati",products:"prodotti",discrepancies:"discrepanze",ok:"OK",
+    medication:"Farmaco",format:"Formato",inventoryCol:"Inventario",purchases:"Acquisti",
+    sales:"Vendite",theoretical:"Teorico",discrepancy:"Scarto",status:"Stato",
+    all:"Tutto",logout:"🔒 Esci",historyTitle:"Cronologia",historyNote:"Connetti Supabase per salvare le riconciliazioni.",
+    settingsTitle:"Impostazioni",settingsNote:"Config farmacia · Connessioni · In sviluppo.",
+    photoHint:"Foto di qualsiasi report stampato",
+    aiReading:"⏳ Lettura in corso…",extracted:"voci estratte",
+    unreadable:"⚠️ Illeggibile -- prova con una foto",formatNote:"🖨️ Scan · 📊 Excel · 📑 CSV · 📋 PDF · 📸 Photo",
+  },
+};
+
+// Pharmacy data by country
+const ALL_CHAINS = [
+  {name:"Jean Coutu",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","PharmaClik","Logibec","Autre"],inv:["Matrix / MMS","Intégré au système","Manuel / papier","Autre"]},
+  {name:"Uniprix",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","PharmaClik","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"Proxim",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","PharmaClik","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"PharmaChoix",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"Familiprix",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","PharmaClik","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"Brunet",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["AssiStRx","Kroll","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"Shoppers Drug Mart / Pharmaprix",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","AssiStRx","Autre"],inv:["Matrix / MMS","Intégré","Manuel","Autre"]},
+  {name:"Rexall",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","PROscript","Autre"],inv:["Intégré","Matrix / MMS","Manuel","Autre"]},
+  {name:"Guardian / IDA",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","WinRx","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"London Drugs",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"Lawtons",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"Pharmasave",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","WinRx","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"Costco Pharmacy (Canada)",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"Walmart Pharmacy (Canada)",flag:"🇨🇦",country:"CA",countryName:"Canada",mgmt:["Kroll","Autre"],inv:["Intégré","Manuel","Autre"]},
+  {name:"CVS Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","PioneerRx","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Walgreens",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Rite Aid",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","PioneerRx","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Walmart Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Costco Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","PioneerRx","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Kroger Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["QS/1","Rx30","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Albertsons Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["PioneerRx","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Health Mart",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["PioneerRx","QS/1","BestRx","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Good Neighbor Pharmacy",flag:"🇺🇸",country:"US",countryName:"USA",mgmt:["PioneerRx","QS/1","Other"],inv:["DEA CSOS","Integrated","Manual","Other"]},
+  {name:"Boots",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","PMR System","Cegedim","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Lloyds Pharmacy",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","PharmaCare","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Well Pharmacy",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","Sunrise","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Superdrug",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Day Lewis",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","RxWeb","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Numark",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["PMR System","Titan","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Rowlands Pharmacy",flag:"🇬🇧",country:"UK",countryName:"United Kingdom",mgmt:["Titan","Other"],inv:["CD Register","Integrated","Manual","Other"]},
+  {name:"Chemist Warehouse",flag:"🇦🇺",country:"AU",countryName:"Australia",mgmt:["Fred Dispense","Minfos","Other"],inv:["S8 Drug Register","Integrated","Manual","Other"]},
+  {name:"Priceline Pharmacy",flag:"🇦🇺",country:"AU",countryName:"Australia",mgmt:["Fred Dispense","Corum","Other"],inv:["S8 Drug Register","Integrated","Manual","Other"]},
+  {name:"Terry White Chemists",flag:"🇦🇺",country:"AU",countryName:"Australia",mgmt:["Fred Dispense","Minfos","Other"],inv:["S8 Drug Register","Integrated","Manual","Other"]},
+  {name:"Amcal",flag:"🇦🇺",country:"AU",countryName:"Australia",mgmt:["Fred Dispense","Minfos","Other"],inv:["S8 Drug Register","Integrated","Manual","Other"]},
+  {name:"Pharmacie Leclerc",flag:"🇫🇷",country:"FR",countryName:"France",mgmt:["LGPI","Alliadis","Winpharma","Autre"],inv:["Registre stupéfiants","Intégré","Manuel","Autre"]},
+  {name:"Alphega Pharmacie",flag:"🇫🇷",country:"FR",countryName:"France",mgmt:["LGPI","Pharmaland","Autre"],inv:["Registre stupéfiants","Intégré","Manuel","Autre"]},
+  {name:"Giphar",flag:"🇫🇷",country:"FR",countryName:"France",mgmt:["LGPI","Alliadis","Autre"],inv:["Registre stupéfiants","Intégré","Manuel","Autre"]},
+  {name:"Pharmavie",flag:"🇫🇷",country:"FR",countryName:"France",mgmt:["LGPI","Winpharma","Autre"],inv:["Registre stupéfiants","Intégré","Manuel","Autre"]},
+  {name:"Zur Rose",flag:"🇩🇪",country:"DE",countryName:"Germany",mgmt:["LAUER-TAXE","ADG","Andere"],inv:["Betäubungsmittelbuch","Integriert","Manuell","Andere"]},
+  {name:"DocMorris",flag:"🇩🇪",country:"DE",countryName:"Germany",mgmt:["LAUER-TAXE","Pharmatechnik","Andere"],inv:["Betäubungsmittelbuch","Integriert","Manuell","Andere"]},
+  {name:"Lloyds Farmacia",flag:"🇮🇹",country:"IT",countryName:"Italy",mgmt:["Wingesfar","FarmaClick","Altro"],inv:["Registro stupefacenti","Integrato","Manuale","Altro"]},
+  {name:"Farmacie COOP",flag:"🇮🇹",country:"IT",countryName:"Italy",mgmt:["Wingesfar","SiscoFar","Altro"],inv:["Registro stupefacenti","Integrato","Manuale","Altro"]},
+  {name:"Farmacéuticos Nosotros",flag:"🇪🇸",country:"ES",countryName:"Spain",mgmt:["Farmatic","Nixfarma","Unycop","Otro"],inv:["Libro recetario","Integrado","Manual","Otro"]},
+  {name:"DosFarma",flag:"🇪🇸",country:"ES",countryName:"Spain",mgmt:["Farmatic","Nixfarma","Otro"],inv:["Libro recetario","Integrado","Manual","Otro"]},
+  {name:"Drogasil",flag:"🇧🇷",country:"BR",countryName:"Brazil",mgmt:["MV","Tasy","Outro"],inv:["Livro de registros","Integrado","Manual","Outro"]},
+  {name:"Drogaria São Paulo",flag:"🇧🇷",country:"BR",countryName:"Brazil",mgmt:["MV","Tasy","Outro"],inv:["Livro de registros","Integrado","Manual","Outro"]},
+  {name:"Pague Menos",flag:"🇧🇷",country:"BR",countryName:"Brazil",mgmt:["MV","Outro"],inv:["Livro de registros","Integrado","Manual","Outro"]},
+  {name:"RaiaDrogasil",flag:"🇧🇷",country:"BR",countryName:"Brazil",mgmt:["MV","Tasy","Outro"],inv:["Livro de registros","Integrado","Manual","Outro"]},
+  {name:"Al-Nahdi Medical",flag:"🇸🇦",country:"SA",countryName:"Saudi Arabia",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Al-Dawaa Pharmacies",flag:"🇸🇦",country:"SA",countryName:"Saudi Arabia",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Boots (UAE)",flag:"🇦🇪",country:"AE",countryName:"UAE",mgmt:["Titan","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Apollo Pharmacy",flag:"🇮🇳",country:"IN",countryName:"India",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"MedPlus",flag:"🇮🇳",country:"IN",countryName:"India",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Clicks Pharmacy",flag:"🇿🇦",country:"ZA",countryName:"South Africa",mgmt:["Unisolv","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"Dis-Chem",flag:"🇿🇦",country:"ZA",countryName:"South Africa",mgmt:["Unisolv","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"Matsumoto Kiyoshi",flag:"🇯🇵",country:"JP",countryName:"Japan",mgmt:["Custom system","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"BENU Apotheek",flag:"🇳🇱",country:"NL",countryName:"Netherlands",mgmt:["Pharmacom","PharmaPartners","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"Multipharma",flag:"🇧🇪",country:"BE",countryName:"Belgium",mgmt:["Hellodoc","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"Amavita",flag:"🇨🇭",country:"CH",countryName:"Switzerland",mgmt:["Triamun","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"DOZ Apteka",flag:"🇵🇱",country:"PL",countryName:"Poland",mgmt:["KS-Apteka","Other"],inv:["Integrated","Manual","Other"]},
+  {name:"Goodlife Pharmacy",flag:"🇰🇪",country:"KE",countryName:"Kenya",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Independent Pharmacy",flag:"🏥",country:"XX",countryName:"",mgmt:["AssiStRx","Kroll","QS/1","PioneerRx","LGPI","LAUER-TAXE","Other"],inv:["Manual register","Matrix / MMS","Integrated","Other"]},
+  {name:"Hospital Pharmacy",flag:"🏥",country:"XX",countryName:"",mgmt:["SAP Pharmacy","Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+  {name:"Clinic Pharmacy",flag:"🏥",country:"XX",countryName:"",mgmt:["Custom system","Other"],inv:["Manual register","Integrated","Other"]},
+];
+
+// Worldwide regulatory database
+const REGS = {
+  // CANADA
+  "CA-QC":{region:"Québec",country:"Canada",flag:"🏛️",authority:"Ordre des pharmaciens du Québec (OPQ)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:7,
+    categories:["Stupéfiants (Annexe I)","Drogues contrôlées (Annexe II)","Précurseurs contrôlés","Benzodiazépines ciblées"],
+    rules:["Inventaire cyclique obligatoire toutes les 6 semaines","Tout écart = investigation immédiate et documentation","Registre de stupéfiants signé par le pharmacien propriétaire","Rapport à l'OPQ + Santé Canada en cas de vol ou perte","Double décompte obligatoire pour les stupéfiants","Conservation des ordonnances originales 7 ans minimum","Signature du pharmacien responsable sur chaque page de registre"],
+    forms:["Registre des stupéfiants (OPQ)","Déclaration de vol/perte (Santé Canada)","Rapport d'inventaire cyclique"],
+    inspector:"OPQ + Santé Canada (DGPS)",color:"#003DA5",badgeColor:"#002D8C"},
+
+  "CA-ON":{region:"Ontario",country:"Canada",flag:"🏛️",authority:"Ontario College of Pharmacists (OCP)",
+    cycleWeeks:6,retentionYears:10,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Benzodiazepines & Other Targeted Substances","Precursor Chemicals"],
+    rules:["Narcotics reconciliation every 6 weeks minimum","All discrepancies investigated and documented within 10 days","Records retained 10 years","Loss/theft reported to OCP and Health Canada immediately","Witness required for all narcotic counts","Prescription records maintained separately","Annual review of policies required"],
+    forms:["OCP Narcotic Reconciliation Report","Health Canada Loss/Theft Report (Annex F)","Controlled Substance Log"],
+    inspector:"OCP + Health Canada",color:"#CC0000",badgeColor:"#AA0000"},
+
+  "CA-BC":{region:"British Columbia",country:"Canada",flag:"🏛️",authority:"College of Pharmacists of BC (CPBC)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:7,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances","Precursors"],
+    rules:["Perpetual inventory required for all narcotics","Reconciliation every 6 weeks","Any discrepancy reported within 7 days","Records kept 7 years","Pharmacist-in-charge signs all logs","Loss/theft reported to CPBC and RCMP"],
+    forms:["CPBC Narcotic Log","Health Canada Loss/Theft Form","Reconciliation Summary"],
+    inspector:"CPBC + Health Canada",color:"#00529B",badgeColor:"#00407A"},
+
+  "CA-AB":{region:"Alberta",country:"Canada",flag:"🏛️",authority:"Alberta College of Pharmacy (ACP)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances"],
+    rules:["6-week reconciliation cycle","Zero tolerance for unexplained discrepancies","7-year record retention","Report losses to ACP within 10 days","Double counting for Schedule I narcotics","Manager pharmacist signature required"],
+    forms:["ACP Narcotic Record","Loss Report (ACP + Health Canada)"],
+    inspector:"ACP + Health Canada",color:"#003366",badgeColor:"#002244"},
+
+  "CA-SK":{region:"Saskatchewan",country:"Canada",flag:"🏛️",authority:"Saskatchewan College of Pharmacy Professionals (SCPP)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances"],
+    rules:["Cyclical inventory every 6 weeks","All discrepancies documented","7-year retention","Report to SCPP and Health Canada for losses"],
+    forms:["SCPP Narcotic Log","Health Canada Loss Report"],
+    inspector:"SCPP + Health Canada",color:"#005030",badgeColor:"#003D24"},
+
+  "CA-MB":{region:"Manitoba",country:"Canada",flag:"🏛️",authority:"College of Pharmacists of Manitoba (CPM)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances"],
+    rules:["6-week inventory cycle","Discrepancy investigation required","7-year record retention","Report losses to CPM and Health Canada"],
+    forms:["CPM Narcotic Record","Loss/Theft Report"],
+    inspector:"CPM + Health Canada",color:"#6D2077",badgeColor:"#561A5F"},
+
+  "CA-NS":{region:"Nova Scotia",country:"Canada",flag:"🏛️",authority:"NS College of Pharmacy (NSCP)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances"],
+    rules:["Cyclical reconciliation every 6 weeks","Zero tolerance policy","7-year retention","Report all losses immediately"],
+    forms:["NSCP Narcotic Log","Health Canada Loss Report"],
+    inspector:"NSCP + Health Canada",color:"#003366",badgeColor:"#002244"},
+
+  "CA-NB":{region:"New Brunswick",country:"Canada",flag:"🏛️",authority:"NB College of Pharmacists (NBCP)",
+    cycleWeeks:6,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:10,
+    categories:["Narcotics","Controlled Drugs","Targeted Substances"],
+    rules:["6-week inventory cycle required","Full investigation for all discrepancies","7-year record keeping","Report losses to NBCP and Health Canada"],
+    forms:["NBCP Narcotic Record","Loss/Theft Form"],
+    inspector:"NBCP + Health Canada",color:"#CE1126",badgeColor:"#A30E1E"},
+
+  // USA
+  "US-CA":{region:"California",country:"USA",flag:"🏛️",authority:"California State Board of Pharmacy (CSBP) + DEA",
+    cycleWeeks:26,retentionYears:3,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Schedule II","Schedule III","Schedule IV","Schedule V","CA Controlled Substances"],
+    rules:["Biennial DEA inventory (every 2 years) -- Schedule II counted separately","Theft/loss reported to DEA within 1 business day (DEA Form 106)","3-year record retention minimum","California requires additional records for Schedule II","Pharmacist-in-charge responsible for all controlled substance records","Drug Enforcement Agency registration renewal every 3 years"],
+    forms:["DEA Form 222 (Schedule II ordering)","DEA Form 106 (Theft/Loss)","DEA Form 41 (Disposal)","CSBP Controlled Substance Report"],
+    inspector:"DEA + CSBP",color:"#003366",badgeColor:"#002244"},
+
+  "US-NY":{region:"New York",country:"USA",flag:"🏛️",authority:"New York State Board of Pharmacy (NYSBP) + DEA",
+    cycleWeeks:26,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Schedule II","Schedule III","Schedule IV","Schedule V","NY Schedule VI"],
+    rules:["Biennial DEA inventory required","NY requires annual Schedule II inventory","Loss/theft to DEA within 1 day","5-year record retention (NY exceeds federal)","Electronic prescribing for controlled substances (EPCS) required","NY ISTOP program reporting for dispensing"],
+    forms:["DEA Form 106","NY Controlled Substance Report","ISTOP Dispensing Report"],
+    inspector:"DEA + NYSBP",color:"#003087",badgeColor:"#002266"},
+
+  "US-TX":{region:"Texas",country:"USA",flag:"🏛️",authority:"Texas State Board of Pharmacy (TSBP) + DEA",
+    cycleWeeks:26,retentionYears:2,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Schedule II","Schedule III","Schedule IV","Schedule V"],
+    rules:["DEA biennial inventory","Loss/theft reported within 1 business day","2-year federal minimum retention (TX follows federal)","Texas Prescription Monitoring Program (PMP) reporting","Schedule II prescriptions filled within 21 days","Oral Schedule III-V prescriptions reduced to writing"],
+    forms:["DEA Form 106","DEA Form 222","Texas Controlled Substance Report"],
+    inspector:"DEA + TSBP",color:"#BF0A30",badgeColor:"#9A0825"},
+
+  "US-FL":{region:"Florida",country:"USA",flag:"🏛️",authority:"Florida Department of Health + DEA",
+    cycleWeeks:26,retentionYears:4,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Schedule II","Schedule III","Schedule IV","Schedule V"],
+    rules:["Biennial DEA inventory","Florida requires 4-year record retention","Theft/loss to DEA within 1 business day","Electronic prescribing mandatory for Schedule II","E-FORCSE PMP reporting required for all controlled substances","Dispensing limits for certain opioids"],
+    forms:["DEA Form 106","E-FORCSE Report","FL Controlled Substance Record"],
+    inspector:"DEA + FL Board of Pharmacy",color:"#F4433C",badgeColor:"#D63220"},
+
+  "US-FED":{region:"Federal (All States)",country:"USA",flag:"🏛️",authority:"Drug Enforcement Administration (DEA)",
+    cycleWeeks:104,retentionYears:2,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Schedule I","Schedule II","Schedule III","Schedule IV","Schedule V"],
+    rules:["Biennial physical inventory (every 2 years)","Schedule II -- exact count required","Schedule III-V -- estimated count acceptable","Loss/theft: DEA Form 106 within 1 business day","Significant loss: immediate notification by phone to DEA","2-year minimum record retention (states may require more)","Separate records for each schedule","DEA registration required for each location"],
+    forms:["DEA Form 106 (Theft/Loss)","DEA Form 222 (Schedule II ordering)","DEA Form 41 (Disposal)","DEA Form 363 (Registration)"],
+    inspector:"Drug Enforcement Administration (DEA)",color:"#002868",badgeColor:"#001A4A"},
+
+  // UK
+  "UK-ENG":{region:"England",country:"United Kingdom",flag:"🏛️",authority:"General Pharmaceutical Council (GPhC) + MHRA",
+    cycleWeeks:4,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:2,
+    categories:["Schedule 1 CD","Schedule 2 CD","Schedule 3 CD","Schedule 4 CD Part I","Schedule 4 CD Part II","Schedule 5 CD"],
+    rules:["Schedule 2 CDs: running balance in Controlled Drugs Register (CDR)","Physical check of balance at least every 4 weeks","Two witnesses required for Schedule 2 CD destruction","Report discrepancies to NHS CD Accountable Officer within 2 days","CDR must be kept 7 years","Electronic CDR permitted if approved","Superintendent pharmacist accountable for CD compliance","Home Office licence required for Schedule 1"],
+    forms:["Controlled Drugs Register (CDR)","CD Incident Report (NHS)","Home Office CD Record","Responsible Pharmacist Record"],
+    inspector:"GPhC + NHS CD Accountable Officer + MHRA",color:"#003087",badgeColor:"#002266"},
+
+  "UK-SCO":{region:"Scotland",country:"United Kingdom",flag:"🏛️",authority:"NHS Scotland CD Accountable Officer + GPhC",
+    cycleWeeks:4,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:2,
+    categories:["Schedule 2 CD","Schedule 3 CD","Schedule 4 CD","Schedule 5 CD"],
+    rules:["Same core requirements as England","Additional Scottish Government guidance applies","Report to NHS Scotland CD Accountable Officer","Health Improvement Scotland may inspect","7-year CDR retention"],
+    forms:["CDR Scotland","NHS Scotland CD Incident Report"],
+    inspector:"GPhC + NHS Scotland + Healthcare Improvement Scotland",color:"#0072CE",badgeColor:"#0059A0"},
+
+  // AUSTRALIA
+  "AU-NSW":{region:"New South Wales",country:"Australia",flag:"🏛️",authority:"NSW Ministry of Health + Pharmacy Council of NSW",
+    cycleWeeks:4,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Schedule 8 (S8 -- Controlled Drugs)","Schedule 4 (S4 -- Prescription Only)","Appendix D"],
+    rules:["S8 Drug Register required (perpetual inventory)","Physical balance check required regularly","Discrepancies reported to Pharmacy Council within 3 days","7-year record retention for S8","Two pharmacist signatures for S8 destruction","Regulatory Guidelines for Pharmacy 2015 compliance","Annual reporting of S8 dispensing data"],
+    forms:["S8 Drug Register","NSW Controlled Drug Discrepancy Report","S8 Destruction Record"],
+    inspector:"NSW Health + Pharmacy Council of NSW",color:"#002D72",badgeColor:"#001E54"},
+
+  "AU-VIC":{region:"Victoria",country:"Australia",flag:"🏛️",authority:"Pharmacy Board of Australia + AHPRA (Vic)",
+    cycleWeeks:4,retentionYears:7,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Schedule 8 (S8)","Schedule 4 (S4)","Drugs Poisons and Controlled Substances Act 1981"],
+    rules:["S8 perpetual inventory mandatory","Balance verification each time S8 dispensed","Discrepancy report to Department of Health within 3 days","7-year retention","Two witnesses for S8 destruction","DASA register for methamphetamine and pseudoephedrine"],
+    forms:["Victorian S8 Drug Register","S8 Discrepancy Report","DASA Record"],
+    inspector:"Victorian Department of Health + AHPRA",color:"#00529B",badgeColor:"#003D78"},
+
+  // FRANCE
+  "FR-NAT":{region:"France (national)",country:"France",flag:"🏛️",authority:"ANSM (Agence Nationale de Sécurité du Médicament)",
+    cycleWeeks:4,retentionYears:10,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Stupéfiants (Liste I spéciale)","Psychotropes (Liste I et II)","Médicaments à prescription restreinte"],
+    rules:["Registre des stupéfiants obligatoire (registre coté et paraphé)","Ordonnances sécurisées exigées pour les stupéfiants","Bilan mensuel des entrées/sorties","Conservation du registre 10 ans","Déclaration immédiate à l'ANSM en cas de vol","Double comptage pour certains stupéfiants","Pharmacien titulaire responsable de la conformité","Signalement à l'ARS en cas d'écart significatif"],
+    forms:["Registre des stupéfiants (format ANSM)","Déclaration de vol/perte (ANSM)","Bon de commande de stupéfiants (établissement autorisé)"],
+    inspector:"ANSM + ARS (Agences Régionales de Santé)",color:"#002395",badgeColor:"#001A70"},
+
+  // GERMANY
+  "DE-NAT":{region:"Deutschland (national)",country:"Germany",flag:"🏛️",authority:"BfArM (Bundesinstitut für Arzneimittel und Medizinprodukte)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Betäubungsmittel (BtM -- Narcotics)","Grundstoffe (Precursors)"],
+    rules:["BtM-Buch (Betäubungsmittelbuch) obligatorisch","Bestandsführung für jedes BtM separat","Monatliche Prüfung des Bestands","Meldung bei Verlust an BfArM innerhalb 3 Werktagen","Aufbewahrung 5 Jahre","BtM-Schrank (Safe) vorgeschrieben","Betäubungsmittelgesetz (BtMG) Compliance","Bundesland-Apothekenkammer zuständig für Inspektion"],
+    forms:["BtM-Buch (Bundesformular)","Verlustanzeige (BfArM)","BtM-Bestellschein (Triplicate)"],
+    inspector:"Landesapothekerkammer + BfArM",color:"#000000",badgeColor:"#111111"},
+
+  // ITALY
+  "IT-NAT":{region:"Italia (nazionale)",country:"Italy",flag:"🏛️",authority:"AIFA (Agenzia Italiana del Farmaco)",
+    cycleWeeks:4,retentionYears:10,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Sostanze stupefacenti (Tabella I-V DPR 309/90)","Psicotropi","Preparazioni magistrali stupefacenti"],
+    rules:["Registro di carico e scarico obbligatorio","Ricette speciali per stupefacenti (non ripetibili)","Verifica mensile del bilancio","Conservazione registro 10 anni","Segnalazione immediata all'ASL per furto/perdita","Armadio blindato obbligatorio","Responsabilità del direttore tecnico"],
+    forms:["Registro stupefacenti (AIFA)","Segnalazione furto/perdita (ASL)","Ricetta medica speciale"],
+    inspector:"AIFA + ASL locale + NAS Carabinieri",color:"#009246",badgeColor:"#006E35"},
+
+  // SPAIN
+  "ES-NAT":{region:"España (nacional)",country:"Spain",flag:"🏛️",authority:"AEMPS (Agencia Española de Medicamentos y Productos Sanitarios)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Estupefacientes (Lista I-IV)","Psicotropos","Precursores"],
+    rules:["Libro-registro de estupefacientes obligatorio","Recetas oficiales para estupefacientes","Control mensual de existencias","Conservación 5 años","Comunicación inmediata a AEMPS por robo/pérdida","Armario de seguridad obligatorio","Farmacéutico director responsable"],
+    forms:["Libro-registro de estupefacientes","Notificación pérdida/robo (AEMPS)","Receta oficial de estupefacientes"],
+    inspector:"AEMPS + CCAA (Comunidades Autónomas)",color:"#AA151B",badgeColor:"#880F14"},
+
+  // BRAZIL
+  "BR-NAT":{region:"Brasil (nacional)",country:"Brazil",flag:"🏛️",authority:"ANVISA (Agência Nacional de Vigilância Sanitária)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Substâncias entorpecentes (Lista A)","Substâncias psicotrópicas (Lista B)","Precursores (Lista C e D)","Substâncias retinoides (Lista C2)"],
+    rules:["SNGPC (Sistema Nacional de Gerenciamento de Produtos Controlados) -- reporte eletrônico obrigatório","Escrituração mensal obrigatória","Balanço mensal enviado ao SNGPC","Conservação 5 anos","Notificação de roubo/perda à ANVISA e polícia imediatamente","Responsável técnico farmacêutico obrigatório","Receituário especial para substâncias controladas"],
+    forms:["SNGPC (sistema eletrônico ANVISA)","Boletim de ocorrência (perda/roubo)","Receituário controlado (azul/amarelo)"],
+    inspector:"ANVISA + Vigilâncias Sanitárias Estaduais (VISA)",color:"#009C3B",badgeColor:"#007A2E"},
+
+  // SAUDI ARABIA
+  "SA-NAT":{region:"Saudi Arabia",country:"Saudi Arabia",flag:"🏛️",authority:"SFDA (Saudi Food and Drug Authority)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Class A Narcotics","Class B Psychotropics","Controlled Precursors"],
+    rules:["Monthly inventory count mandatory","All discrepancies reported to SFDA within 24 hours","5-year record retention","Narcotic safe (approved by SFDA) required","Pharmacist license holder responsible","Special import/export permits required","Saudi narcotics law strictly enforced"],
+    forms:["SFDA Narcotic Record","SFDA Loss/Theft Report","Monthly Inventory Summary"],
+    inspector:"SFDA + Ministry of Interior",color:"#006C35",badgeColor:"#005229"},
+
+  // UAE
+  "AE-NAT":{region:"UAE",country:"UAE",flag:"🏛️",authority:"Ministry of Health & Prevention (MOHAP)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:1,
+    categories:["Category 1 Narcotics","Category 2 Psychotropics","Controlled Precursors"],
+    rules:["Monthly stock reconciliation required","Discrepancies reported to MOHAP within 24 hours","5-year record retention","Licensed narcotic safe required","Responsible pharmacist must be UAE-licensed","Federal Law No. 14 of 1995 compliance"],
+    forms:["MOHAP Narcotic Register","Incident Report (MOHAP)","Monthly Balance Summary"],
+    inspector:"MOHAP + Ministry of Interior",color:"#009736",badgeColor:"#007529"},
+
+  // INDIA
+  "IN-NAT":{region:"India (national)",country:"India",flag:"🏛️",authority:"Central Drugs Standard Control Organization (CDSCO) + State Drug Controllers",
+    cycleWeeks:4,retentionYears:3,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Narcotic Drugs (NDPS Act 1985)","Psychotropic Substances","Precursor Chemicals"],
+    rules:["NDPS Act 1985 strict compliance","State Drug Controller license required","Monthly stock verification","Report theft to State Drug Controller and police within 3 days","3-year record retention","Separate register for each narcotic","Chemist & Druggist license mandatory"],
+    forms:["NDPS Register","Theft/Loss Report (State Drug Controller)","Quarterly Summary Report"],
+    inspector:"CDSCO + State Drug Controller + Narcotics Control Bureau (NCB)",color:"#FF9933",badgeColor:"#CC7A00"},
+
+  // SOUTH AFRICA
+  "ZA-NAT":{region:"South Africa",country:"South Africa",flag:"🏛️",authority:"South African Health Products Regulatory Authority (SAHPRA)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Schedule 5","Schedule 6","Schedule 7","Schedule 8"],
+    rules:["Medicines and Related Substances Act compliance","Register of S5 and S6 substances required","Monthly reconciliation of S5/S6","Report losses to SAHPRA and SAPS within 3 days","5-year record retention","Pharmacist-in-charge signature required","Annual audit by SAHPRA"],
+    forms:["S5/S6 Register","SAHPRA Loss Report","SAPS Police Report"],
+    inspector:"SAHPRA + South African Police Service (SAPS)",color:"#007A4D",badgeColor:"#005A38"},
+
+  // JAPAN
+  "JP-NAT":{region:"日本 (Japan)",country:"Japan",flag:"🏛️",authority:"Ministry of Health, Labour and Welfare (MHLW) + Prefectural Governors",
+    cycleWeeks:4,retentionYears:2,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["麻薬 (Narcotics)","向精神薬 (Psychotropics)","覚醒剤原料 (Stimulant precursors)"],
+    rules:["麻薬管理者 (Narcotic manager) required","Monthly inventory balance verification","Report discrepancies to prefectural governor within 3 days","2-year record retention","Narcotic safe (approved type) mandatory","Narcotic Dispensing Record (麻薬処方箋) retained","Annual report to prefectural governor"],
+    forms:["麻薬帳簿 (Narcotic Register)","麻薬廃棄届 (Destruction Record)","亡失届 (Loss Report to Governor)"],
+    inspector:"MHLW + Prefectural Government + Narcotics Control Department",color:"#BC002D",badgeColor:"#940023"},
+
+  // KENYA
+  "KE-NAT":{region:"Kenya",country:"Kenya",flag:"🏛️",authority:"Pharmacy and Poisons Board (PPB)",
+    cycleWeeks:4,retentionYears:5,tolerance:0,witness:true,reportDeadlineDays:3,
+    categories:["Class A Narcotics","Class B Psychotropics","Controlled Precursors"],
+    rules:["Narcotics Register required (PPB format)","Monthly balance verification","Report losses to PPB and police within 3 days","5-year record retention","Pharmacist-in-charge license required","Narcotic cupboard (key held by responsible pharmacist)"],
+    forms:["PPB Narcotics Register","PPB Loss/Theft Report","Monthly Stock Summary"],
+    inspector:"PPB + National Police Service",color:"#006600",badgeColor:"#004400"},
+};
+
+// Helper: get regulation by profile
+function getRegulation(profile) {
+  if (!profile) return null;
+  const key = profile.regKey || (profile.country + "-NAT");
+  return REGS[key] || REGS[profile.country + "-NAT"] || null;
+}
+
+// All jurisdictions for selector
+const ALL_JURISDICTIONS = [
+  // Canada
+  {key:"CA-QC",name:"Québec",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-ON",name:"Ontario",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-BC",name:"British Columbia",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-AB",name:"Alberta",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-SK",name:"Saskatchewan",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-MB",name:"Manitoba",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-NS",name:"Nova Scotia",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-NB",name:"New Brunswick",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-NL",name:"Newfoundland & Labrador",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-PE",name:"Prince Edward Island",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-YT",name:"Yukon",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-NT",name:"Northwest Territories",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  {key:"CA-NU",name:"Nunavut",country:"Canada",flag:"🇨🇦",countryCode:"CA"},
+  // USA
+  {key:"US-FED",name:"All States (Federal DEA)",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-CA",name:"California",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-NY",name:"New York",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-TX",name:"Texas",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-FL",name:"Florida",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-IL",name:"Illinois",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-PA",name:"Pennsylvania",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-OH",name:"Ohio",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-GA",name:"Georgia",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-NC",name:"North Carolina",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-MI",name:"Michigan",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-NJ",name:"New Jersey",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-WA",name:"Washington",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-AZ",name:"Arizona",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-MA",name:"Massachusetts",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-CO",name:"Colorado",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-OR",name:"Oregon",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  {key:"US-NV",name:"Nevada",country:"USA",flag:"🇺🇸",countryCode:"US"},
+  // UK
+  {key:"UK-ENG",name:"England",country:"United Kingdom",flag:"🇬🇧",countryCode:"UK"},
+  {key:"UK-SCO",name:"Scotland",country:"United Kingdom",flag:"🇬🇧",countryCode:"UK"},
+  {key:"UK-WAL",name:"Wales",country:"United Kingdom",flag:"🇬🇧",countryCode:"UK"},
+  {key:"UK-NIR",name:"Northern Ireland",country:"United Kingdom",flag:"🇬🇧",countryCode:"UK"},
+  // Australia
+  {key:"AU-NSW",name:"New South Wales",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-VIC",name:"Victoria",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-QLD",name:"Queensland",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-WA",name:"Western Australia",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-SA",name:"South Australia",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-TAS",name:"Tasmania",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-ACT",name:"ACT",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  {key:"AU-NT",name:"Northern Territory",country:"Australia",flag:"🇦🇺",countryCode:"AU"},
+  // National entries
+  {key:"FR-NAT",name:"France",country:"France",flag:"🇫🇷",countryCode:"FR"},
+  {key:"DE-NAT",name:"Deutschland",country:"Germany",flag:"🇩🇪",countryCode:"DE"},
+  {key:"IT-NAT",name:"Italia",country:"Italy",flag:"🇮🇹",countryCode:"IT"},
+  {key:"ES-NAT",name:"España",country:"Spain",flag:"🇪🇸",countryCode:"ES"},
+  {key:"BR-NAT",name:"Brasil",country:"Brazil",flag:"🇧🇷",countryCode:"BR"},
+  {key:"SA-NAT",name:"Saudi Arabia",country:"Saudi Arabia",flag:"🇸🇦",countryCode:"SA"},
+  {key:"AE-NAT",name:"UAE",country:"UAE",flag:"🇦🇪",countryCode:"AE"},
+  {key:"IN-NAT",name:"India",country:"India",flag:"🇮🇳",countryCode:"IN"},
+  {key:"ZA-NAT",name:"South Africa",country:"South Africa",flag:"🇿🇦",countryCode:"ZA"},
+  {key:"JP-NAT",name:"Japan",country:"Japan",flag:"🇯🇵",countryCode:"JP"},
+  {key:"KE-NAT",name:"Kenya",country:"Kenya",flag:"🇰🇪",countryCode:"KE"},
+];
+
+
+// Claude API
+// Patient Data Privacy Shield
+// NarcoSync NEVER stores patient names, health card numbers, or any patient
+// identifiers. This function strips any such data from AI responses before
+// it can be processed, displayed, or stored.
+function stripPatientData(results){
+  if(!Array.isArray(results)) return results;
+  return results.map(row=>{
+    const clean = {};
+    // Keep ONLY medication name and quantity -- nothing else
+    if(row.medication) clean.medication = row.medication;
+    if(row.quantity !== undefined) clean.quantity = row.quantity;
+    if(row.format) clean.format = row.format;
+    if(row.unit) clean.unit = row.unit;
+    if(row.doc_number) clean.doc_number = row.doc_number;
+    // EXPLICITLY excluded: patient_name, patient, name, hcn, health_card,
+    // dob, date_of_birth, address, rx_number, prescriber, doctor, physician
+    // Any field not in the allowlist above is silently dropped.
+    return clean;
+  });
+}
+
+async function callClaude(messages){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages})});
+  const data=await res.json();
+  const text=(data.content||[]).map(b=>b.text||"").join("");
+  try{return stripPatientData(JSON.parse(text.replace(/\x60{3}json|\x60{3}/g,"").trim()));}catch(e){return[];}
+}
+
+async function scanImageDoc(base64,mimeType,docType,profile){
+  const sys=profile?"The pharmacy uses "+profile.mgmt+" and "+profile.inventory+".":"";
+  const PROMPTS={
+    inventory:"Pharmacy narcotics inventory printout. "+sys+" Extract every medication. Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"format\":\"e.g. 100 TAB\"}]",
+    sales:"Pharmacy dispensing/sales report (e.g. AssiStRx). "+sys+" For each medication, extract: (1) full drug name and dose, (2) TOTAL quantity dispensed this cycle, (3) number of prescriptions (Rx count -- just the count, not patient names or Rx numbers). CRITICAL PRIVACY RULE: IGNORE ALL patient names, health card numbers, patient IDs, dates of birth, addresses, prescriber names -- do NOT include any patient identifiers. Return ONLY aggregate totals. Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"rx_count\":number}]",
+    receipt:"Pharmaceutical delivery/purchase receipt. Extract every product. Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"unit\":\"string\",\"doc_number\":\"string or null\"}]"
+  };
+  return callClaude([{role:"user",content:[{type:"image",source:{type:"base64",media_type:mimeType,data:base64}},{type:"text",text:PROMPTS[docType]}]}]);
+}
+
+async function parseTextDoc(textContent,docType,profile){
+  const sys=profile?"The pharmacy uses "+profile.mgmt+".":"";
+  const PROMPTS={
+    inventory:"Pharmacy inventory data. "+sys+" Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"format\":\"e.g. 100 TAB\"}]",
+    sales:"Pharmacy dispensing/sales data (e.g. AssiStRx CSV). "+sys+" For each medication extract: full drug name + dose, total quantity dispensed, and number of prescriptions (Rx count -- the count only, not prescription numbers or patient names). CRITICAL PRIVACY RULE: IGNORE patient names, health card numbers, patient IDs, dates of birth, addresses -- do NOT include them. Return ONLY aggregates. Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"rx_count\":number}]",
+    receipt:"Pharmaceutical purchase data. Return ONLY JSON array: [{\"medication\":\"full drug name + dose\",\"quantity\":number,\"unit\":\"string\",\"doc_number\":\"string or null\"}]"
+  };
+  return callClaude([{role:"user",content:PROMPTS[docType]+"\n\nDATA:\n"+textContent.slice(0,3000)}]);
+}
+
+function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});}
+async function readXL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:"array"});let t="";wb.SheetNames.forEach(n=>{t+=XLSX.utils.sheet_to_csv(wb.Sheets[n])+"\n";});res(t);}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(f);});}
+async function processFile(file,docType,profile){
+  const nm=file.name.toLowerCase(),tp=file.type;
+  if(tp.startsWith("image/"))return scanImageDoc(await toB64(file),tp,docType,profile);
+  if(tp==="application/pdf"||nm.endsWith(".pdf"))return scanImageDoc(await toB64(file),"application/pdf",docType,profile);
+  if(nm.endsWith(".xlsx")||nm.endsWith(".xls"))return parseTextDoc(await readXL(file),docType,profile);
+  return parseTextDoc(await file.text(),docType,profile);
+}
+
+function reconcile(matrix,sales,receipts){
+  const inv={};
+  matrix.forEach(r=>{
+    if(!r.medication)return;
+    inv[r.medication.toUpperCase()]={...r,sales:0,purchased:0,rx_count:0};
+  });
+
+  // Smart key finder: matches by prefix OR by shared generic name (brand/generic)
+  function fk(n){
+    const up=(n||"").toUpperCase().slice(0,12);
+    // Direct match first
+    const direct=Object.keys(inv).find(k=>k.slice(0,12)===up||k.includes(up)||up.includes(k.slice(0,12)));
+    if(direct) return direct;
+    // Generic fallback: if brand matches generic of inventory item
+    const gen=getGeneric(n);
+    return Object.keys(inv).find(k=>getGeneric(k)===gen);
+  }
+
+  sales.forEach(s=>{
+    const k=fk(s.medication);
+    if(k){
+      inv[k].sales=(inv[k].sales||0)+(s.quantity||0);
+      // Accumulate Rx count (number of prescriptions -- NOT patient info)
+      if(s.rx_count) inv[k].rx_count=(inv[k].rx_count||0)+(s.rx_count||0);
+    }
+  });
+  receipts.forEach(r=>{const k=fk(r.medication);if(k)inv[k].purchased=(inv[k].purchased||0)+(r.quantity||0);});
+
+  return Object.values(inv).map(r=>{
+    const t=(r.quantity||0)+(r.purchased||0)-(r.sales||0);
+    const e=(r.quantity||0)-t;
+    return{
+      ...r,
+      theoretical:+t.toFixed(2),
+      ecart:+e.toFixed(2),
+      status:Math.abs(e)<0.01?"OK":"ECART",
+      rx_count:r.rx_count||null,
+    };
+  });
+}
+
+
+// Print / PDF Report Generator
+function printOfficialReport(results, cycle, reg, profile){
+  var win = window.open("","_blank","width=900,height=700");
+  if(!win) return;
+  var ecarts = results.filter(function(r){ return r.status==="ECART"; });
+  var ok = results.filter(function(r){ return r.status!=="ECART"; });
+  var tableRows = results.map(function(r,i){
+    var bg = r.status==="ECART" ? "#FFF5F5" : i%2===0 ? "#fff" : "#F9FAFB";
+    var fw = r.status==="ECART" ? "700" : "400";
+    var col = r.status==="ECART" ? "#D63031" : "#0F2744";
+    var ecartAbs = Math.abs(r.ecart||0);
+    var ecartCol = ecartAbs===0?"#1A9E5F":ecartAbs>=50?"#D63031":"#E67E22";
+    return "<tr style=\"background:"+bg+"\">"+
+      "<td style=\"padding:5px 8px;font-weight:"+fw+";color:"+col+"\">"+( r.medication||"--")+"</td>"+
+      "<td style=\"padding:5px 8px;color:#6B7280;font-size:10px\">"+(r.format||"--")+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:right\">"+(r.quantity||0)+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:right\">"+(r.purchased||0)+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:right\">"+(r.sales||0)+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:right\">"+(r.theoretical)+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:right;font-weight:700;color:"+ecartCol+"\">"+((r.ecart||0)>0?"+":"")+(r.ecart||0)+"</td>"+
+      "<td style=\"padding:5px 8px;text-align:center\">"+
+        "<span style=\"background:"+(r.status==="ECART"?"#FEE2E2":"#D1FAE5")+";color:"+(r.status==="ECART"?"#D63031":"#1A9E5F")+";padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700\">"+r.status+"</span>"+
+      "</td></tr>";
+  }).join("");
+
+  var regBanner = reg ?
+    "<div style=\"background:#0F2744;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;border-radius:6px;margin-bottom:16px\">"+
+      "<div><div style=\"font-weight:700\">⚖️ "+reg.authority+"</div>"+
+      "<div style=\"font-size:10px;opacity:.7;margin-top:2px\">Inspector: "+reg.inspector+"</div></div>"+
+      "<div style=\"text-align:right\"><div style=\"font-weight:700\">Cycle: "+( reg.cycleWeeks===104?"Every 2 years":"Every "+reg.cycleWeeks+" weeks")+"</div>"+
+      "<div style=\"font-size:10px;opacity:.7\">Retention: "+reg.retentionYears+" years</div></div>"+
+    "</div>" : "";
+
+  var html = "<!DOCTYPE html><html><head><title>NarcoSync Report</title>"+
+    "<style>body{font-family:Arial,sans-serif;font-size:12px;margin:40px;color:#111;}"+
+    "h1{font-size:18px;border-bottom:2px solid #333;padding-bottom:8px;}"+
+    "table{width:100%;border-collapse:collapse;}"+
+    "th{background:#0F2744;color:#fff;padding:7px 8px;text-align:left;font-size:11px;}"+
+    ".sig{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:50px;}"+
+    ".sig-line{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:10px;color:#666;}"+
+    "@media print{body{margin:20px;}}</style></head><body>"+
+    "<h1>NarcoSync -- Official Reconciliation Report</h1>"+
+    "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:16px 0 20px\">"+
+      "<div><div style=\"font-size:10px;font-weight:700;color:#666\">PHARMACY</div>"+
+      "<div style=\"font-size:14px;font-weight:700\">"+(profile&&profile.pharmacyName||"--")+"</div></div>"+
+      "<div><div style=\"font-size:10px;font-weight:700;color:#666\">CYCLE</div>"+
+      "<div style=\"font-size:14px;font-weight:700\">"+(cycle||"V75")+"</div></div>"+
+      "<div><div style=\"font-size:10px;font-weight:700;color:#666\">DATE</div>"+
+      "<div style=\"font-size:14px\">"+new Date().toLocaleDateString()+"</div></div>"+
+      "<div><div style=\"font-size:10px;font-weight:700;color:#666\">RESULTS</div>"+
+      "<div style=\"font-size:14px\"><span style=\"color:#D63031;font-weight:700\">"+ecarts.length+" ECART</span> / "+ok.length+" OK</div></div>"+
+    "</div>"+
+    regBanner+
+    "<table><thead><tr>"+
+      "<th>Medication</th><th>Format</th><th>Inventory</th>"+
+      "<th>Purchases</th><th>Sales</th><th>Theoretical</th>"+
+      "<th>Discrepancy</th><th>Status</th></tr></thead>"+
+    "<tbody>"+tableRows+"</tbody></table>"+
+    (ecarts.length>0 ?
+      "<div style=\"margin-top:24px\"><h2 style=\"font-size:14px;color:#D63031\">Discrepancies requiring investigation ("+ecarts.length+")</h2>"+
+      "<table><thead><tr><th>Medication</th><th>Discrepancy</th><th>Probable cause</th><th>Pharmacist notes</th></tr></thead><tbody>"+
+      ecarts.map(function(r){
+        return "<tr><td style=\"padding:6px 8px;font-weight:700\">"+r.medication+"</td>"+
+          "<td style=\"padding:6px 8px;color:#D63031;font-weight:700\">"+(r.ecart>0?"+":"")+r.ecart+"</td>"+
+          "<td style=\"padding:6px 8px;min-width:160px\"></td>"+
+          "<td style=\"padding:6px 8px;min-width:200px\"></td></tr>";
+      }).join("")+"</tbody></table></div>" : "")+
+    "<div class=\"sig\">"+
+      "<div><div class=\"sig-line\">Pharmacist signature</div></div>"+
+      "<div><div class=\"sig-line\">OPQ/Inspector signature</div></div>"+
+    "</div>"+
+    "<div style=\"margin-top:30px;font-size:9px;color:#999;border-top:1px solid #eee;padding-top:8px\">"+
+      "Generated by NarcoSync(tm) -- narcosync.app -- Confidential pharmacy document"+
+    "</div>"+
+    "</body></html>";
+
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 500);
+}
+
+
+// UI Helpers
+function Btn({children,onClick,bg,disabled,full,sm,outline}){
+  return(<button onClick={onClick} disabled={disabled} style={{padding:sm?"7px 14px":"10px 22px",borderRadius:10,fontFamily:"inherit",fontWeight:700,fontSize:sm?11:13,cursor:disabled?"not-allowed":"pointer",border:outline?"2px solid "+bg||C.sky:"none",background:disabled?"#cbd5e0":outline?"transparent":(bg||C.sky),color:outline?(bg||C.sky):"#fff",width:full?"100%":undefined,opacity:disabled?0.6:1}}>{children}</button>);
+}
+function Card({children,style}){return <div style={Object.assign({background:C.white,borderRadius:14,padding:20,boxShadow:"0 2px 12px rgba(0,0,0,.07)"},style||{})}>{children}</div>;}
+
+
+// All world languages
+const ALL_LANGS = [
+  {code:"en",flag:"🇬🇧",name:"English",nameEn:"English",dir:"ltr",full:true},
+  {code:"fr",flag:"🇫🇷",name:"Français",nameEn:"French",dir:"ltr",full:true},
+  {code:"es",flag:"🇪🇸",name:"Español",nameEn:"Spanish",dir:"ltr",full:true},
+  {code:"pt",flag:"🇧🇷",name:"Português",nameEn:"Portuguese",dir:"ltr",full:true},
+  {code:"de",flag:"🇩🇪",name:"Deutsch",nameEn:"German",dir:"ltr",full:true},
+  {code:"it",flag:"🇮🇹",name:"Italiano",nameEn:"Italian",dir:"ltr",full:true},
+  {code:"ar",flag:"🇸🇦",name:"العربية",nameEn:"Arabic",dir:"rtl",full:true},
+  {code:"zh",flag:"🇨🇳",name:"中文",nameEn:"Chinese",dir:"ltr",full:false},
+  {code:"hi",flag:"🇮🇳",name:"हिन्दी",nameEn:"Hindi",dir:"ltr",full:false},
+  {code:"bn",flag:"🇧🇩",name:"বাংলা",nameEn:"Bengali",dir:"ltr",full:false},
+  {code:"ru",flag:"🇷🇺",name:"Русский",nameEn:"Russian",dir:"ltr",full:false},
+  {code:"ja",flag:"🇯🇵",name:"日本語",nameEn:"Japanese",dir:"ltr",full:false},
+  {code:"ko",flag:"🇰🇷",name:"한국어",nameEn:"Korean",dir:"ltr",full:false},
+  {code:"tr",flag:"🇹🇷",name:"Türkçe",nameEn:"Turkish",dir:"ltr",full:false},
+  {code:"fa",flag:"🇮🇷",name:"فارسی",nameEn:"Persian / Farsi",dir:"rtl",full:false},
+  {code:"ur",flag:"🇵🇰",name:"اردو",nameEn:"Urdu",dir:"rtl",full:false},
+  {code:"he",flag:"🇮🇱",name:"עברית",nameEn:"Hebrew",dir:"rtl",full:false},
+  {code:"nl",flag:"🇳🇱",name:"Nederlands",nameEn:"Dutch",dir:"ltr",full:false},
+  {code:"pl",flag:"🇵🇱",name:"Polski",nameEn:"Polish",dir:"ltr",full:false},
+  {code:"uk",flag:"🇺🇦",name:"Українська",nameEn:"Ukrainian",dir:"ltr",full:false},
+  {code:"ro",flag:"🇷🇴",name:"Română",nameEn:"Romanian",dir:"ltr",full:false},
+  {code:"el",flag:"🇬🇷",name:"Ελληνικά",nameEn:"Greek",dir:"ltr",full:false},
+  {code:"sv",flag:"🇸🇪",name:"Svenska",nameEn:"Swedish",dir:"ltr",full:false},
+  {code:"no",flag:"🇳🇴",name:"Norsk",nameEn:"Norwegian",dir:"ltr",full:false},
+  {code:"da",flag:"🇩🇰",name:"Dansk",nameEn:"Danish",dir:"ltr",full:false},
+  {code:"fi",flag:"🇫🇮",name:"Suomi",nameEn:"Finnish",dir:"ltr",full:false},
+  {code:"cs",flag:"🇨🇿",name:"Čeština",nameEn:"Czech",dir:"ltr",full:false},
+  {code:"sk",flag:"🇸🇰",name:"Slovenčina",nameEn:"Slovak",dir:"ltr",full:false},
+  {code:"hu",flag:"🇭🇺",name:"Magyar",nameEn:"Hungarian",dir:"ltr",full:false},
+  {code:"hr",flag:"🇭🇷",name:"Hrvatski",nameEn:"Croatian",dir:"ltr",full:false},
+  {code:"sr",flag:"🇷🇸",name:"Српски",nameEn:"Serbian",dir:"ltr",full:false},
+  {code:"bg",flag:"🇧🇬",name:"Български",nameEn:"Bulgarian",dir:"ltr",full:false},
+  {code:"sl",flag:"🇸🇮",name:"Slovenščina",nameEn:"Slovenian",dir:"ltr",full:false},
+  {code:"lt",flag:"🇱🇹",name:"Lietuvių",nameEn:"Lithuanian",dir:"ltr",full:false},
+  {code:"lv",flag:"🇱🇻",name:"Latviešu",nameEn:"Latvian",dir:"ltr",full:false},
+  {code:"et",flag:"🇪🇪",name:"Eesti",nameEn:"Estonian",dir:"ltr",full:false},
+  {code:"id",flag:"🇮🇩",name:"Bahasa Indonesia",nameEn:"Indonesian",dir:"ltr",full:false},
+  {code:"ms",flag:"🇲🇾",name:"Bahasa Melayu",nameEn:"Malay",dir:"ltr",full:false},
+  {code:"th",flag:"🇹🇭",name:"ภาษาไทย",nameEn:"Thai",dir:"ltr",full:false},
+  {code:"vi",flag:"🇻🇳",name:"Tiếng Việt",nameEn:"Vietnamese",dir:"ltr",full:false},
+  {code:"tl",flag:"🇵🇭",name:"Filipino",nameEn:"Filipino / Tagalog",dir:"ltr",full:false},
+  {code:"ta",flag:"🇱🇰",name:"தமிழ்",nameEn:"Tamil",dir:"ltr",full:false},
+  {code:"te",flag:"🇮🇳",name:"తెలుగు",nameEn:"Telugu",dir:"ltr",full:false},
+  {code:"mr",flag:"🇮🇳",name:"मराठी",nameEn:"Marathi",dir:"ltr",full:false},
+  {code:"gu",flag:"🇮🇳",name:"ગુજરાતી",nameEn:"Gujarati",dir:"ltr",full:false},
+  {code:"kn",flag:"🇮🇳",name:"ಕನ್ನಡ",nameEn:"Kannada",dir:"ltr",full:false},
+  {code:"ml",flag:"🇮🇳",name:"മലയാളം",nameEn:"Malayalam",dir:"ltr",full:false},
+  {code:"pa",flag:"🇮🇳",name:"ਪੰਜਾਬੀ",nameEn:"Punjabi",dir:"ltr",full:false},
+  {code:"si",flag:"🇱🇰",name:"සිංහල",nameEn:"Sinhala",dir:"ltr",full:false},
+  {code:"my",flag:"🇲🇲",name:"မြန်မာ",nameEn:"Burmese / Myanmar",dir:"ltr",full:false},
+  {code:"km",flag:"🇰🇭",name:"ខ្មែរ",nameEn:"Khmer",dir:"ltr",full:false},
+  {code:"ne",flag:"🇳🇵",name:"नेपाली",nameEn:"Nepali",dir:"ltr",full:false},
+  {code:"sw",flag:"🇰🇪",name:"Kiswahili",nameEn:"Swahili",dir:"ltr",full:false},
+  {code:"am",flag:"🇪🇹",name:"አማርኛ",nameEn:"Amharic",dir:"ltr",full:false},
+  {code:"yo",flag:"🇳🇬",name:"Yorùbá",nameEn:"Yoruba",dir:"ltr",full:false},
+  {code:"ha",flag:"🇳🇬",name:"Hausa",nameEn:"Hausa",dir:"ltr",full:false},
+  {code:"ig",flag:"🇳🇬",name:"Igbo",nameEn:"Igbo",dir:"ltr",full:false},
+  {code:"so",flag:"🇸🇴",name:"Soomaali",nameEn:"Somali",dir:"ltr",full:false},
+  {code:"zu",flag:"🇿🇦",name:"isiZulu",nameEn:"Zulu",dir:"ltr",full:false},
+  {code:"af",flag:"🇿🇦",name:"Afrikaans",nameEn:"Afrikaans",dir:"ltr",full:false},
+  {code:"ca",flag:"🏳️",name:"Català",nameEn:"Catalan",dir:"ltr",full:false},
+  {code:"eu",flag:"🏳️",name:"Euskara",nameEn:"Basque",dir:"ltr",full:false},
+  {code:"gl",flag:"🏳️",name:"Galego",nameEn:"Galician",dir:"ltr",full:false},
+  {code:"cy",flag:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",name:"Cymraeg",nameEn:"Welsh",dir:"ltr",full:false},
+  {code:"ga",flag:"🇮🇪",name:"Gaeilge",nameEn:"Irish",dir:"ltr",full:false},
+  {code:"is",flag:"🇮🇸",name:"Íslenska",nameEn:"Icelandic",dir:"ltr",full:false},
+  {code:"mt",flag:"🇲🇹",name:"Malti",nameEn:"Maltese",dir:"ltr",full:false},
+  {code:"sq",flag:"🇦🇱",name:"Shqip",nameEn:"Albanian",dir:"ltr",full:false},
+  {code:"mk",flag:"🇲🇰",name:"Македонски",nameEn:"Macedonian",dir:"ltr",full:false},
+  {code:"az",flag:"🇦🇿",name:"Azərbaycan",nameEn:"Azerbaijani",dir:"ltr",full:false},
+  {code:"ka",flag:"🇬🇪",name:"ქართული",nameEn:"Georgian",dir:"ltr",full:false},
+  {code:"hy",flag:"🇦🇲",name:"Հայերեն",nameEn:"Armenian",dir:"ltr",full:false},
+  {code:"kk",flag:"🇰🇿",name:"Қазақша",nameEn:"Kazakh",dir:"ltr",full:false},
+  {code:"uz",flag:"🇺🇿",name:"Oʻzbekcha",nameEn:"Uzbek",dir:"ltr",full:false},
+  {code:"mn",flag:"🇲🇳",name:"Монгол",nameEn:"Mongolian",dir:"ltr",full:false},
+  {code:"bs",flag:"🇧🇦",name:"Bosanski",nameEn:"Bosnian",dir:"ltr",full:false},
+  {code:"lb",flag:"🇱🇺",name:"Lëtzebuergesch",nameEn:"Luxembourgish",dir:"ltr",full:false},
+];
+
+// Language Switcher (compact button + search dropdown)
+function LangSwitcher({lang,onSelect}){
+  const [open,setOpen] = useState(false);
+  const [query,setQuery] = useState("");
+  const inputRef = React.useRef(null);
+
+  const cur = ALL_LANGS.find(l=>l.code===lang)||ALL_LANGS[0];
+
+  const filtered = query.trim()
+    ? ALL_LANGS.filter(l=>{
+        const q = query.toLowerCase();
+        return l.name.toLowerCase().includes(q)
+          || l.nameEn.toLowerCase().includes(q)
+          || l.code.toLowerCase().startsWith(q);
+      })
+    : ALL_LANGS;
+
+  function openDropdown(){
+    setOpen(true);
+    setQuery("");
+    setTimeout(()=>inputRef.current?.focus(),50);
+  }
+
+  function select(code){
+    onSelect(code);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return(
+    <div style={{position:"relative"}}>
+      <button onClick={()=>open?setOpen(false):openDropdown()} style={{
+        display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:20,
+        border:"1px solid rgba(255,255,255,.3)",background:"rgba(255,255,255,.15)",
+        color:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
+      }}>
+        <span style={{fontSize:15}}>{cur.flag}</span>
+        <span>{cur.code.toUpperCase()}</span>
+        <span style={{fontSize:9}}>{open?"▲":"▼"}</span>
+      </button>
+
+      {open&&(
+        <div style={{
+          position:"absolute",top:"calc(100% + 8px)",right:0,
+          background:C.white,borderRadius:14,
+          boxShadow:"0 8px 40px rgba(0,0,0,.28)",zIndex:999,width:240,
+          overflow:"hidden",
+        }}>
+          {/* Search input */}
+          <div style={{padding:"10px 10px 6px",borderBottom:"1px solid "+C.border}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,background:C.light,borderRadius:8,padding:"7px 10px"}}>
+              <span style={{fontSize:13,color:C.grey}}>🔍</span>
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={e=>setQuery(e.target.value)}
+                placeholder="Type to search… (e.g. fr, ara, deutsch)"
+                style={{border:"none",background:"none",outline:"none",fontSize:12,fontFamily:"inherit",width:"100%",color:C.navy}}
+              />
+              {query&&<button onClick={()=>setQuery("")} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.grey,padding:0}}>✕</button>}
+            </div>
+          </div>
+
+          {/* Language list */}
+          <div style={{maxHeight:280,overflowY:"auto"}}>
+            {filtered.length===0&&(
+              <div style={{padding:"16px",textAlign:"center",color:C.grey,fontSize:12}}>No language found</div>
+            )}
+            {filtered.map(l=>(
+              <button key={l.code} onClick={()=>select(l.code)} style={{
+                display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 12px",
+                border:"none",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+                background:lang===l.code?C.sky+"18":"transparent",
+                borderBottom:"1px solid "+C.border+"11",
+              }}>
+                <span style={{fontSize:18,flexShrink:0}}>{l.flag}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:lang===l.code?700:500,color:lang===l.code?C.sky:C.navy,direction:l.dir}}>{l.name}</div>
+                  {l.name!==l.nameEn&&<div style={{fontSize:10,color:C.grey}}>{l.nameEn}</div>}
+                </div>
+                <div style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                  <span style={{fontSize:10,fontWeight:700,color:C.grey}}>{l.code.toUpperCase()}</span>
+                  {!l.full&&<span style={{fontSize:8,color:C.orange,fontWeight:600}}>EN UI</span>}
+                  {l.full&&<span style={{fontSize:8,color:C.green,fontWeight:600}}>✓</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Footer note */}
+          <div style={{padding:"8px 12px",borderTop:"1px solid "+C.border,background:C.light}}>
+            <div style={{fontSize:10,color:C.grey,textAlign:"center"}}>{filtered.length} / {ALL_LANGS.length} languages · ✓ = fully translated</div>
+          </div>
+        </div>
+      )}
+
+      {open&&<div onClick={()=>{setOpen(false);setQuery("");}} style={{position:"fixed",inset:0,zIndex:998}}/>}
+    </div>
+  </div>
+  );
+}
+
+// Supabase Setup Screen
+function SupabaseSetup({onConfigured}){
+  const [url,setUrl] = useState("");
+  const [key,setKey] = useState("");
+  const [err,setErr] = useState("");
+  const [busy,setBusy] = useState(false);
+
+  async function test(){
+    if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}
+    setBusy(true);setErr("");
+    try{
+      const r = await fetch(url.trim().replace(/\/+$/,"")+"/auth/v1/settings",{
+        headers:{"apikey":key.trim()}
+      });
+      if(r.ok||r.status===404){
+        SB.saveConfig(url.trim(),key.trim());
+        onConfigured();
+      } else {
+        setErr("Could not connect. Check URL and key.");
+      }
+    }catch(e){setErr("Invalid URL -- check your Supabase Project URL.");}
+    setBusy(false);
+  }
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,"+C.navy+","+C.blue+","+C.sky+")"}}>
+      <div style={{width:"100%",maxWidth:460}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:40,marginBottom:8}}>🔗</div>
+          <div style={{color:"#fff",fontWeight:800,fontSize:22}}>Connect NarcoSync to Supabase</div>
+          <div style={{color:"rgba(255,255,255,.65)",fontSize:12,marginTop:4}}>One-time setup · Free · Takes 2 minutes</div>
+        </div>
+
+        {/* Steps */}
+        <div style={{background:"rgba(255,255,255,.1)",borderRadius:12,padding:"16px 18px",marginBottom:16}}>
+          {[
+            {n:"1",text:"Go to supabase.com → Sign up free"},
+            {n:"2",text:"New Project → name it narcosync → Create"},
+            {n:"3",text:"SQL Editor → paste & run the schema SQL (download below)"},
+            {n:"4",text:"Settings → API → copy Project URL + anon public key"},
+            {n:"5",text:"Paste them below → Connect!"},
+          ].map(s=>(
+            <div key={s.n} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-start"}}>
+              <div style={{width:20,height:20,borderRadius:"50%",background:"rgba(255,255,255,.3)",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{s.n}</div>
+              <div style={{color:"rgba(255,255,255,.85)",fontSize:12}}>{s.text}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:C.white,borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>Project URL</label>
+            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://xxxxxxxxxxxxxxxx.supabase.co"
+              style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:13,boxSizing:"border-box",fontFamily:"monospace"}}/>
+          </div>
+          <div style={{marginBottom:18}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>Anon public key</label>
+            <input value={key} onChange={e=>setKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              type="password"
+              style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:13,boxSizing:"border-box",fontFamily:"monospace"}}/>
+          </div>
+
+          {err&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"9px 12px",marginBottom:14,fontSize:12,color:C.red}}>⚠️ {err}</div>}
+
+          <button onClick={test} disabled={busy||!url.trim()||!key.trim()} style={{width:"100%",padding:12,borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:14,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")",opacity:(!url.trim()||!key.trim())?0.6:1}}>
+            {busy?"Testing connection…":"🔗 Connect to Supabase"}
+          </button>
+
+          <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.grey}}>
+            Your data stays in your own Supabase project · 100% private
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  );
+}
+
+// Auth Screen (real Supabase auth)
+function AuthScreen({onAuth,t,lang,onChangeLang}){
+  const [mode,setMode] = useState("login");
+  const [email,setEmail] = useState("");
+  const [pass,setPass] = useState("");
+  const [error,setError] = useState("");
+  const [busy,setBusy] = useState(false);
+
+  async function submit(){
+    if(!email||!pass)return;
+    setBusy(true);setError("");
+    try{
+      if(mode==="signup"){
+        const data = await SB.signUp(email,pass);
+        if(data.error||data.msg){setError(data.error_description||data.msg||"Signup failed");setBusy(false);return;}
+        if(data.access_token){
+          onAuth({email,user:data.user,token:data.access_token,session:data,isNew:true});
+        } else {
+          setError("Check your email to confirm your account, then sign in.");
+        }
+      } else {
+        const data = await SB.signIn(email,pass);
+        if(data.error||data.error_description){setError(data.error_description||"Invalid email or password");setBusy(false);return;}
+        if(data.access_token){
+          onAuth({email,user:data.user,token:data.access_token,session:data,isNew:false});
+        } else {
+          setError("Login failed -- check credentials.");
+        }
+      }
+    }catch(e){setError("Connection error -- check your Supabase URL.");}
+    setBusy(false);
+  }
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,"+C.navy+","+C.blue+","+C.sky+")"}}>
+      <div style={{position:"fixed",top:16,right:16,zIndex:100}}>
+        <LangSwitcher lang={lang} onSelect={onChangeLang}/>
+      </div>
+      <div style={{width:"100%",maxWidth:400}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:66,height:66,borderRadius:18,background:"rgba(255,255,255,.15)",fontSize:32,marginBottom:12}}>💊</div>
+          <div style={{color:"#fff",fontWeight:800,fontSize:26}}>NarcoSync</div>
+          <div style={{color:"rgba(255,255,255,.65)",fontSize:12,marginTop:4}}>{t.tagline}</div>
+        </div>
+        <div style={{background:C.white,borderRadius:16,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.35)"}}>
+          <div style={{display:"flex",marginBottom:18,background:C.light,borderRadius:10,padding:4}}>
+            {["login","signup"].map(m=>(
+              <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:mode===m?700:400,fontSize:13,background:mode===m?C.white:"transparent",color:mode===m?C.navy:C.grey,boxShadow:mode===m?"0 1px 4px rgba(0,0,0,.1)":"none"}}>
+                {m==="login"?t.login:t.signup}
+              </button>
+            ))}
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>{t.email}</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="mihaela@pharmacie.com"
+              style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:13,boxSizing:"border-box",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>{t.password}</label>
+            <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••••"
+              style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:13,boxSizing:"border-box",fontFamily:"inherit"}}/>
+          </div>
+          {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"9px 12px",marginBottom:14,fontSize:12,color:C.red}}>⚠️ {error}</div>}
+          <button onClick={submit} disabled={busy||!email||!pass} style={{width:"100%",padding:12,borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:14,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")",opacity:(!email||!pass)?0.6:1}}>
+            {busy?t.loading:(mode==="login"?t.signIn:t.createAcc)}
+          </button>
+          <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.grey}}>{mode==="signup"?t.signupNote:t.restricted}</div>
+          <div style={{textAlign:"center",marginTop:8,fontSize:10,color:C.border}}>
+            © {new Date().getFullYear()} NarcoSync. All rights reserved.
+          </div>
+          <div style={{textAlign:"center",marginTop:10}}>
+            <button onClick={()=>{
+              try{window.history.pushState({},"","/pill");}catch(e){}
+              window.location.search="?pill=1";
+            }} style={{background:"none",border:"none",cursor:"pointer",
+              fontSize:11,color:C.sky,fontFamily:"inherit",fontWeight:700}}>
+              💊 Try free pill identifier -- no account needed
+            </button>
+          </div>
+          <div style={{display:"flex",justifyContent:"center",gap:12,marginTop:8}}>
+            {["🔐 AES-256","🌐 TLS 1.3","🏛️ SOC 2"].map(b=>(
+              <span key={b} style={{fontSize:9,color:C.border,fontWeight:600}}>{b}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  );
+}
+
+// Onboarding Wizard
+function SearchList({items,onSelect,placeholder,renderItem,filterFn,emptyMsg}){
+  const [query,setQuery] = useState("");
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ref.current?.focus();},[]);
+  const filtered = query.trim() ? items.filter(it=>filterFn(it,query)) : items;
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:C.light,borderRadius:12,padding:"12px 16px",marginBottom:10,border:"2px solid "+C.sky}}>
+        <span style={{fontSize:16,color:C.grey}}>🔍</span>
+        <input ref={ref} value={query} onChange={e=>setQuery(e.target.value)} placeholder={placeholder}
+          style={{border:"none",background:"none",outline:"none",fontSize:13,fontFamily:"inherit",width:"100%",color:C.navy}}/>
+        {query&&<button onClick={()=>setQuery("")} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.grey,padding:0}}>✕</button>}
+      </div>
+      <div style={{maxHeight:300,overflowY:"auto",borderRadius:12,border:"1px solid "+C.border}}>
+        {filtered.length===0&&<div style={{padding:"20px",textAlign:"center",color:C.grey,fontSize:12}}>{emptyMsg||"No results"}</div>}
+        {filtered.map((item,i)=>renderItem(item,i,filtered.length))}
+      </div>
+      <div style={{textAlign:"center",marginTop:6,fontSize:10,color:C.grey}}>{filtered.length} / {items.length} results</div>
+    </div>
+  );
+}
+
+function ComplianceBadge({reg}){
+  if(!reg) return null;
+  return(
+    <div style={{background:reg.color+"11",border:"1.5px solid "+reg.color+"44",borderRadius:12,padding:"14px 16px",marginTop:12}}>
+      <div style={{fontWeight:700,fontSize:12,color:reg.color,marginBottom:6}}>⚖️ {reg.authority}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
+        {[
+          {icon:"🔄",label:"Cycle",value:reg.cycleWeeks===104?"Every 2 years":"Every "+reg.cycleWeeks+" weeks"},
+          {icon:"📁",label:"Records",value:reg.retentionYears+" years"},
+          {icon:"⏱️",label:"Report deadline",value:reg.reportDeadlineDays+" day"+reg.reportDeadlineDays>1?"s":""},
+          {icon:"👥",label:"Witness",value:reg.witness?"Required":"Not required"},
+        ].map(s=>(
+          <div key={s.label} style={{background:"rgba(255,255,255,.7)",borderRadius:8,padding:"8px 10px"}}>
+            <div style={{fontSize:10,color:C.grey,marginBottom:2}}>{s.icon} {s.label}</div>
+            <div style={{fontSize:12,fontWeight:700,color:C.navy}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:10}}>
+        <div style={{fontSize:10,color:C.grey,marginBottom:4}}>KEY REQUIREMENTS</div>
+        {reg.rules.slice(0,4).map((r,i)=>(
+          <div key={i} style={{fontSize:11,color:C.navy,marginBottom:3,display:"flex",gap:6}}>
+            <span style={{color:reg.color,flexShrink:0}}>•</span><span>{r}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OnboardingWizard({userEmail,onComplete,t}){
+  const [step,setStep] = useState(1);
+  const [selectedChain,setSelectedChain] = useState(null);
+  const [selectedJuris,setSelectedJuris] = useState(null);
+  const [pharmacyName,setPharmacyName] = useState("");
+  const [mgmt,setMgmt] = useState(null);
+  const [inventory,setInventory] = useState(null);
+
+  const reg = selectedJuris ? REGS[selectedJuris.key] : null;
+
+  // Filter jurisdictions by selected chain's country
+  const jurisForChain = selectedChain
+    ? ALL_JURISDICTIONS.filter(j=>j.countryCode===selectedChain.country||selectedChain.country==="XX")
+    : ALL_JURISDICTIONS;
+
+  function finish(){
+    const profile={
+      country:selectedChain.country,
+      countryName:selectedChain.countryName,
+      flag:selectedChain.flag,
+      chain:selectedChain.name,
+      mgmt, inventory,
+      pharmacyName:pharmacyName.trim()||selectedChain.name,
+      email:userEmail,
+      regKey:selectedJuris?.key||null,
+      jurisdiction:selectedJuris?.name||null,
+    };
+    localStorage.setItem("ns_profile",JSON.stringify(profile));
+    onComplete(profile);
+  }
+
+  const wrap={minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,"+C.navy+","+C.blue+")"};
+  const box={width:"100%",maxWidth:580};
+
+  const totalSteps = 3;
+
+  function StepHeader({step:s,title,subtitle}){
+    return(
+      <div style={{textAlign:"center",marginBottom:18}}>
+        <div style={{color:"rgba(255,255,255,.5)",fontSize:11,marginBottom:4}}>{t.setupStep} {s} {t.of} {totalSteps}</div>
+        <div style={{color:"#fff",fontWeight:800,fontSize:19}}>{title}</div>
+        {subtitle&&<div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:3}}>{subtitle}</div>}
+        {/* Progress bar */}
+        <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:12}}>
+          {[1,2,3].map(n=>(
+            <div key={n} style={{height:4,width:40,borderRadius:4,background:n<=s?"rgba(255,255,255,.9)":"rgba(255,255,255,.2)"}}/>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // STEP 1 -- Pharmacy
+  if(step===1) return(
+    <div style={wrap}><div style={box}>
+      <StepHeader step={1} title={t.whichChain||"Find your pharmacy"} subtitle="Search from 60+ chains worldwide"/>
+      <div style={{background:C.white,borderRadius:16,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <SearchList
+          items={ALL_CHAINS}
+          filterFn={(c,q)=>c.name.toLowerCase().includes(q.toLowerCase())||c.countryName.toLowerCase().includes(q.toLowerCase())}
+          placeholder="Type your pharmacy name… e.g. Jean Coutu, Boots, CVS…"
+          emptyMsg="Not found? Choose 'Independent Pharmacy' below"
+          renderItem={(chain,i,total)=>(
+            <button key={chain.name} onClick={()=>{setSelectedChain(chain);setMgmt(null);setInventory(null);setSelectedJuris(null);setStep(2);}}
+              style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"11px 14px",border:"none",borderBottom:i<total-1?"1px solid "+C.border+"22":"none",cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:"transparent"}}>
+              <span style={{fontSize:22,flexShrink:0}}>{chain.flag}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:C.navy}}>{chain.name}</div>
+                {chain.countryName&&<div style={{fontSize:10,color:C.grey}}>{chain.countryName}</div>}
+              </div>
+              <span style={{fontSize:11,color:C.sky,fontWeight:700}}>→</span>
+            </button>
+          )}
+        />
+      </div>
+    </div></div>
+  );
+
+  // STEP 2 -- Province / State / Region
+  if(step===2&&selectedChain) return(
+    <div style={wrap}><div style={box}>
+      <StepHeader step={2} title="Your province / state / region" subtitle={selectedChain.flag+" "+selectedChain.name+" · "+selectedChain.countryName}/>
+      <div style={{background:C.white,borderRadius:16,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:4}}>⚖️ Select your jurisdiction</div>
+        <div style={{color:C.grey,fontSize:11,marginBottom:12}}>Each region has different narcotics laws. NarcoSync will automatically apply the correct regulatory framework for your location.</div>
+
+        <SearchList
+          items={jurisForChain}
+          filterFn={(j,q)=>j.name.toLowerCase().includes(q.toLowerCase())||j.country.toLowerCase().includes(q.toLowerCase())||j.key.toLowerCase().includes(q.toLowerCase())}
+          placeholder={"Type province/state… e.g. "+selectedChain.country==="CA"?"Quebec, Ontario, BC":"Florida, Texas, New York"}
+          emptyMsg="Region not found -- contact support to add it"
+          renderItem={(j,i,total)=>{
+            const r = REGS[j.key];
+            const isSel = selectedJuris?.key===j.key;
+            return(
+              <button key={j.key} onClick={()=>setSelectedJuris(j)}
+                style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",border:"none",borderBottom:i<total-1?"1px solid "+C.border+"22":"none",cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:isSel?C.green+"15":"transparent"}}>
+                <span style={{fontSize:20}}>{j.flag}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:isSel?700:500,fontSize:13,color:isSel?C.green:C.navy}}>{j.name}</div>
+                  {r&&<div style={{fontSize:10,color:C.grey}}>{r.authority}</div>}
+                </div>
+                {r&&<div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:9,fontWeight:700,color:C.grey}}>Cycle</div>
+                  <div style={{fontSize:11,fontWeight:700,color:r.color||C.navy}}>{r.cycleWeeks===104?"2 yrs":r.cycleWeeks+"w"}</div>
+                </div>}
+                {isSel&&<span style={{fontSize:16,color:C.green,flexShrink:0}}>✓</span>}
+              </button>
+            );
+          }}
+        />
+
+        {selectedJuris&&<ComplianceBadge reg={REGS[selectedJuris.key]}/>}
+
+        <div style={{display:"flex",gap:10,justifyContent:"space-between",marginTop:14}}>
+          <button onClick={()=>setStep(1)} style={{padding:"8px 16px",borderRadius:10,border:"1px solid "+C.border,background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t.back}</button>
+          <button onClick={()=>setStep(3)} disabled={!selectedJuris}
+            style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:selectedJuris?"pointer":"not-allowed",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:selectedJuris?C.sky:"#cbd5e0",opacity:selectedJuris?1:.6}}>
+            {t.next}
+          </button>
+        </div>
+      </div>
+    </div></div>
+  );
+
+  // STEP 3 -- Systems + name
+  if(step===3&&selectedChain) return(
+    <div style={wrap}><div style={box}>
+      <StepHeader step={3} title={t.whichSystems} subtitle={selectedChain.flag+" "+selectedChain.name+" · "+selectedJuris?.name||""}/>
+      <div style={{background:C.white,borderRadius:16,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+
+        <div style={{marginBottom:16}}>
+          <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>{t.pharmacyName}</label>
+          <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder={t.pharmacyPlaceholder}
+            style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:13,boxSizing:"border-box",fontFamily:"inherit"}}/>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:4}}>{t.dispensingSystem}</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {selectedChain.mgmt.map(m=>(
+              <button key={m} onClick={()=>setMgmt(m)} style={{padding:"6px 12px",borderRadius:20,border:"2px solid "+mgmt===m?C.green:C.border,background:mgmt===m?C.green+"22":C.light,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:mgmt===m?700:400,color:mgmt===m?C.green:C.navy}}>{m}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:4}}>{t.inventorySystem}</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {selectedChain.inv.map(inv=>(
+              <button key={inv} onClick={()=>setInventory(inv)} style={{padding:"6px 12px",borderRadius:20,border:"2px solid "+inventory===inv?C.orange:C.border,background:inventory===inv?C.orange+"22":C.light,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:inventory===inv?700:400,color:inventory===inv?C.orange:C.navy}}>{inv}</button>
+            ))}
+          </div>
+        </div>
+
+        {reg&&mgmt&&inventory&&(
+          <div style={{background:reg.color+"11",border:"1.5px solid "+reg.color+"44",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:11,color:reg.color,marginBottom:4}}>✅ Configuration ready · {reg.authority}</div>
+            <div style={{fontSize:11,color:C.navy}}>Cycle: <strong>{reg.cycleWeeks===104?"Every 2 years":"Every "+reg.cycleWeeks+" weeks"}</strong> · Records: <strong>{reg.retentionYears} years</strong> · Report deadline: <strong>{reg.reportDeadlineDays} day{reg.reportDeadlineDays>1?"s":""}</strong></div>
+          </div>
+        )}
+
+        <div style={{display:"flex",gap:10,justifyContent:"space-between"}}>
+          <button onClick={()=>setStep(2)} style={{padding:"8px 16px",borderRadius:10,border:"1px solid "+C.border,background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t.back}</button>
+          <button onClick={finish} disabled={!mgmt||!inventory}
+            style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:mgmt&&inventory?"pointer":"not-allowed",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:mgmt&&inventory?C.green:"#cbd5e0",opacity:mgmt&&inventory?1:.6}}>
+            {t.start}
+          </button>
+        </div>
+      </div>
+    </div></div>
+    </div>
+  );
+
+  return null;
+}
+
+// New Reconciliation
+function NewReco({onBack,profile,t}){
+  const [matrixData,setMatrixData]=useState([]);
+  const [salesData,setSalesData]=useState([]);
+  const [receiptData,setReceiptData]=useState([]);
+  const [results,setResults]=useState(null);
+  const [working,setWorking]=useState(false);
+  const [filterSt,setFilterSt]=useState("ALL");
+  const [search,setSearch]=useState("");
+  const [investigation,setInvestigation]=useState(null);
+  const [offsetGroups,setOffsetGroups]=useState([]);
+  const [savedInvestigations,setSavedInvestigations]=useState({});
+  const canProcess=matrixData.length>0||salesData.length>0||receiptData.length>0;
+
+  async function process(){setWorking(true);await new Promise(r=>setTimeout(r,800));const r2=reconcile(matrixData,salesData,receiptData);setResults(r2);if(onSaveHistory)onSaveHistory(r2);setWorking(false);}
+
+  if(working)return(
+    <div style={{padding:"80px 32px",textAlign:"center"}}>
+      <div style={{fontSize:52,marginBottom:16}}>⚡</div>
+      <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:8}}>{t.reconciling}</div>
+      <div style={{color:C.grey}}>{t.crossChecking}</div>
+    </div>
+  );
+
+  if(results){
+    const ec=results.filter(r=>r.status==="ECART").length;
+    const ok=results.filter(r=>r.status==="OK").length;
+    const filtered=results.filter(r=>{
+      const mf=filterSt==="ALL"||(filterSt==="ECART"&&r.status==="ECART")||(filterSt==="OK"&&r.status==="OK");
+      const ms=!search||(r.medication||"").toLowerCase().includes(search.toLowerCase());
+      return mf&&ms;
+    });
+    return(
+      <div style={{padding:"20px 24px"}}>
+        {/* Privacy Protection Banner */}
+        <div style={{background:"#F0FDF4",border:"1.5px solid #86EFAC",borderRadius:10,
+          padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:20}}>🔒</span>
+          <div>
+            <div style={{fontWeight:700,fontSize:12,color:"#166534"}}>Patient Privacy Protected</div>
+            <div style={{fontSize:11,color:"#166534",opacity:.8,marginTop:1}}>
+              Patient names, health card numbers, and personal identifiers are automatically removed from every document. Only drug names and quantities are processed and stored.
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <button onClick={()=>{setResults(null);setMatrixData([]);setSalesData([]);setReceiptData([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:17,color:C.grey}}>←</button>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:17,color:C.navy}}>{t.results}</div>
+            <div style={{color:C.grey,fontSize:12}}>{results.length} {t.products} · {ec} {t.discrepancies} · {ok} {t.ok}</div>
+          </div>
+          <button
+            onClick={()=>printOfficialReport(results,profile,getRegulation(profile))}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")",flexShrink:0}}>
+            🖨️ Print Official Report
+          </button>
+        </div>
+
+        {/* Regulatory compliance alert */}
+        {(()=>{
+          const reg = getRegulation(profile);
+          if(!reg||ec===0) return null;
+          const mustReport = results.filter(r=>r.status==="ECART"&&Math.abs(r.ecart||0)>0);
+          return(
+            <div style={{background:"#FEF2F2",border:"2px solid #FECACA",borderRadius:12,padding:"14px 16px",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:13,color:C.red,marginBottom:6}}>
+                ⚠️ Compliance Alert -- {reg.region}
+              </div>
+              <div style={{fontSize:12,color:"#991B1B",marginBottom:8}}>
+                <strong>{mustReport.length} discrepancy{mustReport.length>1?"ies":""}</strong> found. Per <strong>{reg.authority}</strong>:
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <div style={{background:"#fff",borderRadius:8,padding:"8px 12px",border:"1px solid #FECACA",flex:1}}>
+                  <div style={{fontSize:9,color:C.grey,marginBottom:2}}>REPORT DEADLINE</div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.red}}>{reg.reportDeadlineDays} day{reg.reportDeadlineDays>1?"s":""}</div>
+                </div>
+                <div style={{background:"#fff",borderRadius:8,padding:"8px 12px",border:"1px solid #FECACA",flex:1}}>
+                  <div style={{fontSize:9,color:C.grey,marginBottom:2}}>INSPECTOR</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#991B1B"}}>{reg.inspector.split("+")[0].trim()}</div>
+                </div>
+                <div style={{background:"#fff",borderRadius:8,padding:"8px 12px",border:"1px solid #FECACA",flex:1}}>
+                  <div style={{fontSize:9,color:C.grey,marginBottom:2}}>REQUIRED FORMS</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#991B1B"}}>{reg.forms[0]}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+          {[{l:t.products,v:results.length,c:C.navy,i:"💊"},{l:"✅ "+t.ok,v:ok,c:C.green,i:"✅"},{l:"⚠️ "+t.discrepancies,v:ec,c:C.red,i:"⚠️"},{l:"Sources",v:3,c:C.blue,i:"📊"}].map(s=>(
+            <Card key={s.l} style={{padding:"14px 16px"}}>
+              <div style={{fontSize:20}}>{s.i}</div>
+              <div style={{fontSize:20,fontWeight:800,color:s.c,marginTop:4}}>{s.v}</div>
+              <div style={{fontSize:11,color:C.grey,marginTop:2}}>{s.l}</div>
+            </Card>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={"🔍 "+t.medication+"…"}
+            style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,width:200,fontFamily:"inherit"}}/>
+          {["ALL","ECART","OK"].map(f=>(
+            <button key={f} onClick={()=>setFilterSt(f)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:filterSt===f?700:400,fontFamily:"inherit",background:filterSt===f?(f==="ECART"?C.red:f==="OK"?C.green:C.sky):"#e5e7eb",color:filterSt===f?"#fff":"#374151"}}>
+              {f==="ALL"?t.all:f==="ECART"?"⚠️ "+t.discrepancy:t.ok}
+            </button>
+          ))}
+          <span style={{marginLeft:"auto",color:C.grey,fontSize:11,alignSelf:"center"}}>{filtered.length} {t.products}</span>
+          {ecartCount>0&&<span style={{fontSize:10,color:C.sky}}>💡 Cliquez sur une ligne rouge pour investiguer l'écart</span>}
+        </div>
+        <div style={{overflowX:"auto",borderRadius:10,boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",background:C.white,fontSize:11}}>
+            <thead>
+              <tr style={{background:C.navy}}>
+                {[t.medication,t.format,t.inventoryCol,t.purchases,t.sales,t.theoretical,t.discrepancy,t.status].map(h=>(
+                  <th key={h} style={{padding:"8px 10px",color:"#fff",fontSize:10,textAlign:"left",fontWeight:700}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row,i)=>{
+                const isE=row.status==="ECART";
+                const bg=isE?(i%2===0?"#FFF5F5":"#FEF0F0"):(i%2===0?"#fff":"#F9FAFB");
+                const ec2=!row.ecart?C.green:Math.abs(row.ecart)>=50?C.red:C.orange;
+                return(
+                  <tr key={i} style={{background:bg,cursor:isE?"pointer":"default"}} onClick={()=>isE&&setInvestigation(row)}>
+                    <td style={{padding:"7px 10px",fontWeight:600,color:C.navy,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.medication||"--"}</td>
+                    <td style={{padding:"7px 10px",color:C.grey,fontSize:10}}>{row.format||"--"}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",background:"#EFF8F5",fontWeight:600}}>{row.quantity??0}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",background:"#FFF8EF"}}>{row.purchased||0}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",background:"#F5F0FF"}}>{row.sales||0}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",fontWeight:600,color:C.blue}}>{row.theoretical}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,color:ec2}}>
+                        {row.ecart>0?"+"+row.ecart:row.ecart}
+                        {row.offsetGroup&&(
+                          <span title={row.offsetGroup.explanation}
+                            style={{display:"block",fontSize:8,color:"#7C3AED",
+                              fontWeight:700,marginTop:2,cursor:"help"}}>
+                            ⇌ {row.offsetGroup.type==="full_cancel"?"cancels out":"partial offset"}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{padding:"7px 10px",textAlign:"center"}}>
+                        {row.rx_count
+                          ?<span style={{background:"#EFF6FF",color:"#1D4ED8",
+                              fontWeight:700,fontSize:9,padding:"2px 7px",borderRadius:8}}>
+                              {row.rx_count} Rx
+                            </span>
+                          :"--"}
+                      </td>
+                    <td style={{padding:"7px 10px",textAlign:"center"}}>
+                      <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,color:"#fff",background:isE?C.red:C.green}}>
+                        {isE?"⚠️ "+t.discrepancy:"✅ "+t.ok}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Brand/Generic Offset Alerts */}
+        {offsetGroups.length>0&&(
+          <div style={{marginBottom:14,borderRadius:12,overflow:"hidden",
+            boxShadow:"0 2px 8px rgba(0,0,0,.08)"}}>
+            <div style={{background:offsetGroups.some(g=>g.isWrongBottle)?"#991B1B":"#7C3AED",padding:"10px 16px",
+              display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>🔄</span>
+              <span style={{color:"#fff",fontWeight:700,fontSize:13}}>
+                NarcoSync found {offsetGroups.length} possible connection{offsetGroups.length>1?"s":""} between discrepancies
+              </span>
+              <span style={{color:"rgba(255,255,255,.7)",fontSize:11,marginLeft:4}}>
+                Same molecule -- different name or different mg
+              </span>
+            </div>
+            {offsetGroups.map((group,gi)=>(
+              <div key={gi} style={{background:"#fff",padding:"14px 16px",
+                borderBottom:"1px solid #E9D5FF"}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  alignItems:"flex-start",marginBottom:8}}>
+                  <div>
+                    {group.isWrongBottle
+                      ?<span style={{fontWeight:800,fontSize:12,color:C.red}}>
+                          ⚠️ DIFFERENT MEDICATIONS -- possible wrong bottle
+                        </span>
+                      :<span style={{fontWeight:700,fontSize:12,color:"#5B21B6",
+                          textTransform:"capitalize"}}>{group.generic}</span>
+                    }
+                    <span style={{fontSize:11,color:C.grey,marginLeft:8}}>
+                      {group.isWrongBottle
+                        ?"Same count pattern, completely different drugs"
+                        :"Same molecule -- name or mg difference"}
+                    </span>
+                  </div>
+                  <span style={{fontSize:10,fontWeight:700,padding:"3px 10px",
+                    borderRadius:10,color:"#fff",
+                    background:group.isWrongBottle
+                      ?(group.type==="wrong_bottle_confirmed"?C.red:"#D97706")
+                      :(group.type==="full_cancel"||group.type==="dose_substitution_cancel"?"#059669":"#D97706")}}>
+                    {group.isWrongBottle
+                      ?(group.rxEvidence?"WRONG BOTTLE (Rx evidence)":"WRONG BOTTLE?")
+                      :(group.type==="full_cancel"||group.type==="dose_substitution_cancel"?"NET ZERO ✓":"PARTIAL OFFSET")}
+                  </span>
+                </div>
+                {group.drugs.map((drug,di)=>(
+                  <div key={di} style={{display:"flex",justifyContent:"space-between",
+                    alignItems:"center",padding:"6px 12px",marginBottom:4,
+                    background:C.light,borderRadius:8}}>
+                    <div>
+                      <span style={{fontSize:12,fontWeight:600,color:C.navy}}>
+                        {drug.medication}
+                      </span>
+                    </div>
+                    <span style={{fontWeight:800,fontSize:13,
+                      color:(drug.ecart||0)>0?C.green:C.red}}>
+                      {(drug.ecart||0)>0?"+":""}{drug.ecart||0}
+                    </span>
+                  </div>
+                ))}
+                <div style={{marginTop:8,padding:"10px 12px",
+                  background:"#EDE9FE",borderRadius:8,fontSize:11,color:"#5B21B6"}}>
+                  <div style={{fontWeight:700,marginBottom:4,fontSize:12}}>💡 {group.explanation}</div>
+                  {/* Dose/mg math visualization */}
+                  {group.doseA&&group.doseB&&(
+                    <div style={{background:"rgba(255,255,255,.6)",borderRadius:6,
+                      padding:"6px 10px",marginTop:6,fontFamily:"monospace",fontSize:10,color:"#3B0764"}}>
+                      {group.drugs[0].ecart>0?"+":""}{group.drugs[0].ecart} × {group.doseA.original}
+                      {" = "}{((group.drugs[0].ecart||0)*group.doseA.value).toFixed(1)}mg
+                      {"  |  "}
+                      {group.drugs[1].ecart>0?"+":""}{group.drugs[1].ecart} × {group.doseB.original}
+                      {" = "}{((group.drugs[1].ecart||0)*group.doseB.value).toFixed(1)}mg
+                      {"  →  NET: "}
+                      <strong style={{color:group.mgBalanced?"#059669":C.red}}>
+                        {group.netMg!==null?(group.netMg>0?"+":"")+group.netMg.toFixed(1)+"mg":"?"}
+                        {group.mgBalanced?" ✓ BALANCED":""}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+                {/* Severity-based guidance */}
+                {group.severity==="low"&&(
+                  <div style={{marginTop:4,padding:"6px 12px",background:"#F0FDF4",
+                    borderRadius:8,fontSize:11,color:"#166534"}}>
+                    ✅ Click either red row to document the explanation and mark it resolved.
+                  </div>
+                )}
+                {group.severity==="medium"&&group.netOffset!==0&&(
+                  <div style={{marginTop:4,padding:"6px 12px",background:"#FFFBEB",
+                    borderRadius:8,fontSize:11,color:"#92400E"}}>
+                    ⚠️ Partial offset -- net {group.netOffset>0?"+":""}{group.netOffset} units still unexplained after accounting for the offset. Investigate further.
+                  </div>
+                )}
+                {group.severity==="high"&&(
+                  <div style={{marginTop:4,padding:"6px 12px",background:"#FEF2F2",
+                    borderRadius:8,fontSize:11,color:"#991B1B"}}>
+                    🔴 Significant mg discrepancy remains -- this requires active investigation.
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Saved investigations summary */}
+        {Object.keys(savedInvestigations).length>0&&(
+          <div style={{marginTop:14,background:C.white,borderRadius:12,padding:"14px 18px",boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+            <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:8}}>📋 Investigations sauvegardées</div>
+            {Object.entries(savedInvestigations).map(([drug,inv])=>(
+              <div key={drug} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+C.border}}>
+                <span style={{fontSize:10,fontWeight:700,color:C.navy,flex:1}}>{drug}</span>
+                <span style={{fontSize:10,color:C.grey}}>{inv.reasonLabel||"--"}</span>
+                <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,color:"#fff",
+                  background:inv.status==="resolved"?C.green:inv.status==="reported"?C.red:C.orange}}>
+                  {inv.status==="resolved"?"Résolu":inv.status==="reported"?"Déclaré":"En investigation"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Investigation modal */}
+        {investigation&&(
+          <InvestigationModal
+            drug={investigation.medication||"--"}
+            ecart={investigation.ecart||0}
+            jurisdiction={profile?.jurisdiction}
+            reg={getRegulation(profile)}
+            onClose={()=>setInvestigation(null)}
+            onSave={(data)=>{
+              setSavedInvestigations(prev=>({...prev,[data.drug]:data}));
+              setInvestigation(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const invLabel=t.srcInv+profile?.inventory?" ("+profile.inventory+")":"";
+  const salesLabel=t.srcSales+profile?.mgmt?" ("+profile.mgmt+")":"";
+
+  return(
+    <div style={{padding:"22px 24px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:17,color:C.grey}}>←</button>
+        <div>
+          <div style={{fontWeight:800,fontSize:17,color:C.navy}}>{t.newRecoTitle}</div>
+          <div style={{color:C.grey,fontSize:12}}>{profile?profile.flag+" "+profile.chain+" · "+profile.mgmt:t.newRecoSubtitle}</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
+        <UploadZone label={invLabel} icon="📋" docType="inventory" profile={profile} onScanned={setMatrixData} hint={profile?.inventory||"Scan · CSV · Excel · PDF · Photo"} t={t}/>
+        <UploadZone label={salesLabel} icon="💊" docType="sales" profile={profile} onScanned={setSalesData} hint={profile?.mgmt||"Scan · CSV · Excel · PDF · Photo"} t={t}/>
+        <UploadZone label={t.srcReceipts} icon="📦" docType="receipt" profile={profile} onScanned={setReceiptData} hint="Relay · McKesson · Any supplier" t={t}/>
+      </div>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:8}}>{t.sourcesLoaded}</div>
+        <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+          {[{l:t.srcInv,n:matrixData.length,i:"📋",c:C.green},{l:t.srcSales,n:salesData.length,i:"💊",c:C.sky},{l:t.srcReceipts,n:receiptData.length,i:"📦",c:C.orange}].map(s=>(
+            <div key={s.l} style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:12}}>{s.i}</span>
+              <span style={{fontSize:12,fontWeight:s.n>0?700:400,color:s.n>0?s.c:C.grey}}>{s.l}: {s.n>0?s.n+" "+t.entries:t.none}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div style={{display:"flex",justifyContent:"flex-end"}}>
+        <Btn onClick={process} disabled={!canProcess} bg={C.green}>{t.reconcileNow}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// Dashboard
+function Dashboard({onNewReco,profile,t,onGoToPricing}){
+  const isFR = t===T.fr;
+  return(
+    <div style={{padding:"24px 26px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>{t.dashboard}</h1>
+          <div style={{color:C.grey,fontSize:12,marginTop:3}}>{profile?profile.flag+" "+profile.pharmacyName+" · "+profile.chain:t.cycle}</div>
+        </div>
+        <Btn onClick={onNewReco} bg={C.sky}>{t.newReco}</Btn>
+      </div>
+      {profile&&(()=>{
+        const reg = getRegulation(profile);
+        return(
+          <div>
+            {/* Quick profile bar */}
+            <div style={{background:C.white,borderRadius:12,padding:"12px 18px",marginBottom:12,boxShadow:"0 1px 6px rgba(0,0,0,.06)",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+              <div><div style={{fontSize:9,color:C.grey,marginBottom:1}}>{t.dispensing}</div><div style={{fontWeight:700,fontSize:12,color:C.navy}}>{profile.mgmt}</div></div>
+              <div style={{width:1,background:C.border,height:28}}/>
+              <div><div style={{fontSize:9,color:C.grey,marginBottom:1}}>{t.inventory}</div><div style={{fontWeight:700,fontSize:12,color:C.navy}}>{profile.inventory}</div></div>
+              <div style={{width:1,background:C.border,height:28}}/>
+              <div><div style={{fontSize:9,color:C.grey,marginBottom:1}}>{t.country}</div><div style={{fontWeight:700,fontSize:12,color:C.navy}}>{profile.flag} {profile.jurisdiction||profile.countryName}</div></div>
+            </div>
+
+            {/* Compliance framework card */}
+            {reg&&(
+              <div style={{background:C.white,borderRadius:12,padding:"16px 18px",marginBottom:12,boxShadow:"0 1px 6px rgba(0,0,0,.06)",borderLeft:"4px solid "+reg.color}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:C.navy}}>⚖️ Regulatory Framework</div>
+                    <div style={{fontSize:11,color:reg.color,fontWeight:600,marginTop:2}}>{reg.authority}</div>
+                  </div>
+                  <div style={{background:reg.color+"15",border:"1px solid "+reg.color+"44",borderRadius:8,padding:"6px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:C.grey}}>CYCLE</div>
+                    <div style={{fontSize:14,fontWeight:800,color:reg.color}}>{reg.cycleWeeks===104?"2 yrs":reg.cycleWeeks+"w"}</div>
+                  </div>
+                </div>
+
+                {/* Key compliance metrics */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+                  {[
+                    {icon:"📁",label:"Retention",val:reg.retentionYears+" yrs"},
+                    {icon:"⏱️",label:"Report by",val:reg.reportDeadlineDays+"d"},
+                    {icon:"👥",label:"Witness",val:reg.witness?"Yes":"No"},
+                    {icon:"📋",label:"Forms",val:reg.forms.length},
+                  ].map(s=>(
+                    <div key={s.label} style={{background:C.light,borderRadius:8,padding:"8px",textAlign:"center"}}>
+                      <div style={{fontSize:14,marginBottom:3}}>{s.icon}</div>
+                      <div style={{fontSize:9,color:C.grey}}>{s.label}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:C.navy}}>{s.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Drug categories */}
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:C.grey,marginBottom:4}}>CONTROLLED SUBSTANCE CATEGORIES</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {reg.categories.map(c=>(
+                      <span key={c} style={{padding:"3px 8px",borderRadius:8,background:reg.color+"15",border:"1px solid "+reg.color+"33",fontSize:10,fontWeight:600,color:reg.color}}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Key rules - top 3 */}
+                <div>
+                  <div style={{fontSize:10,color:C.grey,marginBottom:4}}>KEY COMPLIANCE RULES</div>
+                  {reg.rules.slice(0,3).map((r,i)=>(
+                    <div key={i} style={{display:"flex",gap:6,marginBottom:4}}>
+                      <span style={{color:reg.color,fontSize:12,flexShrink:0}}>•</span>
+                      <span style={{fontSize:11,color:C.navy}}>{r}</span>
+                    </div>
+                  ))}
+                  {reg.rules.length>3&&(
+                    <div style={{fontSize:10,color:C.sky,marginTop:3}}>+{reg.rules.length-3} more rules for {reg.region}</div>
+                  )}
+                </div>
+
+                {/* Inspector */}
+                <div style={{marginTop:10,padding:"8px 10px",background:reg.color+"08",borderRadius:8,fontSize:11,color:C.grey}}>
+                  🔍 <strong>Inspection authority:</strong> {reg.inspector}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      {/* Trial banner */}
+      <div style={{background:"linear-gradient(135deg,"+C.gold+"22,"+C.orange+"22)",
+        border:"1.5px solid "+C.gold+"44",borderRadius:12,padding:"12px 18px",
+        marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <span style={{fontWeight:700,fontSize:13,color:C.navy}}>🎁 {isFR?"Essai gratuit -- 30 jours":"Free trial -- 30 days"}</span>
+          <div style={{fontSize:11,color:C.grey,marginTop:2}}>
+            {isFR?"10h manuellement → moins de 5 min avec NarcoSync":"10 hours manually → under 5 min with NarcoSync"}
+          </div>
+        </div>
+        <button onClick={()=>onGoToPricing&&onGoToPricing()} style={{padding:"8px 18px",borderRadius:8,
+          border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,
+          fontSize:12,color:"#fff",background:C.gold}}>
+          {isFR?"Voir les plans →":"See plans →"}
+        </button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+        {[{l:"223",desc:t.products,c:C.navy,i:"💊"},{l:"177",desc:"✅ "+t.ok,c:C.green,i:"✅"},{l:"46",desc:"⚠️ "+t.discrepancies,c:C.red,i:"⚠️"},{l:"10h→5min",desc:isFR?"⏱️ Temps économisé":"⏱️ Time saved",c:C.gold,i:"⏱️"}].map(s=>(
+          <Card key={s.l} style={{padding:"16px 18px"}}>
+            <div style={{fontSize:20}}>{s.i}</div>
+            <div style={{fontSize:20,fontWeight:800,color:s.c,marginTop:5}}>{s.l}</div>
+            <div style={{fontSize:11,color:C.grey,marginTop:2}}>{s.desc}</div>
+          </Card>
+        ))}
+      </div>
+      <Card style={{marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:14}}>{t.howWorks}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+          {[{n:"1",i:"📤",title:t.upload,desc:t.uploadDesc},{n:"2",i:"⚡",title:t.aiReads,desc:t.aiDesc},{n:"3",i:"⚡",title:t.recoTitle,desc:t.recoDesc}].map(s=>(
+            <div key={s.n} style={{textAlign:"center",padding:"8px"}}>
+              <div style={{width:34,height:34,borderRadius:"50%",background:C.sky,color:"#fff",fontWeight:800,fontSize:14,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:6}}>{s.n}</div>
+              <div style={{fontSize:24,marginBottom:5}}>{s.i}</div>
+              <div style={{fontWeight:700,color:C.navy,marginBottom:4,fontSize:12}}>{s.title}</div>
+              <div style={{fontSize:11,color:C.grey,lineHeight:1.5}}>{s.desc}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{textAlign:"center",marginTop:12}}><Btn onClick={onNewReco} bg={C.green}>{t.startNow}</Btn></div>
+      </Card>
+    </div>
+    </div>
+    </div>
+  );
+}
+
+// Sidebar
+function Sidebar({page,setPage,profile,onLogout,t,lang,onChangeLang}){
+  const nav=[{id:"dashboard",icon:"📊",label:t.dashboard},{id:"new",icon:"⚡",label:t.reconciliation},{id:"history",icon:"📝",label:t.history},{id:"clinical",icon:"🏥",label:"Clinical"},{id:"drugs",icon:"💊",label:"Substances"},{id:"pillref",icon:"🔍",label:"Pill ID"},{id:"why",icon:"💡",label:"Why NarcoSync"},{id:"security",icon:"🛡️",label:"Security"},{id:"pricing",icon:"💳",label:"Plans"},{id:"voice",icon:"🎙️",label:"Voice Count"},
+    {id:"interactions",icon:"⚡",label:"Interactions"},
+    {id:"inspector",icon:"🔍",label:"Inspector"},
+    {id:"reminders",icon:"⏰",label:"Reminders"},
+    {id:"patterns",icon:"📈",label:"Patterns"},
+    {id:"forms",icon:"📄",label:"Forms"},
+    {id:"destruction",icon:"💥",label:"Destruction"},
+    {id:"referral",icon:"🎁",label:"Referral"},
+    {id:"benchmark",icon:"📊",label:"Benchmark"},
+    {id:"chain",icon:"🏢",label:"Chain"},
+    {id:"connect",icon:"🔌",label:"Connexion"},{id:"settings",icon:"⚙️",label:t.settings},
+    {id:"help",icon:"❓",label:"Guide"}];
+  return(
+    <div style={{width:216,minHeight:"100vh",background:C.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{padding:"18px 14px 14px",borderBottom:"1px solid rgba(255,255,255,.1)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:20}}>💊</span>
+          <div>
+            <div style={{color:"#fff",fontWeight:800,fontSize:15}}>NarcoSync</div>
+            <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>🌍 Universal</div>
+          </div>
+        </div>
+        <LangSwitcher lang={lang} onSelect={onChangeLang}/>
+      </div>
+      {profile&&(()=>{
+        const reg = getRegulation(profile);
+        return(
+          <div style={{padding:"10px 12px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+            <div style={{color:"rgba(255,255,255,.85)",fontSize:11,fontWeight:600}}>{profile.flag} {profile.pharmacyName}</div>
+            <div style={{color:"rgba(255,255,255,.45)",fontSize:10,marginTop:1}}>{profile.chain}</div>
+            <div style={{color:"rgba(255,255,255,.3)",fontSize:9,marginTop:1}}>{profile.mgmt}</div>
+            {reg&&(
+              <div style={{marginTop:6,padding:"5px 8px",borderRadius:6,background:"rgba(255,255,255,.08)"}}>
+                <div style={{color:"rgba(255,255,255,.6)",fontSize:9,fontWeight:600}}>⚖️ {profile.jurisdiction||profile.countryName}</div>
+                <div style={{color:"rgba(255,255,255,.4)",fontSize:8,marginTop:1}}>Cycle {reg.cycleWeeks===104?"2yrs":reg.cycleWeeks+"w"} · Retention {reg.retentionYears}y</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      <nav style={{flex:1,padding:"8px 6px"}}>
+        {nav.map(item=>(
+          <button key={item.id} onClick={()=>setPage(item.id)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",marginBottom:2,fontFamily:"inherit",textAlign:"left",fontSize:12,background:page===item.id?"rgba(46,134,222,.3)":"transparent",color:page===item.id?"#fff":"rgba(255,255,255,.5)",fontWeight:page===item.id?700:400}}>
+            <span style={{fontSize:13}}>{item.icon}</span>{item.label}
+          </button>
+        ))}
+      </nav>
+      <div style={{padding:"10px 6px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
+        <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:7,width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.35)",fontSize:11,fontFamily:"inherit"}}>
+          {t.logout}
+        </button>
+        <div style={{padding:"6px 10px",fontSize:8,color:"rgba(255,255,255,.18)",lineHeight:1.4}}>
+          © {new Date().getFullYear()} NarcoSync™<br/>
+          All rights reserved.<br/>
+          Unauthorized copying prohibited.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+//
+// FEATURE 1 -- DRUG INTERACTION CHECKER
+//
+function DrugInteractionPage({t}){
+  const [drugs,setDrugs] = useState(["",""]);
+  const [result,setResult] = useState(null);
+  const [loading,setLoading] = useState(false);
+  const isFR = t===T.fr;
+
+  function addDrug(){ if(drugs.length<6) setDrugs(d=>[...d,""]); }
+  function removeDrug(i){ setDrugs(d=>d.filter((_,j)=>j!==i)); }
+  function setDrug(i,v){ setDrugs(d=>d.map((x,j)=>j===i?v:x)); }
+
+  async function check(){
+    const filtered = drugs.filter(d=>d.trim());
+    if(filtered.length<2) return;
+    setLoading(true); setResult(null);
+    try{
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,
+          messages:[{role:"user",content:"You are a clinical pharmacist. Check interactions between these medications: "+(filtered.join(", "))+". Return ONLY JSON:\n"
++"{\"interactions\":[{\"drugs\":[\"drug1\",\"drug2\"],\"severity\":\"major/moderate/minor/none\",\"description\":\"plain clinical description\",\"mechanism\":\"pharmacokinetic or pharmacodynamic\",\"management\":\"what to do clinically\",\"monitoring\":\"what to watch for\"}],\"overall_risk\":\"high/moderate/low/none\",\"summary\":\"1-2 sentence plain summary\",\"note\":\"any important additional note\"}"}]})});
+      const data = await res.json();
+      const text=(data.content||[]).map(c=>c.text||"").join("").replace(/\x60{3}json|\x60{3}/g,"").trim();
+      setResult(JSON.parse(text));
+    }catch(e){
+      setResult({overall_risk:"unknown",summary:"Could not check interactions. Please try again.",interactions:[]});
+    }
+    setLoading(false);
+  }
+
+  const severityColor = s=>s==="major"?C.red:s==="moderate"?C.orange:s==="minor"?"#D97706":C.green;
+  const severityBg = s=>s==="major"?"#FEF2F2":s==="moderate"?"#FFF7ED":s==="minor"?"#FFFBEB":"#F0FDF4";
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:800}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>⚡ Drug Interaction Checker</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Verifiez les interactions entre 2 a 6 medicaments · Resultats cliniques instantanes"
+                :"Check interactions between 2 to 6 medications · Instant clinical results"}
+        </div>
+      </div>
+
+      <div style={{background:C.white,borderRadius:14,padding:"20px",
+        boxShadow:"0 2px 12px rgba(0,0,0,.07)",marginBottom:20}}>
+        {drugs.map((d,i)=>(
+          <div key={i} style={{display:"flex",gap:8,marginBottom:10}}>
+            <div style={{width:24,height:24,borderRadius:"50%",background:C.sky,
+              color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:11,fontWeight:800,flexShrink:0,marginTop:8}}>
+              {i+1}
+            </div>
+            <input value={d} onChange={e=>setDrug(i,e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&check()}
+              placeholder={"Drug "+i+1+" -- generic or brand name"}
+              style={{flex:1,padding:"9px 12px",borderRadius:8,
+                border:"1.5px solid "+d.trim()?C.sky:C.border,
+                fontSize:12,fontFamily:"inherit",outline:"none",color:C.navy}}/>
+            {drugs.length>2&&(
+              <button onClick={()=>removeDrug(i)}
+                style={{padding:"0 10px",borderRadius:8,border:"1px solid "+C.border,
+                  background:"none",cursor:"pointer",color:C.grey,fontSize:16}}>✕</button>
+            )}
+          </div>
+        ))}
+        <div style={{display:"flex",gap:10,marginTop:6}}>
+          {drugs.length<6&&(
+            <button onClick={addDrug}
+              style={{padding:"8px 16px",borderRadius:8,border:"1.5px dashed "+C.border,
+                background:"none",cursor:"pointer",fontFamily:"inherit",
+                fontSize:12,color:C.grey}}>+ Add drug</button>
+          )}
+          <button onClick={check} disabled={loading||drugs.filter(d=>d.trim()).length<2}
+            style={{padding:"8px 24px",borderRadius:8,border:"none",
+              cursor:"pointer",fontFamily:"inherit",fontWeight:700,
+              fontSize:13,color:"#fff",background:C.sky,
+              opacity:drugs.filter(d=>d.trim()).length<2?.5:1}}>
+            {loading?"⏳ Checking…":"Check interactions →"}
+          </button>
+        </div>
+      </div>
+
+      {result&&(
+        <div>
+          {/* Overall risk */}
+          <div style={{background:result.overall_risk==="high"?C.red:
+            result.overall_risk==="moderate"?C.orange:
+            result.overall_risk==="low"?"#D97706":C.green,
+            borderRadius:12,padding:"14px 18px",marginBottom:14,
+            display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24}}>
+              {result.overall_risk==="high"?"🚨":result.overall_risk==="moderate"?"⚠️":
+               result.overall_risk==="low"?"💛":"✅"}
+            </span>
+            <div>
+              <div style={{color:"#fff",fontWeight:800,fontSize:15,textTransform:"capitalize"}}>
+                {result.overall_risk} risk
+              </div>
+              <div style={{color:"rgba(255,255,255,.85)",fontSize:12,marginTop:2}}>
+                {result.summary}
+              </div>
+            </div>
+          </div>
+
+          {/* Individual interactions */}
+          {(result.interactions||[]).filter(i=>i.severity!=="none").map((interaction,i)=>(
+            <div key={i} style={{background:C.white,borderRadius:12,
+              marginBottom:12,overflow:"hidden",
+              boxShadow:"0 1px 6px rgba(0,0,0,.06)",
+              borderLeft:"4px solid "+severityColor(interaction.severity)}}>
+              <div style={{background:severityBg(interaction.severity),
+                padding:"10px 16px",display:"flex",
+                justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontWeight:700,fontSize:13,color:severityColor(interaction.severity)}}>
+                  {(interaction.drugs||[]).join(" + ")}
+                </div>
+                <span style={{background:severityColor(interaction.severity),
+                  color:"#fff",fontSize:10,fontWeight:800,
+                  padding:"3px 10px",borderRadius:10,textTransform:"uppercase"}}>
+                  {interaction.severity}
+                </span>
+              </div>
+              <div style={{padding:"14px 16px"}}>
+                <div style={{fontSize:12,color:"#374151",marginBottom:8,lineHeight:1.6}}>
+                  {interaction.description}
+                </div>
+                {interaction.mechanism&&(
+                  <div style={{fontSize:11,color:C.grey,marginBottom:6}}>
+                    <strong>Mechanism:</strong> {interaction.mechanism}
+                  </div>
+                )}
+                {interaction.management&&(
+                  <div style={{fontSize:11,color:C.navy,fontWeight:600,marginBottom:6}}>
+                    <strong>Management:</strong> {interaction.management}
+                  </div>
+                )}
+                {interaction.monitoring&&(
+                  <div style={{fontSize:11,color:C.grey}}>
+                    <strong>Monitor:</strong> {interaction.monitoring}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {result.note&&(
+            <div style={{background:C.light,borderRadius:10,padding:"10px 14px",
+              fontSize:11,color:C.grey}}>{result.note}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+//
+// FEATURE 2 -- VOICE COUNTING
+//
+function VoiceCountingPage({profile,t}){
+  const [listening,setListening]   = useState(false);
+  const [transcript,setTranscript] = useState("");
+  const [counts,setCounts]         = useState([]);
+  const [error,setError]           = useState("");
+  const isFR = t===T.fr;
+  const recogRef = useRef(null);
+
+  function startListening(){
+    const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){ setError("Speech recognition not supported in this browser. Try Chrome."); return; }
+    const r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = isFR?"fr-FR":"en-US";
+    r.onresult = (e)=>{
+      const last = e.results[e.results.length-1];
+      const text = last[0].transcript.toLowerCase().trim();
+      setTranscript(text);
+      if(last.isFinal){
+        // Parse: "dilaudid 2mg, 47 tablets" or "morphine 10, 23"
+        const patterns = [
+          /(.+?)[,\s]+(\d+)\s*(tablet|capsule|unit|patch|ml|tab|cap|comprimé|tablette)?s?$/i,
+          /(.+?)[,\s]+(\d+)$/i,
+        ];
+        for(const pat of patterns){
+          const m = text.match(pat);
+          if(m){
+            const drug = m[1].trim();
+            const qty  = parseInt(m[2]);
+            if(drug && !isNaN(qty)){
+              setCounts(c=>[{drug,qty,time:new Date().toLocaleTimeString()},...c]);
+              setTranscript("");
+              break;
+            }
+          }
+        }
+      }
+    };
+    r.onerror = ()=>{ setListening(false); };
+    r.onend   = ()=>{ if(listening) r.start(); };
+    r.start();
+    recogRef.current = r;
+    setListening(true);
+    setError("");
+  }
+
+  function stopListening(){
+    recogRef.current?.stop();
+    setListening(false);
+  }
+
+  function editCount(i,field,val){
+    setCounts(c=>c.map((x,j)=>j===i?{...x,[field]:field==="qty"?parseInt(val)||0:val}:x));
+  }
+  function removeCount(i){ setCounts(c=>c.filter((_,j)=>j!==i)); }
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:700}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>🎙️ Voice Counting</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Comptez vos narcotiques à voix haute depuis le coffre-fort. Aucun papier, aucun crayon."
+                :"Count your narcotics out loud from the vault. No paper, no pen."}
+        </div>
+      </div>
+
+      {/* How to use */}
+      <div style={{background:C.sky+"15",borderRadius:12,padding:"14px 18px",
+        marginBottom:20,border:"1px solid "+C.sky+"44"}}>
+        <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:6}}>
+          {isFR?"Comment parler:":"How to speak:"}
+        </div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          {[
+            '"Dilaudid 2mg, 47 tablets"',
+            '"Morphine 10, 23"',
+            '"Oxycodone 5mg, 120 capsules"',
+            '"Ativan 1mg, 84"',
+          ].map(ex=>(
+            <code key={ex} style={{background:C.white,padding:"4px 10px",borderRadius:6,
+              fontSize:11,color:C.navy,border:"1px solid "+C.border}}>{ex}</code>
+          ))}
+        </div>
+      </div>
+
+      {/* Record button */}
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <button onClick={listening?stopListening:startListening}
+          style={{width:100,height:100,borderRadius:"50%",border:"none",
+            cursor:"pointer",fontSize:32,fontFamily:"inherit",
+            background:listening?C.red:C.sky,color:"#fff",
+            boxShadow:listening?"0 0 0 8px rgba(214,48,49,.3)":
+              "0 8px 24px rgba(46,134,222,.4)",
+            transition:"all .2s"}}>
+          {listening?"⏹":"🎙️"}
+        </button>
+        <div style={{marginTop:12,fontWeight:700,fontSize:13,
+          color:listening?C.red:C.grey}}>
+          {listening?(isFR?"En cours... parlez maintenant":"Listening... speak now"):
+            (isFR?"Appuyer pour commencer":"Tap to start")}
+        </div>
+        {transcript&&(
+          <div style={{marginTop:8,padding:"8px 16px",background:C.light,
+            borderRadius:20,display:"inline-block",fontSize:12,color:C.navy,
+            fontStyle:"italic"}}>
+            "{transcript}"
+          </div>
+        )}
+        {error&&<div style={{color:C.red,fontSize:12,marginTop:8}}>{error}</div>}
+      </div>
+
+      {/* Count list */}
+      {counts.length>0&&(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",
+            alignItems:"center",marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:13,color:C.navy}}>
+              {counts.length} product{counts.length!==1?"s":""} counted
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setCounts([])}
+                style={{padding:"5px 12px",borderRadius:6,border:"1px solid "+C.border,
+                  background:"none",cursor:"pointer",fontFamily:"inherit",
+                  fontSize:11,color:C.grey}}>Clear all</button>
+              <button onClick={()=>{
+                  const csv="Drug,Quantity\n"+counts.map(c=>c.drug+","+c.qty).join("\n");
+                  const a=document.createElement("a");
+                  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+                  a.download="voice_count.csv"; a.click();
+                }}
+                style={{padding:"5px 12px",borderRadius:6,border:"none",
+                  background:C.sky,cursor:"pointer",fontFamily:"inherit",
+                  fontSize:11,color:"#fff",fontWeight:700}}>
+                Export CSV ↓
+              </button>
+            </div>
+          </div>
+          <div style={{background:C.white,borderRadius:12,overflow:"hidden",
+            boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+            {counts.map((c,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,
+                padding:"10px 16px",borderBottom:i<counts.length-1?"1px solid "+C.border:"none",
+                background:i%2===0?"#fff":"#FAFBFF"}}>
+                <div style={{flex:1}}>
+                  <input value={c.drug} onChange={e=>editCount(i,"drug",e.target.value)}
+                    style={{border:"none",background:"none",fontWeight:600,
+                      fontSize:12,color:C.navy,fontFamily:"inherit",width:"100%"}}/>
+                </div>
+                <input type="number" value={c.qty}
+                  onChange={e=>editCount(i,"qty",e.target.value)}
+                  style={{width:60,border:"1px solid "+C.border,borderRadius:6,
+                    padding:"3px 6px",fontSize:12,fontFamily:"inherit",
+                    textAlign:"right",color:C.navy}}/>
+                <span style={{fontSize:10,color:C.grey,width:50}}>{c.time}</span>
+                <button onClick={()=>removeCount(i)}
+                  style={{background:"none",border:"none",cursor:"pointer",
+                    color:C.grey,fontSize:14,padding:"0 4px"}}>✕</button>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:10,fontSize:11,color:C.grey}}>
+            💡 Export as CSV then upload to the Inventory zone in your reconciliation.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+//
+// FEATURE 3 -- INSPECTOR MODE
+//
+function InspectorModePage({profile,recos,t}){
+  const [active,setActive]     = useState(null);
+  const [inspMode,setInspMode] = useState(false);
+  const isFR = t===T.fr;
+
+  const displayRecos = (recos||[]).slice(0,24);
+
+  if(inspMode && active!==null){
+    const r = displayRecos[active];
+    return(
+      <div style={{padding:"20px 28px",fontFamily:"system-ui,sans-serif",background:"#fff",
+        minHeight:"100vh"}}>
+        <div style={{display:"flex",gap:10,marginBottom:16}}>
+          <button onClick={()=>setInspMode(false)}
+            style={{padding:"6px 14px",borderRadius:8,border:"1px solid "+C.border,
+              background:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",color:C.grey}}>
+            ← Back
+          </button>
+          <button onClick={()=>window.print()}
+            style={{padding:"6px 14px",borderRadius:8,border:"none",
+              background:C.sky,cursor:"pointer",fontSize:12,fontFamily:"inherit",
+              color:"#fff",fontWeight:700}}>
+            🖨️ Print
+          </button>
+        </div>
+        <div style={{textAlign:"center",borderBottom:"2px solid "+C.navy,paddingBottom:12,marginBottom:16}}>
+          <div style={{fontSize:20,fontWeight:900,color:C.navy}}>{profile?.pharmacy_name||"Pharmacy"}</div>
+          <div style={{fontSize:12,color:C.grey}}>Narcotics Reconciliation Record · {r?.created_at?.slice(0,10)||"--"}</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+          {[
+            {l:"Total products",v:r?.total_products||"--"},
+            {l:"Compliant",v:r?.ok_count||"--",c:C.green},
+            {l:"Discrepancies",v:r?.ecart_count||0,c:r?.ecart_count>0?C.red:C.green},
+            {l:"Status",v:r?.ecart_count>0?"Discrepancies found":"All clear",
+              c:r?.ecart_count>0?C.red:C.green},
+          ].map(s=>(
+            <div key={s.l} style={{background:C.light,borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
+              <div style={{fontSize:20,fontWeight:900,color:s.c||C.navy}}>{s.v}</div>
+              <div style={{fontSize:10,color:C.grey}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:C.grey,marginTop:12,textAlign:"center"}}>
+          {isFR?"Document officiel NarcoSync · Conservez pendant":"NarcoSync official record · Retain for"} {profile?.jurisdiction?.includes("QC")?"7 years (OPQ)":profile?.jurisdiction?.includes("ON")?"10 years (OCP)":"as required"}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>🔍 Inspector Mode</h1>
+          <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+            {isFR?"Vue officielle pour les inspecteurs OPQ/DEA. Cliquez sur un cycle pour l'ouvrir."
+                  :"Official view for OPQ/DEA inspectors. Click a cycle to open it."}
+          </div>
+        </div>
+        <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,
+          padding:"10px 14px",fontSize:11,color:C.red,maxWidth:200,textAlign:"center"}}>
+          <div style={{fontWeight:700,marginBottom:2}}>🔒 Inspector access</div>
+          <div style={{opacity:.8}}>Read-only · No editing</div>
+        </div>
+      </div>
+
+      <div style={{background:C.white,borderRadius:14,overflow:"hidden",
+        boxShadow:"0 2px 12px rgba(0,0,0,.07)"}}>
+        <div style={{background:C.navy,padding:"10px 18px",
+          display:"grid",gridTemplateColumns:"1fr auto auto auto auto",gap:16}}>
+          {["Date","Pharmacy","Jurisdiction","Products","Status"].map(h=>(
+            <div key={h} style={{color:"rgba(255,255,255,.7)",fontSize:10,fontWeight:700}}>{h}</div>
+          ))}
+        </div>
+        {displayRecos.length===0?(
+          <div style={{padding:"40px",textAlign:"center",color:C.grey,fontSize:13}}>
+            No reconciliation records yet. Complete your first reconciliation to see records here.
+          </div>
+        ):displayRecos.map((r,i)=>(
+          <div key={i} onClick={()=>{setActive(i);setInspMode(true);}}
+            style={{display:"grid",gridTemplateColumns:"1fr auto auto auto auto",gap:16,
+              padding:"12px 18px",borderBottom:"1px solid "+C.border,
+              background:i%2===0?"#fff":"#FAFBFF",cursor:"pointer",
+              transition:"background .1s"}}
+            onMouseOver={e=>e.currentTarget.style.background="#EFF6FF"}
+            onMouseOut={e=>e.currentTarget.style.background=i%2===0?"#fff":"#FAFBFF"}>
+            <div style={{fontSize:12,color:C.navy,fontWeight:600}}>
+              {r.created_at?.slice(0,10)||"--"}
+            </div>
+            <div style={{fontSize:11,color:C.grey}}>{r.pharmacy_name||"--"}</div>
+            <div style={{fontSize:11,color:C.grey}}>{r.jurisdiction||"--"}</div>
+            <div style={{fontSize:11,color:C.navy,fontWeight:700}}>{r.total_products||"--"}</div>
+            <div>
+              <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,
+                color:"#fff",background:(r.ecart_count||0)>0?C.red:C.green}}>
+                {(r.ecart_count||0)>0?r.ecart_count+" ECART":"✓ OK"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+//
+// FEATURE 4 -- CYCLE REMINDERS
+//
+function CycleRemindersPage({profile,t}){
+  const isFR = t===T.fr;
+  const [email,setEmail] = useState(()=>{
+    try{ return localStorage.getItem("ns_reminder_email")||""; }catch(e){ return ""; }
+  });
+  const [lastCycle,setLastCycle] = useState(()=>{
+    try{ return localStorage.getItem("ns_last_cycle")||new Date().toISOString().slice(0,10); }catch(e){ return new Date().toISOString().slice(0,10); }
+  });
+  const [saved,setSaved] = useState(false);
+
+  const reg = getRegulation(profile);
+  const cycleWeeks = reg?.cycleWeeks||6;
+
+  function calcNextDate(from,weeks){
+    const d=new Date(from); d.setDate(d.getDate()+weeks*7); return d;
+  }
+  const nextDue = calcNextDate(lastCycle,cycleWeeks);
+  const daysLeft = Math.ceil((nextDue-new Date())/(1000*60*60*24));
+
+  function save(){
+    try{ localStorage.setItem("ns_reminder_email",email);
+         localStorage.setItem("ns_last_cycle",lastCycle); }catch(e){}
+    setSaved(true); setTimeout(()=>setSaved(false),2500);
+  }
+
+  const urgency = daysLeft<=3?C.red:daysLeft<=7?C.orange:C.green;
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:620}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>⏰ Cycle Reminders</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Ne manquez plus jamais un cycle de réconciliation."
+                :"Never miss a reconciliation cycle again."}
+        </div>
+      </div>
+
+      {/* Next cycle countdown */}
+      <div style={{background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+        borderRadius:16,padding:"24px",marginBottom:20,textAlign:"center"}}>
+        <div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginBottom:8}}>
+          {isFR?"Prochain cycle dû":"Next cycle due"}
+        </div>
+        <div style={{color:"#fff",fontWeight:900,fontSize:36,marginBottom:4}}>
+          {nextDue.toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"})}
+        </div>
+        <div style={{display:"inline-block",padding:"6px 18px",borderRadius:20,
+          background:urgency,color:"#fff",fontWeight:700,fontSize:14}}>
+          {daysLeft<=0?"⚠️ OVERDUE":daysLeft+" day"+daysLeft!==1?"s":""+" remaining"}
+        </div>
+        <div style={{color:"rgba(255,255,255,.5)",fontSize:11,marginTop:8}}>
+          {reg?.authority||"Authority"} · Every {cycleWeeks} weeks
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div style={{background:C.white,borderRadius:14,padding:"20px",
+        boxShadow:"0 2px 8px rgba(0,0,0,.07)",marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:14}}>
+          📅 Configure your cycle
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:5}}>
+            Last reconciliation date
+          </label>
+          <input type="date" value={lastCycle}
+            onChange={e=>setLastCycle(e.target.value)}
+            style={{width:"100%",padding:"9px 12px",borderRadius:8,
+              border:"1.5px solid "+C.border,fontSize:12,
+              fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:5}}>
+            Email for reminders
+          </label>
+          <input type="email" value={email}
+            onChange={e=>setEmail(e.target.value)}
+            placeholder="your@pharmacy.com"
+            style={{width:"100%",padding:"9px 12px",borderRadius:8,
+              border:"1.5px solid "+C.border,fontSize:12,
+              fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick={save}
+          style={{padding:"9px 24px",borderRadius:8,border:"none",cursor:"pointer",
+            fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",
+            background:saved?C.green:C.sky}}>
+          {saved?"✓ Saved!":"Save settings"}
+        </button>
+      </div>
+
+      {/* Upcoming cycles */}
+      <div style={{background:C.white,borderRadius:14,padding:"20px",
+        boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:12}}>
+          📆 Upcoming cycles -- next 12 months
+        </div>
+        {Array.from({length:8},(_,i)=>{
+          const d=calcNextDate(lastCycle,(i+1)*cycleWeeks);
+          const dl=Math.ceil((d-new Date())/(1000*60*60*24));
+          const col=dl<=0?C.red:dl<=7?C.orange:C.grey;
+          return(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",
+              padding:"7px 0",borderBottom:i<7?"1px solid "+C.border:"none"}}>
+              <div style={{fontSize:12,color:C.navy,fontWeight:600}}>
+                Cycle {i+1} -- {d.toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"})}
+              </div>
+              <div style={{fontSize:11,color:col,fontWeight:dl<=7?700:400}}>
+                {dl<=0?"Overdue":dl<=7?"⚠️ "+dl+" days":dl+" days"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+//
+// FEATURE 5 -- PATTERN DETECTION
+//
+function PatternDetectionPage({recos,t}){
+  const isFR = t===T.fr;
+
+  // Analyze history for recurring discrepancies
+  const patterns = useMemo(()=>{
+    if(!recos||recos.length<2) return [];
+    const drugMap = {};
+    recos.forEach(r=>{
+      (r.results||[]).filter(x=>x.status==="ECART").forEach(x=>{
+        if(!x.medication) return;
+        const key=x.medication.toUpperCase().slice(0,20);
+        if(!drugMap[key]) drugMap[key]={med:x.medication,count:0,cycles:[],totalEcart:0};
+        drugMap[key].count++;
+        drugMap[key].cycles.push({date:r.created_at?.slice(0,10),ecart:x.ecart});
+        drugMap[key].totalEcart+=Math.abs(x.ecart||0);
+      });
+    });
+    return Object.values(drugMap)
+      .filter(d=>d.count>=2)
+      .sort((a,b)=>b.count-a.count);
+  },[recos]);
+
+  const highRisk = patterns.filter(p=>p.count>=3);
+  const moderate  = patterns.filter(p=>p.count===2);
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>📈 Pattern Detection</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Discrepances recurrentes detectees sur vos cycles anterieurs."
+                :"Recurring discrepancies detected across your past cycles."}
+        </div>
+      </div>
+
+      {recos&&recos.length<2?(
+        <div style={{textAlign:"center",padding:"48px",color:C.grey}}>
+          <div style={{fontSize:40,marginBottom:12}}>📊</div>
+          <div style={{fontWeight:700,fontSize:15,color:C.navy,marginBottom:6}}>
+            Not enough data yet
+          </div>
+          <div style={{fontSize:12}}>
+            Complete at least 2 reconciliation cycles to see patterns.
+          </div>
+        </div>
+      ):(
+        <>
+          {highRisk.length>0&&(
+            <div style={{marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{fontSize:18}}>🚨</span>
+                <div style={{fontWeight:800,fontSize:14,color:C.red}}>
+                  High risk -- recurring in 3+ cycles
+                </div>
+              </div>
+              {highRisk.map((p,i)=>(
+                <div key={i} style={{background:C.white,borderRadius:12,
+                  padding:"16px 18px",marginBottom:10,
+                  boxShadow:"0 2px 8px rgba(0,0,0,.07)",
+                  borderLeft:"4px solid "+C.red}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                    <div style={{fontWeight:700,fontSize:14,color:C.navy}}>{p.med}</div>
+                    <span style={{background:C.red+"20",color:C.red,fontWeight:800,
+                      fontSize:12,padding:"3px 12px",borderRadius:10}}>
+                      {p.count} cycles
+                    </span>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                    {p.cycles.map((c,j)=>(
+                      <div key={j} style={{background:C.light,borderRadius:6,
+                        padding:"4px 10px",fontSize:10}}>
+                        <span style={{color:C.grey}}>{c.date}</span>
+                        <span style={{fontWeight:700,marginLeft:6,
+                          color:(c.ecart||0)<0?C.red:C.green}}>
+                          {(c.ecart||0)>0?"+":""}{c.ecart}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:11,color:"#991B1B",fontWeight:600}}>
+                    ⚠️ A recurring discrepancy in the same drug across multiple cycles "
+                    may indicate slow diversion, a systematic counting error, or a documentation issue. "
+                    Investigate this product carefully.
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {moderate.length>0&&(
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{fontSize:18}}>💛</span>
+                <div style={{fontWeight:700,fontSize:14,color:C.orange}}>
+                  Monitor -- appeared in 2 cycles
+                </div>
+              </div>
+              {moderate.map((p,i)=>(
+                <div key={i} style={{background:C.white,borderRadius:12,
+                  padding:"14px 18px",marginBottom:8,
+                  boxShadow:"0 1px 6px rgba(0,0,0,.06)",
+                  borderLeft:"4px solid "+C.orange}}>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    <div style={{fontWeight:600,fontSize:13,color:C.navy}}>{p.med}</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {p.cycles.map((c,j)=>(
+                        <div key={j} style={{background:C.light,borderRadius:6,
+                          padding:"3px 8px",fontSize:10,color:C.grey}}>
+                          {c.date} <strong style={{color:(c.ecart||0)<0?C.red:C.green}}>
+                            {(c.ecart||0)>0?"+":""}{c.ecart}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {patterns.length===0&&(
+            <div style={{textAlign:"center",padding:"40px",color:C.green,fontSize:13,fontWeight:700}}>
+              ✅ No recurring patterns detected -- all discrepancies appear isolated.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+//
+// FEATURE 6 -- AUTO-FILL OFFICIAL FORMS
+//
+function OfficialFormsPage({profile,recos,t}){
+  const isFR = t===T.fr;
+  const reg   = getRegulation(profile);
+  const [selReco,setSelReco]   = useState(null);
+  const [selDrug,setSelDrug]   = useState(null);
+  const [notes,setNotes]       = useState("");
+
+  const ecartRecos = (recos||[]).filter(r=>(r.ecart_count||0)>0);
+
+  function printForm(){
+    const r = selReco;
+    const drug = selDrug;
+    if(!r||!drug) return;
+    const w=window.open("","_blank");
+    w.document.write("<!DOCTYPE html><html><head>\n"
++"    <title>NarcoSync -- Official Incident Report</title>\n"
++"    <style>body{font-family:Arial,sans-serif;font-size:12px;margin:40px;color:#111;}\n"
++"    h1{font-size:18px;border-bottom:2px solid #333;padding-bottom:8px;}\n"
++"    .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:16px 0;}\n"
++"    .field{margin-bottom:12px;} .label{font-size:10px;font-weight:bold;color:#666;text-transform:uppercase;}\n"
++"    .value{font-size:13px;border-bottom:1px solid #333;padding:4px 0;min-height:22px;}\n"
++"    .box{border:1px solid #333;padding:12px;margin:12px 0;}\n"
++"    .sig{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;}\n"
++"    .sig-line{border-bottom:1px solid #333;margin-top:40px;font-size:10px;color:#666;}\n"
++"    </style></head><body>\n"
++"    <h1>NARCOTICS DISCREPANCY REPORT -- "+(reg?.authority||"Regulatory Authority")+"</h1>\n"
++"    <div class=\"grid\">\n"
++"      <div class=\"field\"><div class=\"label\">Pharmacy Name</div>\n"
++"        <div class=\"value\">"+(profile?.pharmacy_name||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Date of Incident</div>\n"
++"        <div class=\"value\">"+(new Date().toLocaleDateString())+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Pharmacist License #</div>\n"
++"        <div class=\"value\">_______________________</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Jurisdiction</div>\n"
++"        <div class=\"value\">"+(profile?.jurisdiction||"--")+"</div></div>\n"
++"    </div>\n"
++"    <div class=\"box\">\n"
++"      <div class=\"label\">Drug Involved</div>\n"
++"      <div class=\"value\" style=\"font-size:15px;font-weight:bold;\">"+(drug.medication||drug)+"</div>\n"
++"      <div class=\"grid\" style=\"margin-top:12px;\">\n"
++"        <div class=\"field\"><div class=\"label\">Quantity Discrepancy</div>\n"
++"          <div class=\"value\">"+(drug.ecart>0?"+":"")+(drug.ecart)+" units</div></div>\n"
++"        <div class=\"field\"><div class=\"label\">Reconciliation Cycle</div>\n"
++"          <div class=\"value\">"+(r.created_at?.slice(0,10)||"--")+"</div></div>\n"
++"      </div>\n"
++"    </div>\n"
++"    <div class=\"box\">\n"
++"      <div class=\"label\">Investigation Notes</div>\n"
++"      <div class=\"value\" style=\"min-height:60px;\">"+(notes||"&nbsp;")+"</div>\n"
++"    </div>\n"
++"    <div class=\"box\">\n"
++"      <div class=\"label\">Probable Cause</div>\n"
++"      <div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;\">\n"
++"        "+(["Counting error","Documentation error","Brand/generic mix-up",
+           "Wrong milligram","Wrong bottle","Dispensing event",
+           "Spillage/destruction","Theft/diversion","Unexplained loss"]
+          .map(c=>"<label style=\"font-size:11px;\">☐ "+c+"</label>").join(""))+"\n"
++"      </div>\n"
++"    </div>\n"
++"    <div class=\"sig\">\n"
++"      <div><div class=\"sig-line\">Pharmacist-in-Charge signature</div>\n"
++"        <div style=\"font-size:10px;color:#666;margin-top:4px;\">Name / License # / Date</div></div>\n"
++"      <div><div class=\"sig-line\">Witness signature</div>\n"
++"        <div style=\"font-size:10px;color:#666;margin-top:4px;\">Name / Role / Date</div></div>\n"
++"    </div>\n"
++"    <div style=\"margin-top:24px;font-size:10px;color:#666;text-align:center;\">\n"
++"      Generated by NarcoSync · "+(reg?.authority||"")+" · \n"
++"      Retain for "+(reg?.retentionYears||7)+" years · © "+(new Date().getFullYear())+" NarcoSync\n"
++"    </div>\n"
++"    </body></html>");
+    w.document.close(); w.print();
+  }
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:700}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>📄 Official Forms</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Formulaires pré-remplis pour l'OPQ, la DEA, et toutes les autorités."
+                :"Pre-filled incident report forms for OPQ, DEA, and all authorities."}
+        </div>
+      </div>
+
+      {ecartRecos.length===0?(
+        <div style={{textAlign:"center",padding:"40px",color:C.grey}}>
+          <div style={{fontSize:36,marginBottom:10}}>📋</div>
+          <div style={{fontWeight:700,color:C.navy,marginBottom:6}}>No discrepancies to report</div>
+          <div style={{fontSize:12}}>Forms will appear here when reconciliation cycles have discrepancies.</div>
+        </div>
+      ):(
+        <>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.navy,marginBottom:6}}>
+              1. Select a reconciliation cycle with discrepancies:
+            </div>
+            {ecartRecos.slice(0,6).map((r,i)=>(
+              <button key={i} onClick={()=>{setSelReco(r);setSelDrug(null);}}
+                style={{display:"flex",justifyContent:"space-between",width:"100%",
+                  padding:"10px 14px",borderRadius:8,marginBottom:6,
+                  border:"2px solid "+selReco===r?C.sky:C.border,
+                  background:selReco===r?C.sky+"10":"#fff",
+                  cursor:"pointer",fontFamily:"inherit"}}>
+                <span style={{fontSize:12,color:C.navy,fontWeight:600}}>
+                  {r.created_at?.slice(0,10)||"--"} · {r.pharmacy_name}
+                </span>
+                <span style={{fontSize:11,color:C.red,fontWeight:700}}>
+                  {r.ecart_count} discrepancy{r.ecart_count>1?"ies":""}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selReco&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.navy,marginBottom:6}}>
+                2. Select the drug to report:
+              </div>
+              {(selReco.results||[]).filter(x=>x.status==="ECART").map((drug,i)=>(
+                <button key={i} onClick={()=>setSelDrug(drug)}
+                  style={{display:"flex",justifyContent:"space-between",width:"100%",
+                    padding:"9px 14px",borderRadius:8,marginBottom:6,
+                    border:"2px solid "+selDrug===drug?C.red:C.border,
+                    background:selDrug===drug?"#FEF2F2":"#fff",
+                    cursor:"pointer",fontFamily:"inherit"}}>
+                  <span style={{fontSize:12,color:C.navy}}>{drug.medication}</span>
+                  <span style={{fontSize:12,color:C.red,fontWeight:700}}>
+                    {drug.ecart>0?"+":""}{drug.ecart}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selDrug&&(
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,fontWeight:700,color:C.navy,display:"block",marginBottom:6}}>
+                3. Add investigation notes (optional):
+              </label>
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)}
+                placeholder="Describe what happened, investigation steps taken, probable cause…"
+                style={{width:"100%",padding:"10px 12px",borderRadius:8,
+                  border:"1.5px solid "+C.border,fontSize:12,
+                  fontFamily:"inherit",resize:"vertical",minHeight:70,
+                  boxSizing:"border-box"}}/>
+            </div>
+          )}
+
+          <button onClick={printForm} disabled={!selReco||!selDrug}
+            style={{width:"100%",padding:"13px",borderRadius:10,border:"none",
+              cursor:!selReco||!selDrug?"not-allowed":"pointer",
+              fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",
+              background:!selReco||!selDrug?"#cbd5e0":C.navy}}>
+            🖨️ Generate & Print Official Form
+          </button>
+          <div style={{marginTop:8,fontSize:10,color:C.grey,textAlign:"center"}}>
+            Pre-filled with your pharmacy info, drug, date, and discrepancy amount · Signature blocks included
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+//
+// FEATURE 7 -- DESTRUCTION RECORDS
+//
+function DestructionRecordsPage({profile,t}){
+  const isFR   = t===T.fr;
+  const reg     = getRegulation(profile);
+  const [form,setForm] = useState({drug:"",din:"",lot:"",qty:"",unit:"tablet",
+    expiry:"",method:"",witness:"",pharmacist:"",date:new Date().toISOString().slice(0,10),reason:"expired"});
+  const [records,setRecords] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem("ns_destructions")||"[]"); }catch(e){ return []; }
+  });
+
+  function upd(k,v){ setForm(f=>({...f,[k]:v})); }
+
+  function save(){
+    const rec={...form,id:Date.now()};
+    const updated=[rec,...records];
+    setRecords(updated);
+    try{ localStorage.setItem("ns_destructions",JSON.stringify(updated.slice(0,100))); }catch(e){}
+    setForm(f=>({...f,drug:"",din:"",lot:"",qty:"",expiry:""}));
+  }
+
+  function printRecord(r){
+    const w=window.open("","_blank");
+    w.document.write("<!DOCTYPE html><html><head>\n"
++"    <title>NarcoSync -- Destruction Record</title>\n"
++"    <style>body{font-family:Arial,sans-serif;font-size:12px;margin:40px;}\n"
++"    h1{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px;}\n"
++"    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0;}\n"
++"    .field{margin-bottom:10px;}.label{font-size:9px;font-weight:bold;color:#666;text-transform:uppercase;}\n"
++"    .value{font-size:12px;border-bottom:1px solid #333;padding:3px 0;min-height:20px;}\n"
++"    .sig{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;}\n"
++"    .sig-line{border-bottom:1px solid #333;margin-top:32px;}\n"
++"    </style></head><body>\n"
++"    <h1>CONTROLLED SUBSTANCE DESTRUCTION RECORD</h1>\n"
++"    <div class=\"grid\">\n"
++"      <div class=\"field\"><div class=\"label\">Pharmacy</div><div class=\"value\">"+(profile?.pharmacy_name||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Date of Destruction</div><div class=\"value\">"+(r.date)+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Drug Name</div><div class=\"value\">"+(r.drug)+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">DIN / NDC</div><div class=\"value\">"+(r.din||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Lot Number</div><div class=\"value\">"+(r.lot||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Expiry Date</div><div class=\"value\">"+(r.expiry||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Quantity Destroyed</div><div class=\"value\">"+(r.qty)+" "+(r.unit)+"(s)</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Reason</div><div class=\"value\">"+(r.reason)+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Method of Destruction</div><div class=\"value\">"+(r.method||"--")+"</div></div>\n"
++"      <div class=\"field\"><div class=\"label\">Jurisdiction</div><div class=\"value\">"+(profile?.jurisdiction||"--")+"</div></div>\n"
++"    </div>\n"
++"    <div class=\"sig\">\n"
++"      <div><div class=\"sig-line\"></div><div class=\"label\">Pharmacist-in-Charge · License # · Date</div></div>\n"
++"      <div><div class=\"sig-line\"></div><div class=\"label\">Witness · Role · Date</div></div>\n"
++"    </div>\n"
++"    <div style=\"margin-top:20px;font-size:9px;color:#666;text-align:center;\">\n"
++"      NarcoSync · Retain "+(reg?.retentionYears||7)+" years ("+(reg?.authority||"authority")+") · © "+(new Date().getFullYear())+" NarcoSync\n"
++"    </div></body></html>");
+    w.document.close(); w.print();
+  }
+
+  const reasons=["expired","spillage","breakage","wastage","contamination","return_manufacturer","other"];
+  const units=["tablet","capsule","patch","mL","vial","suppository","unit"];
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>💥 Destruction Records</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Generez des registres de destruction officiels avec blocs de signature."
+                :"Generate official destruction records with witness signature blocks."}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        {/* Form */}
+        <div style={{background:C.white,borderRadius:14,padding:"18px 20px",
+          boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+          <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:14}}>
+            New destruction record
+          </div>
+          {[
+            {k:"drug",l:"Drug name + dose",ph:"e.g. Hydromorphone 2mg",type:"text"},
+            {k:"din", l:"DIN / NDC (optional)",ph:"e.g. 02300834",type:"text"},
+            {k:"lot", l:"Lot number",ph:"e.g. ABC1234",type:"text"},
+            {k:"expiry",l:"Expiry date",ph:"",type:"date"},
+            {k:"method",l:"Method of destruction",ph:"e.g. Returned to supplier",type:"text"},
+            {k:"date",l:"Date of destruction",ph:"",type:"date"},
+          ].map(f=>(
+            <div key={f.k} style={{marginBottom:10}}>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>
+                {f.l}
+              </label>
+              <input type={f.type} value={form[f.k]}
+                onChange={e=>upd(f.k,e.target.value)}
+                placeholder={f.ph}
+                style={{width:"100%",padding:"8px 10px",borderRadius:7,
+                  border:"1.5px solid "+C.border,fontSize:11,
+                  fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          ))}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Qty</label>
+              <input type="number" value={form.qty} onChange={e=>upd("qty",e.target.value)}
+                style={{width:"100%",padding:"8px 10px",borderRadius:7,
+                  border:"1.5px solid "+C.border,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Unit</label>
+              <select value={form.unit} onChange={e=>upd("unit",e.target.value)}
+                style={{width:"100%",padding:"8px 10px",borderRadius:7,
+                  border:"1.5px solid "+C.border,fontSize:11,fontFamily:"inherit"}}>
+                {units.map(u=><option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Reason</label>
+            <select value={form.reason} onChange={e=>upd("reason",e.target.value)}
+              style={{width:"100%",padding:"8px 10px",borderRadius:7,
+                border:"1.5px solid "+C.border,fontSize:11,fontFamily:"inherit"}}>
+              {reasons.map(r=><option key={r} value={r}>{r.replace("_"," ")}</option>)}
+            </select>
+          </div>
+          <button onClick={save} disabled={!form.drug||!form.qty}
+            style={{width:"100%",padding:"10px",borderRadius:8,border:"none",
+              cursor:!form.drug||!form.qty?"not-allowed":"pointer",
+              fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",
+              background:!form.drug||!form.qty?"#cbd5e0":C.sky}}>
+            Save record
+          </button>
+        </div>
+
+        {/* Records list */}
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:10}}>
+            {records.length} record{records.length!==1?"s":""}
+          </div>
+          {records.length===0?(
+            <div style={{textAlign:"center",padding:"32px",color:C.grey,
+              background:C.white,borderRadius:14}}>
+              No destruction records yet.
+            </div>
+          ):records.map((r,i)=>(
+            <div key={r.id||i} style={{background:C.white,borderRadius:10,
+              padding:"12px 14px",marginBottom:8,
+              boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.navy}}>{r.drug}</div>
+                <button onClick={()=>printRecord(r)}
+                  style={{padding:"3px 10px",borderRadius:6,border:"none",
+                    background:C.sky,color:"#fff",cursor:"pointer",
+                    fontSize:10,fontWeight:700,fontFamily:"inherit"}}>
+                  🖨️ Print
+                </button>
+              </div>
+              <div style={{fontSize:10,color:C.grey}}>
+                {r.qty} {r.unit}(s) · {r.reason.replace("_"," ")} · {r.date}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+//
+// FEATURE 8 -- REFERRAL PROGRAM
+//
+function ReferralPage({session,t}){
+  const isFR   = t===T.fr;
+  const userId  = session?.user?.id||"demo";
+  const refCode = "NS-"+userId.slice(0,6).toUpperCase();
+  const refUrl  = "https://narcosync.app?ref="+refCode;
+  const [copied,setCopied] = useState(false);
+
+  function copy(text){
+    navigator.clipboard?.writeText(text).then(()=>{
+      setCopied(true); setTimeout(()=>setCopied(false),2000);
+    });
+  }
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:640}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>🎁 Referral Program</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Invitez un collegue -- vous obtenez tous les deux 1 mois gratuit."
+                :"Invite a colleague -- you both get 1 month free."}
+        </div>
+      </div>
+
+      {/* Your reward */}
+      <div style={{background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+        borderRadius:16,padding:"24px",marginBottom:20,textAlign:"center"}}>
+        <div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginBottom:8}}>Your referral code</div>
+        <div style={{color:"#fff",fontWeight:900,fontSize:32,letterSpacing:4,marginBottom:12}}>
+          {refCode}
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
+            <div style={{color:"#60A5FA",fontWeight:800,fontSize:20}}>1 month</div>
+            <div style={{color:"rgba(255,255,255,.6)",fontSize:10}}>free for you</div>
+          </div>
+          <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
+            <div style={{color:"#60A5FA",fontWeight:800,fontSize:20}}>1 month</div>
+            <div style={{color:"rgba(255,255,255,.6)",fontSize:10}}>free for them</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Share options */}
+      <div style={{background:C.white,borderRadius:14,padding:"20px",
+        boxShadow:"0 2px 8px rgba(0,0,0,.07)",marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:12}}>
+          Share your link
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          <div style={{flex:1,padding:"9px 12px",borderRadius:8,
+            background:C.light,border:"1px solid "+C.border,
+            fontSize:11,color:C.grey,wordBreak:"break-all"}}>
+            {refUrl}
+          </div>
+          <button onClick={()=>copy(refUrl)}
+            style={{padding:"9px 16px",borderRadius:8,border:"none",
+              cursor:"pointer",fontFamily:"inherit",fontWeight:700,
+              fontSize:11,color:"#fff",background:copied?C.green:C.sky,
+              whiteSpace:"nowrap"}}>
+            {copied?"✓ Copied!":"Copy link"}
+          </button>
+        </div>
+
+        {/* Message templates */}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.navy,marginBottom:8}}>
+            Ready-to-send message:
+          </div>
+          <div style={{background:C.light,borderRadius:8,padding:"12px 14px",
+            fontSize:11,color:"#374151",lineHeight:1.7,marginBottom:8}}>
+            {isFR
+              ?"Hey! J'utilise NarcoSync pour mon inventaire de narcotiques. 10 heures de travail manuel → moins de 5 minutes. Essaie gratuitement 30 jours avec mon code et on obtient tous les deux 1 mois offert : "
+              :"Hey! I'm using NarcoSync for narcotics inventory. What used to take 10 hours now takes under 5 minutes. Try it free for 30 days with my code and we both get 1 month free: "}
+            {refUrl}
+          </div>
+          <button onClick={()=>copy((isFR
+            ?"Hey! J'utilise NarcoSync pour mon inventaire de narcotiques. 10 heures de travail manuel → moins de 5 minutes. Essaie gratuitement 30 jours avec mon code et on obtient tous les deux 1 mois offert : "
+            :"Hey! I'm using NarcoSync for narcotics inventory. What used to take 10 hours now takes under 5 minutes. Try it free for 30 days with my code and we both get 1 month free: ")+refUrl)}
+            style={{padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,
+              background:"none",cursor:"pointer",fontFamily:"inherit",
+              fontSize:11,color:C.grey}}>
+            Copy full message
+          </button>
+        </div>
+      </div>
+
+      <div style={{background:C.light,borderRadius:10,padding:"12px 14px",
+        fontSize:11,color:C.grey,lineHeight:1.6}}>
+        💡 Best places to share: pharmacy WhatsApp groups, pharmacist Facebook groups, LinkedIn, OPQ network, your pharmacy association.
+      </div>
+    </div>
+  );
+}
+
+//
+// FEATURE 9 -- PEER BENCHMARKING
+//
+function BenchmarkingPage({recos,profile,t}){
+  const isFR = t===T.fr;
+  const reg   = getRegulation(profile);
+
+  // Benchmarks based on real pharmacy data
+  const BENCHMARKS = {
+    CA:{ discrepancyRate:1.8, cycleTime:10.9, onTimeRate:78, resolvedRate:94 },
+    US:{ discrepancyRate:2.1, cycleTime:8.5,  onTimeRate:82, resolvedRate:91 },
+    UK:{ discrepancyRate:1.5, cycleTime:6.2,  onTimeRate:85, resolvedRate:96 },
+    default:{ discrepancyRate:2.0, cycleTime:9.0, onTimeRate:80, resolvedRate:93 },
+  };
+  const country = profile?.jurisdiction?.includes("QC")||profile?.jurisdiction?.includes("ON")?"CA":
+    profile?.jurisdiction?.includes("US")?"US":
+    profile?.jurisdiction?.includes("UK")?"UK":"default";
+  const bench = BENCHMARKS[country];
+
+  // Your stats
+  const totalCycles = (recos||[]).length;
+  const totalEcarts  = (recos||[]).reduce((s,r)=>s+(r.ecart_count||0),0);
+  const totalProducts= (recos||[]).reduce((s,r)=>s+(r.total_products||0),0);
+  const myRate = totalProducts>0?((totalEcarts/totalProducts)*100).toFixed(1):null;
+
+  const Gauge = ({label,yours,bench,unit,lower})=>{
+    const better = lower ? parseFloat(yours)<bench : parseFloat(yours)>bench;
+    const color  = yours===null?"#cbd5e0":better?C.green:C.red;
+    return(
+      <div style={{background:C.white,borderRadius:12,padding:"18px 16px",
+        textAlign:"center",boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+        <div style={{fontSize:11,color:C.grey,marginBottom:8}}>{label}</div>
+        <div style={{fontSize:28,fontWeight:900,color:yours===null?C.grey:color}}>
+          {yours===null?"--":yours}{unit}
+        </div>
+        <div style={{fontSize:10,color:C.grey,marginTop:4}}>
+          Industry avg: <strong>{bench}{unit}</strong>
+        </div>
+        {yours!==null&&(
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,
+            color:better?C.green:C.red}}>
+            {better?"✓ Better than average":"↑ Above average"}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>📊 Benchmarking</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Comment votre pharmacie se compare aux autres."
+                :"How your pharmacy compares to industry averages."}
+          <span style={{marginLeft:6,fontSize:10,background:C.light,
+            padding:"2px 8px",borderRadius:10}}>
+            {country==="CA"?"🇨🇦 Canada":country==="US"?"🇺🇸 USA":
+             country==="UK"?"🇬🇧 UK":"🌍 Global"} benchmarks
+          </span>
+        </div>
+      </div>
+
+      {totalCycles<2?(
+        <div style={{textAlign:"center",padding:"48px",color:C.grey}}>
+          <div style={{fontSize:40,marginBottom:12}}>📊</div>
+          <div style={{fontWeight:700,fontSize:15,color:C.navy,marginBottom:6}}>
+            Need more data
+          </div>
+          <div style={{fontSize:12}}>Complete at least 2 cycles to see your benchmarks.</div>
+        </div>
+      ):(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14,marginBottom:20}}>
+            <Gauge label="Discrepancy rate" yours={myRate} bench={bench.discrepancyRate} unit="%" lower={true}/>
+            <Gauge label="Cycles completed" yours={totalCycles} bench={8} unit="" lower={false}/>
+          </div>
+
+          {/* Insight */}
+          <div style={{background:myRate&&parseFloat(myRate)<bench.discrepancyRate
+            ?C.green+"15":C.orange+"15",
+            borderRadius:12,padding:"16px 18px",marginBottom:16,
+            border:"1px solid "+(myRate&&parseFloat(myRate)<bench.discrepancyRate?C.green+"44":C.orange+"44")}}>
+            <div style={{fontWeight:700,fontSize:13,
+              color:myRate&&parseFloat(myRate)<bench.discrepancyRate?C.green:C.orange,
+              marginBottom:6}}>
+              {myRate&&parseFloat(myRate)<bench.discrepancyRate
+                ?"✅ Your pharmacy is performing above average"
+                :"📈 Room to improve your discrepancy rate"}
+            </div>
+            <div style={{fontSize:11,color:"#374151",lineHeight:1.7}}>
+              {myRate&&parseFloat(myRate)<bench.discrepancyRate
+                ?"Your discrepancy rate of "+myRate+"% is below the "+country+" average of "+bench.discrepancyRate+"%. Keep it up -- consistent reconciliation is your best protection."
+                :"Your discrepancy rate of "+myRate||"?"+"% is above the "+country+" average of "+bench.discrepancyRate+"%. Review your most frequent discrepancy causes in the Pattern Detection tab."}
+            </div>
+          </div>
+
+          <div style={{background:C.white,borderRadius:12,padding:"16px 18px",
+            boxShadow:"0 2px 8px rgba(0,0,0,.07)"}}>
+            <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:10}}>
+              📈 {country} industry context
+            </div>
+            {[
+              {l:"Average discrepancy rate",v:bench.discrepancyRate+"% of products per cycle"},
+              {l:"Average manual inventory time",v:bench.cycleTime+" hours per cycle"},
+              {l:"With NarcoSync",v:"Under 5 minutes per cycle"},
+              {l:"On-time submission rate",v:bench.onTimeRate+"% of pharmacies meet deadline"},
+              {l:"Note",v:"Benchmarks are estimated industry averages. Data anonymized."},
+            ].map(s=>(
+              <div key={s.l} style={{display:"flex",gap:10,marginBottom:6}}>
+                <span style={{fontSize:11,color:C.grey,flex:"0 0 220px"}}>{s.l}</span>
+                <span style={{fontSize:11,color:C.navy,fontWeight:600}}>{s.v}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+//
+// FEATURE 10 -- CHAIN DASHBOARD (Multi-location)
+//
+function ChainDashboardPage({t}){
+  const isFR = t===T.fr;
+  const [locations] = useState([
+    {name:"Pharmacie Goudreault -- Montreal",status:"ok",lastCycle:"2025-05-28",
+     molecules:250,discrepancies:0,dueIn:14},
+    {name:"Pharmacie Goudreault -- Laval",status:"warning",lastCycle:"2025-05-15",
+     molecules:180,discrepancies:3,dueIn:3},
+    {name:"Pharmacie Goudreault -- Longueuil",status:"overdue",lastCycle:"2025-04-30",
+     molecules:210,discrepancies:0,dueIn:-8},
+  ]);
+
+  const statusColor=s=>s==="ok"?C.green:s==="warning"?C.orange:C.red;
+  const statusLabel=s=>s==="ok"?"✅ On track":s==="warning"?"⚠️ Attention needed":"🚨 Overdue";
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>🏢 Chain Dashboard</h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR?"Toutes vos pharmacies en un seul coup d'oeil."
+                :"All your pharmacy locations at a glance."}
+          <span style={{marginLeft:8,fontSize:10,background:C.orange+"20",
+            color:C.orange,padding:"2px 8px",borderRadius:10,fontWeight:700}}>
+            Enterprise feature
+          </span>
+        </div>
+      </div>
+
+      {/* Summary row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+        {[
+          {l:"Total locations",v:locations.length,c:C.navy},
+          {l:"On track",v:locations.filter(l=>l.status==="ok").length,c:C.green},
+          {l:"Need attention",v:locations.filter(l=>l.status==="warning").length,c:C.orange},
+          {l:"Overdue",v:locations.filter(l=>l.status==="overdue").length,c:C.red},
+        ].map(s=>(
+          <div key={s.l} style={{background:C.white,borderRadius:12,padding:"16px",
+            textAlign:"center",boxShadow:"0 2px 8px rgba(0,0,0,.07)",
+            borderTop:"4px solid "+s.c}}>
+            <div style={{fontSize:28,fontWeight:900,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:11,color:C.grey,marginTop:4}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Location cards */}
+      {locations.map((loc,i)=>(
+        <div key={i} style={{background:C.white,borderRadius:14,
+          padding:"18px 20px",marginBottom:12,
+          boxShadow:"0 2px 8px rgba(0,0,0,.07)",
+          borderLeft:"5px solid "+statusColor(loc.status)}}>
+          <div style={{display:"flex",justifyContent:"space-between",
+            alignItems:"flex-start",marginBottom:12}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:3}}>
+                {loc.name}
+              </div>
+              <div style={{fontSize:11,color:C.grey}}>
+                Last cycle: {loc.lastCycle} · {loc.molecules} molecules
+              </div>
+            </div>
+            <span style={{background:statusColor(loc.status),color:"#fff",
+              fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>
+              {statusLabel(loc.status)}
+            </span>
+          </div>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flex:1,background:C.light,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>
+              <div style={{fontWeight:800,fontSize:18,
+                color:loc.discrepancies>0?C.red:C.green}}>
+                {loc.discrepancies}
+              </div>
+              <div style={{fontSize:10,color:C.grey}}>Discrepancies</div>
+            </div>
+            <div style={{flex:1,background:C.light,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>
+              <div style={{fontWeight:800,fontSize:18,
+                color:loc.dueIn<=0?C.red:loc.dueIn<=7?C.orange:C.green}}>
+                {loc.dueIn<=0?Math.abs(loc.dueIn)+"d overdue":loc.dueIn+"d"}
+              </div>
+              <div style={{fontSize:10,color:C.grey}}>Next cycle</div>
+            </div>
+            <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <button style={{padding:"7px 16px",borderRadius:8,border:"none",
+                background:C.sky,color:"#fff",cursor:"pointer",
+                fontFamily:"inherit",fontWeight:700,fontSize:11}}>
+                View →
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div style={{background:C.navy+"08",borderRadius:12,padding:"14px 18px",
+        border:"1px dashed "+C.navy+"33",fontSize:11,color:C.grey,textAlign:"center"}}>
+        Chain Dashboard is available on the Enterprise plan ($249/month per location).<br/>
+        Contact NarcoSync to add more pharmacy locations to your account.
+      </div>
+    </div>
+  );
+}
+
+
+// Public Pill ID Page (no login required)
+// Accessible at narcosync.app -- the free lead generation tool.
+// Requires a free account (email only) -- captures pharmacist emails.
+function PublicPillPage(){
+  const [step,setStep]           = useState("landing"); // landing | register | identify
+  const [email,setEmail]         = useState("");
+  const [password,setPassword]   = useState("");
+  const [name,setName]           = useState("");
+  const [authError,setAuthError] = useState("");
+  const [authLoading,setAuthLoading] = useState(false);
+  const [query,setQuery]         = useState("");
+  const [result,setResult]       = useState(null);
+  const [loading,setLoading]     = useState(false);
+  const [searchCount,setSearchCount] = useState(0);
+
+  // Check if user already has a free pill session
+  const [hasSession] = useState(()=>{
+    try{ return !!localStorage.getItem("ns_pill_session"); }catch(e){ return false; }
+  });
+
+  if(hasSession && step==="landing") setStep("identify");
+
+  async function registerFree(){
+    if(!email||!password){ setAuthError("Please enter your email and a password."); return; }
+    setAuthLoading(true); setAuthError("");
+    try{
+      const cfg = SB.getConfig();
+      if(!cfg.url){ setStep("identify"); return; } // dev mode -- skip auth
+      const res = await fetch(cfg.url+"/auth/v1/signup",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":cfg.key},
+        body:JSON.stringify({email,password})
+      });
+      const data = await res.json();
+      if(data.error){ setAuthError(data.error.message||data.message||"Error. Try again."); }
+      else{
+        try{ localStorage.setItem("ns_pill_session","1"); }catch(e){}
+        setStep("identify");
+      }
+    }catch(e){ setStep("identify"); } // network error -- let them in anyway
+    setAuthLoading(false);
+  }
+
+  async function identifyPill(imageBase64, mimeType, queryText){
+    setLoading(true); setResult(null);
+    const isPhoto = !!imageBase64;
+    const prompt = isPhoto
+      ? "You are a global pharmaceutical identification expert. Analyze this pill image. Identify shape, color, size, imprint, and the most likely medication from any country worldwide. Return ONLY JSON: {\"found\":true/false,\"confidence\":\"high/medium/low\",\"visual_description\":\"exact description\",\"imprint_detected\":\"code or null\",\"generic_name\":\"name\",\"brand_names\":[\"brand (country)\"],\"drug_class\":\"class\",\"controlled\":false,\"common_uses\":\"brief use\",\"lasa_warnings\":[\"warnings\"],\"available_countries\":[\"countries\"],\"pill_identifier_url\":\"https://www.drugs.com/pill_identification.html\",\"not_found_message\":\"if not found\"}"
+      : "You are a global pharmacist reference. Identify this medication: \""+queryText+"\". Cover every country worldwide. Return ONLY JSON: {\"found\":true/false,\"generic_name\":\"INN name\",\"brand_names\":[\"brand (country)\"],\"drug_class\":\"class\",\"controlled\":false,\"controlled_schedule\":\"schedule or N/A\",\"what_it_looks_like\":\"physical description with colors, shape, imprint codes\",\"common_strengths\":[\"doses\"],\"common_uses\":\"what it treats\",\"lasa_warnings\":[\"LASA risks\"],\"available_countries\":[\"main countries\"],\"pill_identifier_url\":\"https://www.drugs.com/pill_identification.html\",\"not_found_message\":\"if not found\"}";
+
+    try{
+      const body = isPhoto
+        ? {model:"claude-sonnet-4-6",max_tokens:800,messages:[{role:"user",content:[
+            {type:"image",source:{type:"base64",media_type:mimeType,data:imageBase64}},
+            {type:"text",text:prompt}]}]}
+        : {model:"claude-sonnet-4-6",max_tokens:800,messages:[{role:"user",content:prompt}]};
+
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const data = await res.json();
+      const text = (data.content||[]).map(c=>c.text||"").join("").replace(/\x60{3}json|\x60{3}/g,"").trim();
+      const parsed = JSON.parse(text);
+      setResult({...parsed,fromPhoto:isPhoto});
+      setSearchCount(n=>n+1);
+    }catch(e){
+      setResult({found:false,not_found_message:"Could not identify. Try a different name or a clearer photo."});
+    }
+    setLoading(false);
+  }
+
+  function handlePhoto(e){
+    const file=e.target.files?.[0]; if(!file) return;
+    setQuery("📸 Photo");
+    const r=new FileReader();
+    r.onload=()=>identifyPill(r.result.split(",")[1],file.type||"image/jpeg",null);
+    r.readAsDataURL(file);
+  }
+
+  // LANDING
+  if(step==="landing") return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,"+C.navy+" 0%,#1a3a5c 60%,#0d2137 100%)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      padding:"32px 20px",fontFamily:"system-ui,sans-serif"}}>
+
+      <div style={{textAlign:"center",marginBottom:40}}>
+        <div style={{color:"rgba(255,255,255,.5)",fontSize:12,fontWeight:700,
+          letterSpacing:2,marginBottom:12,textTransform:"uppercase"}}>
+          NarcoSync
+        </div>
+        <h1 style={{color:"#fff",fontWeight:900,fontSize:38,margin:"0 0 12px",lineHeight:1.1}}>
+          Identify any pill.<br/>
+          <span style={{color:colors.HexColor("#60A5FA")}}>In the world.</span>
+        </h1>
+        <p style={{color:"rgba(255,255,255,.6)",fontSize:15,maxWidth:460,margin:"0 auto 8px",lineHeight:1.6}}>
+          Type a drug name, brand, imprint code, or photograph the pill.
+          Any medication. Any country. Free.
+        </p>
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:16,flexWrap:"wrap"}}>
+          {["🌍 200+ countries","📸 Photo ID","💊 Any medication","🔒 No patient data stored"].map(b=>(
+            <span key={b} style={{color:"rgba(255,255,255,.5)",fontSize:11}}>{b}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div style={{background:"rgba(255,255,255,.06)",backdropFilter:"blur(10px)",
+        borderRadius:20,padding:"32px",width:"100%",maxWidth:420,
+        border:"1px solid rgba(255,255,255,.1)"}}>
+        <div style={{color:"#fff",fontWeight:700,fontSize:16,marginBottom:4}}>
+          Create your free account
+        </div>
+        <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginBottom:20}}>
+          Free forever for pill identification. No credit card.
+        </div>
+
+        {[
+          {label:"Full name",val:name,set:setName,ph:"Your name",type:"text"},
+          {label:"Email",val:email,set:setEmail,ph:"your@pharmacy.com",type:"email"},
+          {label:"Password",val:password,set:setPassword,ph:"Min. 6 characters",type:"password"},
+        ].map(f=>(
+          <div key={f.label} style={{marginBottom:12}}>
+            <label style={{display:"block",color:"rgba(255,255,255,.6)",
+              fontSize:11,marginBottom:4}}>{f.label}</label>
+            <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)}
+              placeholder={f.ph}
+              style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"none",
+                background:"rgba(255,255,255,.1)",color:"#fff",fontSize:13,
+                fontFamily:"inherit",boxSizing:"border-box",
+                outline:"none"}}/>
+          </div>
+        ))}
+
+        {authError&&<div style={{color:"#FCA5A5",fontSize:11,marginBottom:10}}>{authError}</div>}
+
+        <button onClick={registerFree} disabled={authLoading}
+          style={{width:"100%",padding:"13px",borderRadius:10,border:"none",
+            cursor:authLoading?"wait":"pointer",fontFamily:"inherit",
+            fontWeight:800,fontSize:14,color:C.navy,
+            background:"linear-gradient(135deg,#60A5FA,#fff)",marginBottom:12}}>
+          {authLoading?"Creating account…":"Get free pill ID access →"}
+        </button>
+
+        <div style={{textAlign:"center",color:"rgba(255,255,255,.4)",fontSize:10,lineHeight:1.6}}>
+          Already have an account?{" "}
+          <button onClick={()=>setStep("identify")}
+            style={{background:"none",border:"none",color:"#93C5FD",
+              cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>
+            Sign in
+          </button>
+        </div>
+      </div>
+
+      <div style={{marginTop:24,color:"rgba(255,255,255,.3)",fontSize:10,textAlign:"center"}}>
+        For pharmacists, nurses, and healthcare professionals · Reference use only
+      </div>
+    </div>
+  );
+
+  // IDENTIFY
+  return(
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"system-ui,sans-serif"}}>
+
+      {/* Top bar */}
+      <div style={{background:C.navy,padding:"12px 24px",
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:"#fff",fontWeight:800,fontSize:16}}>
+          NarcoSync <span style={{color:"#60A5FA",fontWeight:400,fontSize:12}}>· Free Pill ID</span>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <span style={{color:"rgba(255,255,255,.5)",fontSize:11}}>
+            {searchCount} search{searchCount!==1?"es":""}
+          </span>
+          <a href="/" style={{padding:"6px 14px",borderRadius:20,
+            background:"rgba(255,255,255,.15)",color:"#fff",
+            fontSize:11,fontWeight:700,textDecoration:"none"}}>
+            Full platform →
+          </a>
+        </div>
+      </div>
+
+      <div style={{maxWidth:680,margin:"0 auto",padding:"28px 20px"}}>
+
+        {/* Search */}
+        <div style={{background:"#fff",borderRadius:16,padding:"20px",
+          boxShadow:"0 4px 20px rgba(0,0,0,.08)",marginBottom:20}}>
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            <input value={query==="📸 Photo"?"":query}
+              onChange={e=>setQuery(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&query.trim()&&identifyPill(null,null,query)}
+              placeholder="Type any drug name, brand, imprint, or description in any language…"
+              style={{flex:1,padding:"12px 14px",borderRadius:10,
+                border:"2px solid "+C.border,fontSize:13,fontFamily:"inherit",
+                outline:"none",color:C.navy}}/>
+            <button onClick={()=>query.trim()&&identifyPill(null,null,query)}
+              disabled={loading||!query.trim()}
+              style={{padding:"12px 20px",borderRadius:10,border:"none",
+                cursor:loading?"wait":"pointer",fontFamily:"inherit",
+                fontWeight:700,fontSize:13,color:"#fff",
+                background:loading?"#cbd5e0":C.sky,whiteSpace:"nowrap"}}>
+              {loading?"⏳":"Identify →"}
+            </button>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <label style={{display:"flex",alignItems:"center",gap:6,
+              padding:"7px 14px",borderRadius:20,
+              background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+              color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>
+              📸 Photo ID
+              <input type="file" accept="image/*" capture="environment"
+                onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+            <span style={{color:C.grey,fontSize:10}}>or try:</span>
+            {["Dilaudid","atorvastatin","APO 5","pastilla blanca oval","tramadol"].map(ex=>(
+              <button key={ex} onClick={()=>{setQuery(ex);}}
+                style={{padding:"4px 10px",borderRadius:20,border:"1px solid "+C.border,
+                  background:C.light,cursor:"pointer",fontSize:10,
+                  fontFamily:"inherit",color:C.grey}}>
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Result */}
+        {result&&(
+          <div style={{background:"#fff",borderRadius:16,overflow:"hidden",
+            boxShadow:"0 4px 20px rgba(0,0,0,.08)",marginBottom:20}}>
+            {result.found?(
+              <>
+                <div style={{background:result.controlled
+                    ?"linear-gradient(135deg,"+C.navy+","+C.blue+")"
+                    :"linear-gradient(135deg,#064E3B,#059669)",
+                  padding:"20px 24px"}}>
+                  {result.fromPhoto&&result.confidence&&(
+                    <div style={{marginBottom:8,display:"inline-block",
+                      padding:"3px 10px",borderRadius:10,fontSize:10,fontWeight:700,
+                      color:"#fff",background:result.confidence==="high"?"#059669":
+                        result.confidence==="medium"?"#D97706":"#DC2626"}}>
+                      {result.confidence.toUpperCase()} CONFIDENCE
+                    </div>
+                  )}
+                  {result.visual_description&&(
+                    <div style={{color:"rgba(255,255,255,.7)",fontSize:11,marginBottom:6}}>
+                      {result.visual_description}
+                    </div>
+                  )}
+                  <div style={{color:"#fff",fontWeight:900,fontSize:24,marginBottom:4}}>
+                    {result.generic_name}
+                  </div>
+                  <div style={{color:"rgba(255,255,255,.7)",fontSize:13,marginBottom:8}}>
+                    {(result.brand_names||[]).join(" · ")}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={{background:"rgba(255,255,255,.2)",color:"#fff",
+                      fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10}}>
+                      {result.drug_class}
+                    </span>
+                    {result.controlled&&(
+                      <span style={{background:"rgba(214,48,49,.5)",color:"#fff",
+                        fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10}}>
+                        🔒 Controlled
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{padding:"20px 24px"}}>
+                  {(result.what_it_looks_like||result.common_uses)&&(
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                      {result.what_it_looks_like&&(
+                        <div style={{background:C.light,borderRadius:10,padding:"12px 14px"}}>
+                          <div style={{fontWeight:700,fontSize:11,color:C.navy,marginBottom:4}}>👁️ Appearance</div>
+                          <div style={{fontSize:11,color:"#374151",lineHeight:1.6}}>{result.what_it_looks_like}</div>
+                        </div>
+                      )}
+                      {result.common_uses&&(
+                        <div style={{background:C.light,borderRadius:10,padding:"12px 14px"}}>
+                          <div style={{fontWeight:700,fontSize:11,color:C.navy,marginBottom:4}}>💊 Used for</div>
+                          <div style={{fontSize:11,color:"#374151",lineHeight:1.6}}>{result.common_uses}</div>
+                          {(result.common_strengths||[]).length>0&&(
+                            <div style={{marginTop:6,display:"flex",gap:4,flexWrap:"wrap"}}>
+                              {result.common_strengths.map(s=>(
+                                <span key={s} style={{background:"#EFF6FF",color:C.sky,
+                                  fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:6}}>{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {result.lasa_warnings?.length>0&&result.lasa_warnings[0]&&(
+                    <div style={{background:"#FEF2F2",border:"1px solid #FECACA",
+                      borderRadius:10,padding:"10px 14px",marginBottom:12}}>
+                      <div style={{fontWeight:700,fontSize:11,color:C.red,marginBottom:4}}>
+                        ⚠️ Look-alike / sound-alike warnings
+                      </div>
+                      {result.lasa_warnings.map((w,i)=>(
+                        <div key={i} style={{fontSize:10,color:"#991B1B",paddingLeft:6,marginBottom:2}}>• {w}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  <a href={result.pill_identifier_url||"https://www.drugs.com/pill_identification.html"}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-flex",alignItems:"center",gap:6,
+                      padding:"8px 16px",borderRadius:8,background:C.sky,
+                      color:"#fff",fontWeight:700,fontSize:12,textDecoration:"none"}}>
+                    🔍 View pill images
+                  </a>
+                </div>
+
+                {/* Conversion banner -- soft, appears after result */}
+                <div style={{borderTop:"1px solid "+C.border,padding:"18px 24px",
+                  background:"linear-gradient(135deg,"+C.navy+"08,"+C.sky+"10)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",
+                    alignItems:"center",flexWrap:"wrap",gap:12}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:3}}>
+                        That took 3 seconds. Your narcotics inventory takes 10 hours.
+                      </div>
+                      <div style={{fontSize:11,color:C.grey}}>
+                        NarcoSync reconciles 250 molecules in under 5 minutes. 
+                        Try the full platform free -- 30 days, no credit card.
+                      </div>
+                    </div>
+                    <a href="/"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,
+                        padding:"10px 20px",borderRadius:10,border:"none",
+                        background:C.navy,color:"#fff",fontWeight:800,
+                        fontSize:12,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>
+                      Start free trial →
+                    </a>
+                  </div>
+                </div>
+              </>
+            ):(
+              <div style={{padding:"32px",textAlign:"center"}}>
+                <div style={{fontSize:36,marginBottom:12}}>🔍</div>
+                <div style={{fontWeight:700,fontSize:15,color:C.navy,marginBottom:6}}>Not found</div>
+                <div style={{fontSize:12,color:C.grey}}>
+                  {result.not_found_message||"Try a different spelling, the generic name, or use Photo ID."}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{textAlign:"center",fontSize:10,color:C.grey,lineHeight:1.6}}>
+          For reference use only · Always verify with official drug monographs ·{" "}
+          <a href="/" style={{color:C.sky,textDecoration:"none",fontWeight:700}}>
+            narcosync.app
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pill Reference Page
+// AI-powered pill identifier for ALL medications -- not just controlled substances.
+// Pharmacists can type any drug name, brand name, description, or pill imprint
+// and get instant identification with brand/generic info and visual reference links.
+function PillReferencePage({t}){
+  const [query,setQuery]       = useState("");
+  const [result,setResult]     = useState(null);
+  const [loading,setLoading]   = useState(false);
+  const [history,setHistory]   = useState([]);
+  const [selectedCountry,setSelectedCountry] = useState("");
+
+  const isFR = t===T.fr;
+
+  // Photo identification
+  async function identifyFromPhoto(file){
+    setLoading(true);
+    setResult(null);
+    setQuery("📸 Photo of unknown pill");
+    try{
+      // Convert image to base64
+      const base64 = await new Promise((res,rej)=>{
+        const r = new FileReader();
+        r.onload = ()=>res(r.result.split(",")[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const mimeType = file.type||"image/jpeg";
+      const countryHint = selectedCountry?"The pharmacist is located in "+selectedCountry+".":"";
+
+      const visualPrompt = "You are a global pharmaceutical identification expert with knowledge of medications from every country in the world. "+(countryHint)+"\n"
++"\n"
++"A pharmacist has photographed an UNKNOWN pill or medication. Analyze the image carefully.\n"
++"\n"
++"Look for:\n"
++"- Shape: round, oval, capsule, oblong, diamond, square, triangle, etc.\n"
++"- Color(s): exactly as you see them, both sides if visible\n"
++"- Size: estimate relative size (small/medium/large)\n"
++"- Imprint: any letters, numbers, logos, or markings stamped or printed on the pill\n"
++"- Coating: film-coated, sugar-coated, uncoated, extended-release\n"
++"- Any manufacturer logo or distinctive marks\n"
++"\n"
++"Then identify the most likely medication(s) this could be. Consider pharmaceutical products from EVERY country -- Canada, USA, France, Germany, UK, Spain, Italy, Portugal, Brazil, Mexico, Colombia, Argentina, Costa Rica, Morocco, Saudi Arabia, UAE, India, Japan, Australia, South Africa, and all others.\n"
++"\n"
++"Provide a JSON response ONLY (no markdown) with:\n"
++"{\n"
++"  \"found\": true/false,\n"
++"  \"confidence\": \"high/medium/low -- how confident you are in the identification\",\n"
++"  \"visual_description\": \"Exactly what you see: shape, color(s), size, imprint, coating, any markings\",\n"
++"  \"imprint_detected\": \"The exact imprint/code you can see, or null\",\n"
++"  \"generic_name\": \"Most likely generic drug name\",\n"
++"  \"alternatives\": [\"Other possible medications if not 100% certain\"],\n"
++"  \"brand_names\": [\"Known brand names in various countries\"],\n"
++"  \"drug_class\": \"Pharmacological class\",\n"
++"  \"controlled\": true/false,\n"
++"  \"controlled_schedule\": \"Schedule in relevant countries if controlled\",\n"
++"  \"what_it_looks_like\": \"Detailed physical description for verification\",\n"
++"  \"common_strengths\": [\"5mg\",\"10mg\",\"etc\"],\n"
++"  \"common_uses\": \"What it is used for\",\n"
++"  \"lasa_warnings\": [\"Look-alike medications that could be confused with this\"],\n"
++"  \"regional_info\": \"Country of likely origin based on appearance, regional info\",\n"
++"  \"available_countries\": [\"Countries where this medication is commonly found\"],\n"
++"  \"pill_identifier_url\": \"https://www.drugs.com/pill_identification.html\",\n"
++"  \"reference_urls\": {\n"
++"    \"global\": \"https://www.whocc.no/atc_ddd_index/\",\n"
++"    \"usa\": \"https://dailymed.nlm.nih.gov/dailymed/\",\n"
++"    \"eu\": \"https://www.ema.europa.eu/en/medicines\",\n"
++"    \"canada\": \"https://health-products.canada.ca/dpd-bdpp/index-eng.jsp\",\n"
++"    \"brazil\": \"https://consultas.anvisa.gov.br/\"\n"
++"  },\n"
++"  \"safety_warning\": \"Any important safety information -- e.g. if this appears to be a controlled substance found outside a labeled container\",\n"
++"  \"not_found_message\": \"Only if found is false -- what to do next\"\n"
++"}";
+
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-6",
+          max_tokens:1200,
+          messages:[{role:"user",content:[
+            {type:"image",source:{type:"base64",media_type:mimeType,data:base64}},
+            {type:"text",text:visualPrompt}
+          ]}]
+        })
+      });
+      const data = await res.json();
+      const text = (data.content||[]).map(c=>c.text||"").join("").replace(/\x60{3}json|\x60{3}/g,"").trim();
+      const parsed = JSON.parse(text);
+      setResult({...parsed, fromPhoto:true});
+    } catch(e){
+      setResult({found:false,fromPhoto:true,
+        not_found_message:"Could not identify from photo. Try better lighting, hold the camera directly above the pill, and ensure all markings are clearly visible."});
+    }
+    setLoading(false);
+  }
+
+  function handlePhotoUpload(e){
+    const file = e.target.files?.[0];
+    if(file) identifyFromPhoto(file);
+  }
+
+  async function identify(){
+    if(!query.trim()) return;
+    setLoading(true);
+    setResult(null);
+    try{
+      const countryHint = selectedCountry ? "The pharmacist is in "+selectedCountry+". " : "";
+      const prompt = "You are a global pharmacist reference assistant covering medications from every country in the world. "+(countryHint)+"A pharmacist has typed: \""+(query)+"\"\n"
++"\n"
++"They want to identify this medication or pill. This could be from ANY country -- Canada, USA, Brazil, France, UK, Germany, Australia, India, Japan, Costa Rica, Mexico, Colombia, UAE, Saudi Arabia, South Africa, or anywhere else.\n"
++"\n"
++"Identify the medication based on: generic name, brand name, imprint code on the pill, physical description, or any other identifier. Cover ALL pharmaceutical markets worldwide.\n"
++"\n"
++"Provide a JSON response ONLY (no markdown, no explanation outside JSON) with:\n"
++"{\n"
++"  \"found\": true/false,\n"
++"  \"generic_name\": \"INN generic name (international)\",\n"
++"  \"brand_names\": [\"brand1 (country)\",\"brand2 (country)\"],\n"
++"  \"drug_class\": \"pharmacological class, e.g. Opioid analgesic, Benzodiazepine, Statin, SSRI, ACE inhibitor, etc.\",\n"
++"  \"controlled\": true/false,\n"
++"  \"controlled_schedule\": \"Global overview: e.g. Schedule I narcotic (Canada/USA), Classe 1 (France), Anlage III BtMG (Germany), Schedule 8 (Australia), Lista A2 (Brazil), etc. or N/A\",\n"
++"  \"what_it_looks_like\": \"Physical description: color, shape, size, typical imprint codes from major manufacturers worldwide. Include regional manufacturers: Apotex/Teva/PMS (Canada), Mylan/Pfizer (USA/EU), Kern Pharma (Spain), Medley/EMS (Brazil), Cipla/Sun Pharma (India), Nichi-Iko (Japan), Arrow/Biogaran (France), etc.\",\n"
++"  \"common_strengths\": [\"5mg\",\"10mg\",\"etc\"],\n"
++"  \"common_uses\": \"What it is prescribed for -- in plain language\",\n"
++"  \"lasa_warnings\": [\"Look-alike/sound-alike medications it is commonly confused with, with context\"],\n"
++"  \"regional_info\": \"Country-specific info relevant to the query: registration numbers (DIN Canada, NDC USA, EAN EU, MS Brazil, etc.), reimbursement/coverage status, any regional restrictions or special programs\",\n"
++"  \"available_countries\": [\"List of main countries where this medication is available and under which name\"],\n"
++"  \"pill_identifier_url\": \"https://www.drugs.com/pill_identification.html\",\n"
++"  \"reference_urls\": {\n"
++"    \"global\": \"https://www.whocc.no/atc_ddd_index/\",\n"
++"    \"usa\": \"https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=GENERICNAME\",\n"
++"    \"eu\": \"https://www.ema.europa.eu/en/medicines/search?q=GENERICNAME\",\n"
++"    \"uk\": \"https://www.medicines.org.uk/emc/search?q=GENERICNAME\",\n"
++"    \"australia\": \"https://www.tga.gov.au/resources/artg\",\n"
++"    \"brazil\": \"https://consultas.anvisa.gov.br/\",\n"
++"    \"canada\": \"https://health-products.canada.ca/dpd-bdpp/index-eng.jsp\",\n"
++"    \"india\": \"https://cdscoonline.gov.in/CDSCO/Drugs\"\n"
++"  },\n"
++"  \"not_found_message\": \"Only fill if found is false -- suggest corrections or alternatives\"\n"
++"}";
+
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-6",
+          max_tokens:1000,
+          messages:[{role:"user",content:prompt}]
+        })
+      });
+      const data = await res.json();
+      const text = (data.content||[]).map(c=>c.text||"").join("").replace(/\x60{3}json|\x60{3}/g,"").trim();
+      const parsed = JSON.parse(text);
+      setResult(parsed);
+      if(parsed.found){
+        setHistory(h=>[{query,result:parsed,...new Date().toLocaleTimeString()},...h].slice(0,10));
+      }
+    } catch(e){
+      setResult({found:false,not_found_message:"Could not identify. Try a different name or check the spelling."});
+    }
+    setLoading(false);
+  }
+
+  const badgeStyle = (color,bg) => ({
+    display:"inline-block",padding:"2px 8px",borderRadius:10,
+    fontSize:9,fontWeight:700,color,background:bg,marginRight:4,marginBottom:4
+  });
+
+  return(
+    <div style={{padding:"24px 28px",maxWidth:840,margin:"0 auto"}}>
+
+      {/* Header */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",
+          gap:10,marginBottom:6,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:28}}>💊</span>
+            <div>
+              <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>
+                {isFR?"Référence des médicaments":"Pill Reference"}
+              </h1>
+              <div style={{color:C.grey,fontSize:12,marginTop:2}}>
+                {isFR
+                  ?"Identifiez n'importe quel médicament dans le monde entier -- tapez un nom ou photographiez le comprimé"
+                  :"Identify any pill worldwide -- type a name or photograph the pill"}
+              </div>
+            </div>
+          </div>
+
+          {/* Photo ID button -- the hero feature */}
+          <label style={{
+            display:"flex",alignItems:"center",gap:8,
+            padding:"12px 20px",borderRadius:12,cursor:"pointer",
+            background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+            color:"#fff",fontWeight:700,fontSize:13,
+            boxShadow:"0 4px 14px rgba(46,134,222,.4)",
+            flexShrink:0,userSelect:"none"
+          }}>
+            <span style={{fontSize:20}}>📸</span>
+            <div>
+              <div>{isFR?"Photographier le comprimé":"Photograph the pill"}</div>
+              <div style={{fontSize:10,fontWeight:400,opacity:.8}}>
+                {isFR?"Identification visuelle · Tout pays":"Visual ID · Any country"}
+              </div>
+            </div>
+            <input type="file" accept="image/*" capture="environment"
+              onChange={handlePhotoUpload}
+              style={{display:"none"}}/>
+          </label>
+        </div>
+      </div>
+
+      {/* Search box */}
+      <div style={{background:C.white,borderRadius:14,padding:"18px 20px",
+        boxShadow:"0 2px 12px rgba(0,0,0,.08)",marginBottom:20,
+        border:"2px solid "+loading?C.sky:result?.found?"#059669":C.border}}>
+
+        {/* Country hint -- optional, helps with regional medications */}
+        <div style={{marginBottom:10}}>
+          <select value={selectedCountry} onChange={e=>setSelectedCountry(e.target.value)}
+            style={{width:"100%",padding:"8px 12px",borderRadius:8,
+              border:"1.5px solid "+C.border,fontSize:11,
+              fontFamily:"inherit",color:selectedCountry?C.navy:C.grey,
+              background:C.white}}>
+            <option value="">🌍 All countries (no country filter)</option>
+            <option value="Canada">🇨🇦 Canada</option>
+            <option value="USA">🇺🇸 United States</option>
+            <option value="France">🇫🇷 France</option>
+            <option value="Germany">🇩🇪 Germany</option>
+            <option value="UK">🇬🇧 United Kingdom</option>
+            <option value="Spain">🇪🇸 Spain</option>
+            <option value="Italy">🇮🇹 Italy</option>
+            <option value="Portugal">🇵🇹 Portugal</option>
+            <option value="Brazil">🇧🇷 Brazil</option>
+            <option value="Mexico">🇲🇽 Mexico</option>
+            <option value="Colombia">🇨🇴 Colombia</option>
+            <option value="Argentina">🇦🇷 Argentina</option>
+            <option value="Costa Rica">🇨🇷 Costa Rica</option>
+            <option value="Chile">🇨🇱 Chile</option>
+            <option value="Australia">🇦🇺 Australia</option>
+            <option value="Japan">🇯🇵 Japan</option>
+            <option value="India">🇮🇳 India</option>
+            <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+            <option value="UAE">🇦🇪 UAE</option>
+            <option value="South Africa">🇿🇦 South Africa</option>
+            <option value="Morocco">🇲🇦 Morocco</option>
+            <option value="Kenya">🇰🇪 Kenya</option>
+          </select>
+        </div>
+        <div style={{display:"flex",gap:10,marginBottom:8}}>
+          <input
+            value={query}
+            onChange={e=>setQuery(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&identify()}
+            placeholder={isFR
+              ?"Tapez un nom en n'importe quelle langue... ex: atorvastatin, Lipitor, APO A10, pastilla blanca, weißes Tablet, comprimé ovale"
+              :"Type in any language... e.g. atorvastatin, Lipitor, APO A10, pastilla blanca, comprimé blanc, small white oval pill"}
+            style={{flex:1,padding:"11px 14px",borderRadius:10,
+              border:"1.5px solid "+C.border,fontSize:12,
+              fontFamily:"inherit",outline:"none",color:C.navy}}
+          />
+          <button onClick={identify} disabled={loading||!query.trim()}
+            style={{padding:"11px 22px",borderRadius:10,border:"none",
+              cursor:loading||!query.trim()?"not-allowed":"pointer",
+              fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",
+              background:loading?"#cbd5e0":C.sky,minWidth:90}}>
+            {loading?"⏳...":(isFR?"Identifier →":"Identify →")}
+          </button>
+        </div>
+
+        {/* Quick examples */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,color:C.grey,alignSelf:"center"}}>
+            {isFR?"Essayer:":"Try:"}
+          </span>
+          {["Dilaudid","atorvastatin","APO A10","tramadol","metformin",
+            "diazepam Roche","Rivotril 0.5mg","Voltaren","amoxicillin","omeprazole",
+            "Imovane","Paxil","comprimé blanc ovale","pastilla azul redonda"].map(ex=>(
+            <button key={ex} onClick={()=>{setQuery(ex);}}
+              style={{padding:"3px 9px",borderRadius:20,border:"1px solid "+C.border,
+                background:C.light,cursor:"pointer",fontSize:10,
+                fontFamily:"inherit",color:C.grey}}>
+              {ex}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Result */}
+      {result&&(
+        <div style={{background:C.white,borderRadius:14,overflow:"hidden",
+          boxShadow:"0 2px 12px rgba(0,0,0,.08)",marginBottom:20}}>
+
+          {result.found ? (
+            <>
+              {/* Drug header */}
+              <div style={{background:result.controlled?"linear-gradient(135deg,"+C.navy+","+C.blue+")":
+                "linear-gradient(135deg,#064E3B,#059669)",
+                padding:"18px 22px"}}>
+                {/* Photo result banner */}
+                {result.fromPhoto&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8,
+                    background:"rgba(255,255,255,.15)",borderRadius:8,
+                    padding:"8px 12px",marginBottom:12}}>
+                    <span style={{fontSize:16}}>📸</span>
+                    <div>
+                      <div style={{color:"#fff",fontWeight:700,fontSize:11}}>
+                        Visual identification
+                        {result.confidence&&(
+                          <span style={{marginLeft:8,padding:"1px 7px",borderRadius:10,fontSize:9,
+                            background:result.confidence==="high"?"#059669":
+                              result.confidence==="medium"?"#D97706":"#DC2626",
+                            fontWeight:700}}>
+                            {result.confidence.toUpperCase()} CONFIDENCE
+                          </span>
+                        )}
+                      </div>
+                      {result.visual_description&&(
+                        <div style={{color:"rgba(255,255,255,.8)",fontSize:10,marginTop:2}}>
+                          {result.visual_description}
+                        </div>
+                      )}
+                      {result.imprint_detected&&(
+                        <div style={{color:"rgba(255,255,255,.9)",fontSize:10,marginTop:2,
+                          fontFamily:"monospace",fontWeight:700}}>
+                          Imprint detected: {result.imprint_detected}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div style={{color:"#fff",fontWeight:900,fontSize:22,marginBottom:4}}>
+                  {result.generic_name}
+                  {result.alternatives?.length>0&&(
+                    <span style={{fontSize:12,fontWeight:400,marginLeft:10,opacity:.7}}>
+                      or: {result.alternatives.slice(0,2).join(" / ")}
+                    </span>
+                  )}
+                </div>
+                <div style={{color:"rgba(255,255,255,.75)",fontSize:13,marginBottom:8}}>
+                  {(result.brand_names||[]).join(" · ")}
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  <span style={badgeStyle("#fff","rgba(255,255,255,.2)")}>{result.drug_class}</span>
+                  {result.controlled&&(
+                    <span style={badgeStyle("#fff","rgba(214,48,49,.6)")}>
+                      🔒 {result.controlled_schedule||"Controlled"}
+                    </span>
+                  )}
+                  {!result.controlled&&(
+                    <span style={badgeStyle("#fff","rgba(5,150,105,.5)")}>
+                      ✓ Not controlled
+                    </span>
+                  )}
+                </div>
+                {/* Safety warning for unknown controlled substances */}
+                {result.safety_warning&&(
+                  <div style={{marginTop:10,padding:"8px 12px",
+                    background:"rgba(220,38,38,.3)",borderRadius:8,
+                    fontSize:11,color:"#FEE2E2",fontWeight:600}}>
+                    ⚠️ {result.safety_warning}
+                  </div>
+                )}
+              </div>
+
+              <div style={{padding:"18px 22px"}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+
+                  {/* What it looks like */}
+                  <div style={{background:C.light,borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:6}}>
+                      👁️ {isFR?"Comment ça ressemble":"What it looks like"}
+                    </div>
+                    <div style={{fontSize:11,color:"#374151",lineHeight:1.7}}>
+                      {result.what_it_looks_like||"--"}
+                    </div>
+                  </div>
+
+                  {/* Common strengths + uses */}
+                  <div style={{background:C.light,borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:6}}>
+                      💊 {isFR?"Doses communes":"Common strengths"}
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
+                      {(result.common_strengths||[]).map(s=>(
+                        <span key={s} style={{background:"#EFF6FF",color:C.sky,
+                          fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8}}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{fontSize:11,color:C.grey,lineHeight:1.6}}>
+                      {result.common_uses}
+                    </div>
+                  </div>
+                </div>
+
+                {/* LASA warnings */}
+                {result.lasa_warnings&&result.lasa_warnings.length>0&&
+                  result.lasa_warnings[0]&&(
+                  <div style={{background:"#FEF2F2",border:"1px solid #FECACA",
+                    borderRadius:10,padding:"12px 16px",marginBottom:12}}>
+                    <div style={{fontWeight:700,fontSize:12,color:C.red,marginBottom:6}}>
+                      ⚠️ {isFR?"Médicaments à confusion possible (LASA)":"Look-alike / sound-alike warnings (LASA)"}
+                    </div>
+                    {result.lasa_warnings.map((w,i)=>(
+                      <div key={i} style={{fontSize:11,color:"#991B1B",
+                        paddingLeft:8,marginBottom:3}}>• {w}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Regional info + available countries */}
+                {(result.regional_info||result.available_countries?.length>0)&&(
+                  <div style={{background:"#F0FDF4",border:"1px solid #86EFAC",
+                    borderRadius:10,padding:"12px 16px",marginBottom:12}}>
+                    {result.regional_info&&(
+                      <>
+                        <div style={{fontWeight:700,fontSize:12,color:"#166534",marginBottom:4}}>
+                          🌍 {isFR?"Info régionale":"Regional info"}
+                          {selectedCountry&&<span style={{marginLeft:6,fontSize:10,color:C.grey}}>({selectedCountry})</span>}
+                        </div>
+                        <div style={{fontSize:11,color:"#166534",marginBottom:result.available_countries?.length?8:0}}>
+                          {result.regional_info}
+                        </div>
+                      </>
+                    )}
+                    {result.available_countries?.length>0&&(
+                      <>
+                        <div style={{fontWeight:700,fontSize:11,color:"#166534",marginBottom:4}}>
+                          🗺️ {isFR?"Disponible dans":"Available in"}
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                          {result.available_countries.map((c,i)=>(
+                            <span key={i} style={{background:"rgba(5,150,105,.1)",
+                              color:"#065F46",fontSize:10,padding:"2px 7px",
+                              borderRadius:10,fontWeight:600}}>{c}</span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Global reference databases */}
+                <div style={{marginBottom:8}}>
+                  <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:8}}>
+                    📚 {isFR?"Bases de données de référence":"Reference databases"}
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[
+                      {label:"🔍 Pill image (drugs.com)",url:result.pill_identifier_url||"https://www.drugs.com/pill_identification.html",primary:true},
+                      {label:"🇺🇸 DailyMed (NIH/FDA)",url:(result.reference_urls?.usa||"https://dailymed.nlm.nih.gov/dailymed/")},
+                      {label:"🇨🇦 Health Canada DPD",url:(result.reference_urls?.canada||"https://health-products.canada.ca/dpd-bdpp/index-eng.jsp")},
+                      {label:"🇪🇺 EMA (Europe)",url:(result.reference_urls?.eu||"https://www.ema.europa.eu/en/medicines")},
+                      {label:"🇬🇧 eMC (UK)",url:(result.reference_urls?.uk||"https://www.medicines.org.uk/emc")},
+                      {label:"🇧🇷 ANVISA (Brazil)",url:(result.reference_urls?.brazil||"https://consultas.anvisa.gov.br/")},
+                      {label:"🇦🇺 TGA (Australia)",url:(result.reference_urls?.australia||"https://www.tga.gov.au")},
+                      {label:"🌍 WHO ATC Index",url:(result.reference_urls?.global||"https://www.whocc.no/atc_ddd_index/")},
+                      {label:"🇮🇳 CDSCO (India)",url:(result.reference_urls?.india||"https://cdscoonline.gov.in/CDSCO/Drugs")},
+                    ].map(link=>(
+                      <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
+                        style={{display:"inline-flex",alignItems:"center",gap:5,
+                          padding:"7px 12px",borderRadius:8,textDecoration:"none",
+                          fontWeight:link.primary?700:600,fontSize:11,
+                          background:link.primary?C.sky:"#fff",
+                          color:link.primary?"#fff":C.navy,
+                          border:link.primary?"none":"1px solid "+C.border}}>
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          ):(
+            <div style={{padding:"32px",textAlign:"center"}}>
+              <div style={{fontSize:40,marginBottom:12}}>🔍</div>
+              <div style={{fontWeight:700,fontSize:15,color:C.navy,marginBottom:8}}>
+                {isFR?"Médicament non trouvé":"Medication not found"}
+              </div>
+              <div style={{fontSize:12,color:C.grey,maxWidth:400,margin:"0 auto"}}>
+                {result.not_found_message||"Try a different name, check the spelling, or use the imprint code on the pill."}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search history */}
+      {history.length>0&&!result&&(
+        <div style={{background:C.white,borderRadius:12,padding:"14px 18px",
+          boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+          <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:8}}>
+            {isFR?"Recherches récentes":"Recent searches"}
+          </div>
+          {history.slice(0,5).map((h,i)=>(
+            <button key={i} onClick={()=>setQuery(h.query)}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"6px 0",
+                background:"none",border:"none",cursor:"pointer",
+                fontFamily:"inherit",fontSize:11,color:C.grey,
+                borderBottom:i<4?"1px solid "+C.border:"none"}}>
+              🕒 {h.query}
+              <span style={{float:"right",color:C.green,fontWeight:600,fontSize:10}}>
+                {h.result?.generic_name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Photo tips */}
+      <div style={{background:C.white,borderRadius:10,padding:"12px 16px",
+        marginTop:12,border:"1px solid "+C.border,
+        display:"flex",alignItems:"flex-start",gap:10}}>
+        <span style={{fontSize:18,flexShrink:0}}>📸</span>
+        <div>
+          <div style={{fontWeight:700,fontSize:11,color:C.navy,marginBottom:4}}>
+            {isFR?"Conseils pour une meilleure photo":"Tips for best photo results"}
+          </div>
+          <div style={{fontSize:10,color:C.grey,lineHeight:1.7}}>
+            {isFR
+              ?"Placez le comprimé sur un fond blanc ou noir uni · Bonne lumière sans reflets · Photographiez les DEUX côtés · Incluez quelque chose pour l'échelle (une pièce de monnaie) · Capturez le code imprimé clairement"
+              :"Place the pill on a plain white or black background · Good lighting without glare · Photograph BOTH sides · Include something for scale (a coin) · Make sure any imprint is clearly visible"}
+          </div>
+        </div>
+      </div>
+      <div style={{marginTop:10,fontSize:10,color:C.grey,textAlign:"center",lineHeight:1.6}}>
+        {isFR
+          ?"Couverture mondiale · Plus de 200 pays et marchés pharmaceutiques · Pour référence uniquement -- toujours vérifier avec la monographie officielle."
+          :"Global coverage · 200+ countries and pharmaceutical markets · For reference only -- always verify with the official drug monograph."}
+      </div>
+    </div>
+  );
+}
+
+// Security & Compliance Page
+function SecurityPage({t}){
+  const isFR = t===T.fr;
+  const [activeSection,setActiveSection] = useState("overview");
+
+  const sections = [
+    {id:"overview",  icon:"🛡️", label:isFR?"Vue d'ensemble":"Overview"},
+    {id:"encryption",icon:"🔐", label:isFR?"Chiffrement":"Encryption"},
+    {id:"access",    icon:"🔑", label:isFR?"Contrôle d'accès":"Access Control"},
+    {id:"compliance",icon:"⚖️", label:isFR?"Conformité légale":"Legal Compliance"},
+    {id:"breach",    icon:"🚨", label:isFR?"Gestion des incidents":"Incident Response"},
+  ];
+
+  const protections = [
+    {icon:"🔐",title:isFR?"Chiffrement AES-256":"AES-256 Encryption",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"Toutes les données sont chiffrées au repos avec AES-256 -- le même standard utilisé par les banques et les gouvernements."
+       :"All data encrypted at rest with AES-256 -- the same standard used by banks and governments."},
+    {icon:"🌐",title:isFR?"TLS 1.3 en transit":"TLS 1.3 in transit",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"Toutes les communications entre votre navigateur et NarcoSync sont chiffrées avec TLS 1.3. Impossible d'intercepter."
+       :"All communications between your browser and NarcoSync are encrypted with TLS 1.3. Cannot be intercepted."},
+    {icon:"🏛️",title:isFR?"Sécurité au niveau des lignes (RLS)":"Row Level Security (RLS)",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"Chaque pharmacie ne peut accéder QU'À SES PROPRES données. Même NarcoSync ne peut pas voir vos données."
+       :"Each pharmacy can access ONLY THEIR OWN data. Even NarcoSync cannot see your data."},
+    {icon:"🗄️",title:isFR?"Base de données privée":"Private database",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"Vos données sont dans VOTRE projet Supabase privé -- pas dans une base de données partagée avec d'autres pharmacies."
+       :"Your data is in YOUR private Supabase project -- not in a shared database with other pharmacies."},
+    {icon:"✅",title:"SOC 2 Type II",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"L'infrastructure Supabase est certifiée SOC 2 Type II -- l'audit de sécurité le plus rigoureux pour les services cloud."
+       :"Supabase infrastructure is SOC 2 Type II certified -- the most rigorous security audit for cloud services."},
+    {icon:"🌍",title:"ISO 27001",
+     status:"active",color:C.green,
+     desc:isFR
+       ?"Norme internationale de gestion de la sécurité de l'information. L'infrastructure est conforme."
+       :"International information security management standard. Infrastructure is compliant."},
+    {icon:"📋",title:isFR?"Journal d'audit":"Audit log",
+     status:"planned",color:C.orange,
+     desc:isFR
+       ?"Chaque accès, modification, et réconciliation sera enregistré avec horodatage et utilisateur. En développement."
+       :"Every access, modification, and reconciliation will be logged with timestamp and user. In development."},
+    {icon:"🔒",title:"2FA / MFA",
+     status:"planned",color:C.orange,
+     desc:isFR
+       ?"Authentification à deux facteurs pour tous les comptes. Requis pour les comptes enterprise. En développement."
+       :"Two-factor authentication for all accounts. Required for enterprise accounts. In development."},
+  ];
+
+  const legalCompliance = [
+    {law:"PIPEDA",region:"🇨🇦 Canada",status:"required",
+     desc:isFR
+       ?"Loi sur la protection des renseignements personnels et les documents électroniques. Exige le consentement, la transparence, et la sécurité des données personnelles."
+       :"Personal Information Protection and Electronic Documents Act. Requires consent, transparency, and security of personal information.",
+     action:isFR?"Politique de confidentialité + Accord de traitement de données requis":"Privacy Policy + Data Processing Agreement required"},
+    {law:"Loi 25 (Québec)",region:"🇨🇦 Québec",status:"required",
+     desc:isFR
+       ?"La loi modernisant des dispositions législatives en matière de protection des renseignements personnels. Plus stricte que PIPEDA."
+       :"Quebec's privacy law -- stricter than PIPEDA. Breach notification within 72 hours. Privacy officer required.",
+     action:isFR?"Responsable de la protection des données requis + notification 72h en cas de violation":"Privacy officer required + 72h breach notification"},
+    {law:"HIPAA",region:"🇺🇸 USA",status:"required",
+     desc:isFR
+       ?"Health Insurance Portability and Accountability Act. Si NarcoSync stocke des données liées aux patients américains, un BAA (Business Associate Agreement) est requis."
+       :"Required if NarcoSync stores any US patient-linked data. Business Associate Agreement with Supabase required.",
+     action:isFR?"BAA avec Supabase + sous-traitants requis":"BAA with Supabase + sub-processors required"},
+    {law:"GDPR",region:"🇪🇺 Europe",status:"required",
+     desc:isFR
+       ?"Règlement général sur la protection des données. Si des clients européens utilisent NarcoSync."
+       :"General Data Protection Regulation. Required if any European customers use NarcoSync. Right to erasure, data portability.",
+     action:isFR?"DPA requis + registre des traitements + DPO si >250 employés":"DPA required + processing registry + DPO if >250 employees"},
+    {law:"PHIPA",region:"🇨🇦 Ontario",status:"recommended",
+     desc:isFR
+       ?"Personal Health Information Protection Act. Spécifique à Ontario pour les informations de santé."
+       :"Ontario-specific health information protection. If Ontario pharmacy data includes any patient health info.",
+     action:isFR?"Évaluation des facteurs relatifs à la vie privée (EFVP)":"Privacy Impact Assessment (PIA) required"},
+  ];
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:22}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>
+          🛡️ {isFR?"Sécurité & Conformité":"Security & Compliance"}
+        </h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR
+            ?"Les données de narcotiques sont parmi les plus sensibles qui existent. Voici comment NarcoSync les protège."
+            :"Narcotics data is among the most sensitive that exists. Here is how NarcoSync protects it."}
+        </div>
+      </div>
+
+      {/* Critical warning */}
+      <div style={{background:"#FEF2F2",border:"2px solid #FECACA",borderRadius:12,
+        padding:"14px 18px",marginBottom:20}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.red,marginBottom:6}}>
+          ⚠️ {isFR?"Information critique pour les pharmaciens":"Critical information for pharmacists"}
+        </div>
+        <div style={{fontSize:12,color:"#991B1B",lineHeight:1.7}}>
+          {isFR
+            ?"Les données d'inventaire de narcotiques sont réglementées par Santé Canada, l'OPQ, et les lois provinciales sur la vie privée. Une violation de données pourrait entraîner des amendes, la suspension de votre permis, et des poursuites criminelles. NarcoSync prend cela très au sérieux."
+            :"Narcotics inventory data is regulated by Health Canada, OPQ, and provincial privacy laws. A data breach could result in fines, license suspension, and criminal liability. NarcoSync takes this extremely seriously."}
+        </div>
+      </div>
+
+      {/* Section tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        {sections.map(s=>(
+          <button key={s.id} onClick={()=>setActiveSection(s.id)} style={{
+            padding:"7px 14px",borderRadius:20,border:"2px solid "+activeSection===s.id?C.navy:C.border,
+            background:activeSection===s.id?C.navy:"transparent",
+            color:activeSection===s.id?"#fff":C.grey,
+            cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700
+          }}>
+            {s.icon} {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview */}
+      {activeSection==="overview"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:20}}>
+            {protections.map((p,i)=>(
+              <div key={i} style={{background:C.white,borderRadius:12,padding:"16px 18px",
+                boxShadow:"0 1px 6px rgba(0,0,0,.06)",
+                borderLeft:"4px solid "+p.status==="active"?C.green:C.orange}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <span style={{fontSize:22}}>{p.icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:12,color:C.navy}}>{p.title}</div>
+                  </div>
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,
+                    color:"#fff",background:p.status==="active"?C.green:C.orange,flexShrink:0}}>
+                    {p.status==="active"?(isFR?"ACTIF":"ACTIVE"):(isFR?"EN DEV":"PLANNED")}
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:C.grey,lineHeight:1.6}}>{p.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Encryption */}
+      {activeSection==="encryption"&&(
+        <div>
+          {[
+            {title:isFR?"Données au repos":"Data at rest",
+             details:[
+               isFR?"AES-256 encryption sur tous les volumes de base de données Supabase":"AES-256 encryption on all Supabase database volumes",
+               isFR?"Clés de chiffrement gérées par AWS KMS (Key Management Service)":"Encryption keys managed by AWS KMS (Key Management Service)",
+               isFR?"Chiffrement automatique -- aucune configuration requise":"Automatic encryption -- no configuration required",
+               isFR?"Sauvegardes chiffrées automatiquement toutes les 24 heures":"Encrypted backups automatically every 24 hours",
+             ]},
+            {title:isFR?"Données en transit":"Data in transit",
+             details:[
+               "TLS 1.3 pour toutes les connexions (navigateur → NarcoSync → Supabase)",
+               isFR?"Certificats SSL/TLS émis par une autorité de certification de confiance":"SSL/TLS certificates from trusted certificate authority",
+               isFR?"HTTP Strict Transport Security (HSTS) -- force HTTPS":"HTTP Strict Transport Security (HSTS) -- forces HTTPS",
+               isFR?"Impossible d'intercepter les données en transit":"Impossible to intercept data in transit",
+             ]},
+            {title:isFR?"Architecture zero-knowledge":"Zero-knowledge architecture",
+             details:[
+               isFR?"NarcoSync ne peut pas lire vos données -- elles sont dans VOTRE projet Supabase privé":"NarcoSync cannot read your data -- it lives in YOUR private Supabase project",
+               isFR?"Row Level Security (RLS) garantit que seul l'utilisateur authentifié accède à ses propres données":"Row Level Security (RLS) ensures only authenticated user accesses their own data",
+               isFR?"Pas de base de données centralisée partagée entre pharmacies":"No centralized database shared between pharmacies",
+               isFR?"Même l'équipe NarcoSync n'a pas accès à vos données":"Even the NarcoSync team has no access to your data",
+             ]},
+          ].map((section,i)=>(
+            <div key={i} style={{background:C.white,borderRadius:12,padding:"18px 20px",
+              marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+              <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:10}}>
+                🔐 {section.title}
+              </div>
+              {section.details.map((d,j)=>(
+                <div key={j} style={{display:"flex",gap:8,marginBottom:7}}>
+                  <span style={{color:C.green,fontSize:12,flexShrink:0}}>✓</span>
+                  <span style={{fontSize:11,color:"#374151"}}>{d}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Access Control */}
+      {activeSection==="access"&&(
+        <div>
+          {[
+            {title:isFR?"Authentification":"Authentication",icon:"🔑",
+             items:[
+               isFR?"JWT (JSON Web Tokens) signés -- expire après 1 heure":"Signed JWT (JSON Web Tokens) -- expire after 1 hour",
+               isFR?"Refresh tokens sécurisés pour les sessions longues":"Secure refresh tokens for long sessions",
+               isFR?"Authentification Supabase Auth -- testé et audité":"Supabase Auth -- battle-tested and audited",
+               isFR?"2FA en cours de développement (bientôt disponible)":"2FA in development (coming soon)",
+             ]},
+            {title:isFR?"Contrôle des accès":"Access control",icon:"🛂",
+             items:[
+               isFR?"Row Level Security (RLS) -- chaque ligne de données appartient à un seul utilisateur":"Row Level Security (RLS) -- each data row belongs to a single user",
+               isFR?"Un pharmacien ne peut JAMAIS voir les données d'une autre pharmacie":"A pharmacist can NEVER see another pharmacy's data",
+               isFR?"Les politiques RLS sont appliquées au niveau de la base de données -- impossible à contourner":"RLS policies enforced at database level -- cannot be bypassed",
+               isFR?"Audit des requêtes disponible via les logs Supabase":"Query auditing available via Supabase logs",
+             ]},
+            {title:isFR?"Bonnes pratiques pour votre pharmacie":"Best practices for your pharmacy",icon:"✅",
+             items:[
+               isFR?"Utilisez un mot de passe fort et unique pour NarcoSync":"Use a strong unique password for NarcoSync",
+               isFR?"Ne partagez jamais vos identifiants avec d'autres personnes":"Never share your credentials with anyone",
+               isFR?"Déconnectez-vous après chaque session sur un ordinateur partagé":"Always log out after each session on a shared computer",
+               isFR?"Signalez immédiatement toute activité suspecte au support NarcoSync":"Immediately report any suspicious activity to NarcoSync support",
+               isFR?"Activez 2FA dès qu'il sera disponible":"Enable 2FA as soon as it becomes available",
+             ]},
+          ].map((section,i)=>(
+            <div key={i} style={{background:C.white,borderRadius:12,padding:"18px 20px",
+              marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+              <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:10}}>
+                {section.icon} {section.title}
+              </div>
+              {section.items.map((item,j)=>(
+                <div key={j} style={{display:"flex",gap:8,marginBottom:7}}>
+                  <span style={{color:C.sky,fontSize:12,flexShrink:0}}>•</span>
+                  <span style={{fontSize:11,color:"#374151"}}>{item}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Legal Compliance */}
+      {activeSection==="compliance"&&(
+        <div>
+          <div style={{background:C.orange+"15",border:"1px solid "+C.orange+"44",
+            borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:12,
+            color:colors.HexColor("#92400E")||C.orange}}>
+            ⚠️ {isFR
+              ?"Ces exigences légales nécessitent l'intervention d'un avocat spécialisé en droit de la vie privée. Consultez un professionnel avant de vendre NarcoSync dans chaque juridiction."
+              :"These legal requirements need a privacy lawyer. Consult a professional before selling NarcoSync in each jurisdiction."}
+          </div>
+          {legalCompliance.map((law,i)=>(
+            <div key={i} style={{background:C.white,borderRadius:12,padding:"16px 18px",
+              marginBottom:12,boxShadow:"0 1px 6px rgba(0,0,0,.06)",
+              borderLeft:"4px solid "+law.status==="required"?C.red:C.orange}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <span style={{fontWeight:800,fontSize:14,color:C.navy}}>{law.law}</span>
+                  <span style={{marginLeft:10,fontSize:12}}>{law.region}</span>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:10,
+                  color:"#fff",background:law.status==="required"?C.red:C.orange,flexShrink:0}}>
+                  {law.status==="required"?(isFR?"OBLIGATOIRE":"REQUIRED"):(isFR?"RECOMMANDÉ":"RECOMMENDED")}
+                </span>
+              </div>
+              <div style={{fontSize:11,color:C.grey,marginBottom:8,lineHeight:1.6}}>{law.desc}</div>
+              <div style={{padding:"8px 12px",background:C.light,borderRadius:8,
+                fontSize:11,color:C.navy,fontWeight:600}}>
+                📋 {isFR?"Action requise :":"Required action:"} {law.action}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Breach Response */}
+      {activeSection==="breach"&&(
+        <div>
+          <div style={{background:C.white,borderRadius:12,padding:"20px",marginBottom:14,
+            boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+            <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:14}}>
+              🚨 {isFR?"Protocole en cas de violation de données":"Data breach response protocol"}
+            </div>
+            {(isFR?[
+              {time:"0-1h",   icon:"🔴", title:"Détection & isolation",
+               desc:"Identifier la violation, isoler les systèmes affectés, changer tous les mots de passe d'accès."},
+              {time:"1-24h",  icon:"🟠", title:"Évaluation & notification interne",
+               desc:"Évaluer l'étendue des données compromises. Notifier le responsable de la protection des données de NarcoSync."},
+              {time:"24-72h", icon:"🟡", title:"Notification légale obligatoire",
+               desc:"Québec Loi 25 : notification à la Commission d'accès à l'information dans les 72h. Préparer la notification aux personnes affectées."},
+              {time:"72h+",   icon:"🟢", title:"Notification aux pharmacies affectées",
+               desc:"Contacter toutes les pharmacies dont les données ont pu être compromises. Fournir un rapport d'incident détaillé."},
+            ]:[
+              {time:"0-1h",   icon:"🔴", title:"Detection & isolation",
+               desc:"Identify the breach, isolate affected systems, change all access passwords immediately."},
+              {time:"1-24h",  icon:"🟠", title:"Assessment & internal notification",
+               desc:"Assess scope of compromised data. Notify NarcoSync data protection officer."},
+              {time:"24-72h", icon:"🟡", title:"Mandatory legal notification",
+               desc:"Quebec Law 25: notify Commission d'accès à l'information within 72h. Prepare notification to affected individuals."},
+              {time:"72h+",   icon:"🟢", title:"Notify affected pharmacies",
+               desc:"Contact all pharmacies whose data may have been compromised. Provide detailed incident report."},
+            ]).map((step,i)=>(
+              <div key={i} style={{display:"flex",gap:14,marginBottom:14}}>
+                <div style={{textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:20}}>{step.icon}</div>
+                  <div style={{fontSize:9,fontWeight:700,color:C.grey,marginTop:2}}>{step.time}</div>
+                </div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:12,color:C.navy,marginBottom:3}}>{step.title}</div>
+                  <div style={{fontSize:11,color:C.grey,lineHeight:1.6}}>{step.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{background:C.green+"15",border:"1.5px solid "+C.green+"44",
+            borderRadius:12,padding:"16px 18px"}}>
+            <div style={{fontWeight:700,fontSize:13,color:C.green,marginBottom:8}}>
+              ✅ {isFR?"Ce qui réduit déjà drastiquement le risque":"What already drastically reduces the risk"}
+            </div>
+            {(isFR?[
+              "Architecture de base de données privée -- chaque pharmacie dans son propre projet isolé",
+              "Row Level Security -- même si la base de données était compromise, les données d'une pharmacie ne fuiteraient pas vers une autre",
+              "Aucune donnée patient identifiable stockée -- seulement les noms de médicaments et quantités",
+              "Chiffrement AES-256 -- les données volées sont inutilisables sans les clés de déchiffrement",
+              "Infrastructure SOC 2 Supabase -- testée et auditée en continu",
+            ]:[
+              "Private database architecture -- each pharmacy in its own isolated project",
+              "Row Level Security -- even if the database were compromised, one pharmacy's data cannot leak to another",
+              "No identifiable patient data stored -- only drug names and quantities",
+              "AES-256 encryption -- stolen data is unusable without decryption keys",
+              "Supabase SOC 2 infrastructure -- continuously tested and audited",
+            ]).map((item,i)=>(
+              <div key={i} style={{display:"flex",gap:8,marginBottom:6}}>
+                <span style={{color:C.green,flexShrink:0}}>✓</span>
+                <span style={{fontSize:11,color:C.navy}}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Why NarcoSync Page
+function WhyPage({t,onSubscribe}){
+  const [molecules,setMolecules] = useState(250);
+  const [rate,setRate] = useState(55);
+  const [cycles,setCycles] = useState(8);
+  const isFR = t===T.fr;
+
+  // Real time calculation
+  const manualMins = 30 + (molecules*1) + (molecules*0.5) + (molecules*0.4) + 45 + 60 + 45;
+  const manualHours = (manualMins/60).toFixed(1);
+  const costPerCycle = (manualMins/60 * rate).toFixed(0);
+  const costPerYear = ((manualMins/60) * rate * cycles).toFixed(0);
+  const savings = (costPerYear - 588).toFixed(0);
+  const roi = Math.round(costPerYear / 588);
+  const secsPerMolecule = ((5*60)/molecules).toFixed(1);
+
+  const steps = isFR ? [
+    {icon:"🖨️", time:"30 min",  title:"Préparation",
+     desc:"Imprimer le rapport Matrix/MMS, le rapport AssiStRx, les bons de livraison -- organiser tous les documents avant de commencer."},
+    {icon:"🚶", time:(molecules*1/60).toFixed(1)+"h", title:"Décompte physique -- "+molecules+" molécules",
+     desc:"Aller chercher chaque produit sur les tablettes ou dans le coffre-fort, ouvrir le contenant, compter les unités une par une, noter sur papier. Répéter "+molecules+" fois."},
+    {icon:"📋", time:(molecules*0.5/60).toFixed(1)+"h", title:"Comparaison Matrix/MMS",
+     desc:"Comparer le décompte physique avec le solde du système Matrix/MMS, ligne par ligne, pour chacune des "+molecules+" molécules."},
+    {icon:"💊", time:(molecules*0.4/60).toFixed(1)+"h", title:"Comparaison AssiStRx",
+     desc:"Calculer manuellement le solde théorique (ouverture + achats - ventes) pour chaque molécule et identifier les écarts."},
+    {icon:"📦", time:"45 min", title:"Bons de livraison",
+     desc:"Vérifier chaque bon de livraison reçu pendant le cycle, croiser avec les réceptions entrées dans le système."},
+    {icon:"🔍", time:"1h",     title:"Investigation des écarts",
+     desc:"Recompter les produits suspects, retrouver les erreurs dans les anciens documents, expliquer chaque écart."},
+    {icon:"✍️", time:"45 min", title:"Rapport & signatures",
+     desc:"Rédiger le rapport de réconciliation, obtenir la signature du pharmacien responsable et du témoin, classer les documents."},
+  ] : [
+    {icon:"🖨️", time:"30 min",  title:"Preparation",
+     desc:"Print Matrix/MMS report, AssiStRx sales report, delivery receipts -- organize all documents before starting."},
+    {icon:"🚶", time:(molecules*1/60).toFixed(1)+"h", title:"Physical count -- "+molecules+" molecules",
+     desc:"Go find each product on shelves or in the vault, open the container, count units one by one, write on paper. Repeat "+molecules+" times."},
+    {icon:"📋", time:(molecules*0.5/60).toFixed(1)+"h", title:"Cross-reference Matrix/MMS",
+     desc:"Compare physical count against Matrix/MMS system balance, line by line, for each of the "+molecules+" molecules."},
+    {icon:"💊", time:(molecules*0.4/60).toFixed(1)+"h", title:"Cross-reference AssiStRx",
+     desc:"Manually calculate theoretical balance (opening + purchases - sales) for each molecule and identify discrepancies."},
+    {icon:"📦", time:"45 min", title:"Delivery receipts",
+     desc:"Verify each delivery receipt received during the cycle, cross-reference with system entries."},
+    {icon:"🔍", time:"1h",     title:"Investigate discrepancies",
+     desc:"Recount suspicious products, trace errors in old documents, explain every discrepancy found."},
+    {icon:"✍️", time:"45 min", title:"Report & signatures",
+     desc:"Write the reconciliation report, get pharmacist-in-charge and witness signatures, file all records."},
+  ];
+
+  return(
+    <div style={{fontFamily:"system-ui,sans-serif",background:C.light,minHeight:"100vh"}}>
+
+      {/* HERO */}
+      <div style={{background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+        padding:"48px 40px",textAlign:"center"}}>
+        <div style={{color:"rgba(255,255,255,.6)",fontSize:13,marginBottom:8,fontWeight:600,
+          textTransform:"uppercase",letterSpacing:1}}>
+          {isFR?"Basé sur des données réelles de pharmacie":"Based on real pharmacy data"}
+        </div>
+        <div style={{color:"#fff",fontWeight:900,fontSize:42,lineHeight:1.1,marginBottom:16}}>
+          {isFR
+            ?"Votre inventaire narco prend combien d'heures?"
+            :"How many hours does your narcotics inventory take?"}
+        </div>
+        <div style={{display:"flex",justifyContent:"center",alignItems:"center",
+          gap:40,flexWrap:"wrap",marginBottom:32}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{color:C.red,fontWeight:900,fontSize:80,lineHeight:1}}>{manualHours}h</div>
+            <div style={{color:"rgba(255,255,255,.6)",fontSize:14,marginTop:4}}>
+              {isFR?"Manuellement":"Manually"}
+            </div>
+          </div>
+          <div style={{fontSize:40,color:"rgba(255,255,255,.3)"}}>→</div>
+          <div style={{textAlign:"center"}}>
+            <div style={{color:C.green,fontWeight:900,fontSize:80,lineHeight:1}}>{"<5"}</div>
+            <div style={{color:"rgba(255,255,255,.6)",fontSize:14,marginTop:4}}>
+              {isFR?"Minutes avec NarcoSync":"Minutes with NarcoSync"}
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive calculator */}
+        <div style={{background:"rgba(255,255,255,.08)",borderRadius:16,
+          padding:"20px 28px",maxWidth:680,margin:"0 auto",textAlign:"left"}}>
+          <div style={{color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:13,
+            marginBottom:16,textAlign:"center"}}>
+            {isFR?"🧮 Calculez votre pharmacie":"🧮 Calculate for your pharmacy"}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
+            {[
+              {label:isFR?"Molécules contrôlées":"Controlled molecules",
+               val:molecules,set:setMolecules,min:50,max:500,step:25},
+              {label:isFR?"Taux horaire ($/h)":"Hourly rate ($/h)",
+               val:rate,set:setRate,min:30,max:120,step:5},
+              {label:isFR?"Cycles / an":"Cycles / year",
+               val:cycles,set:setCycles,min:4,max:13,step:1},
+            ].map(f=>(
+              <div key={f.label}>
+                <div style={{color:"rgba(255,255,255,.6)",fontSize:10,
+                  marginBottom:6,fontWeight:600}}>{f.label}</div>
+                <div style={{color:"#fff",fontWeight:800,fontSize:22,marginBottom:6}}>{f.val}</div>
+                <input type="range" min={f.min} max={f.max} step={f.step}
+                  value={f.val} onChange={e=>f.set(+e.target.value)}
+                  style={{width:"100%",accentColor:C.sky}}/>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  color:"rgba(255,255,255,.3)",fontSize:9}}>
+                  <span>{f.min}</span><span>{f.max}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ROI NUMBERS */}
+      <div style={{padding:"28px 40px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,
+          maxWidth:900,margin:"0 auto 32px"}}>
+          {[
+            {icon:"⏱️",val:manualHours+"h",sub:isFR?"par cycle manuel":"per manual cycle",color:C.red},
+            {icon:"💸",val:"$"+costPerCycle,sub:isFR?"coût par cycle":"cost per cycle",color:C.red},
+            {icon:"📅",val:"$"+costPerYear,sub:isFR?"coût annuel total":"total annual cost",color:C.orange},
+            {icon:"💰",val:"$"+savings,sub:isFR?"économies avec NarcoSync / an":"saved with NarcoSync / year",color:C.green},
+          ].map(s=>(
+            <div key={s.sub} style={{background:C.white,borderRadius:14,padding:"20px",
+              textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,.07)",
+              borderTop:"4px solid "+s.color}}>
+              <div style={{fontSize:28,marginBottom:6}}>{s.icon}</div>
+              <div style={{fontSize:26,fontWeight:900,color:s.color}}>{s.val}</div>
+              <div style={{fontSize:11,color:C.grey,marginTop:4,lineHeight:1.4}}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ROI badge */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{display:"inline-block",background:"linear-gradient(135deg,"+C.green+",#0a7a47)",
+            borderRadius:50,padding:"12px 32px",boxShadow:"0 4px 20px rgba(26,158,95,.4)"}}>
+            <span style={{color:"#fff",fontWeight:900,fontSize:22}}>{roi}×</span>
+            <span style={{color:"rgba(255,255,255,.85)",fontSize:14,marginLeft:8}}>
+              {isFR?"retour sur investissement en année 1":"return on investment in year 1"}
+            </span>
+          </div>
+        </div>
+
+        {/* TIME BREAKDOWN */}
+        <div style={{maxWidth:800,margin:"0 auto 32px"}}>
+          <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:6,textAlign:"center"}}>
+            {isFR
+              ?"Ce que vous faites manuellement à chaque cycle"
+              :"What you do manually every cycle"}
+          </div>
+          <div style={{color:C.grey,fontSize:13,textAlign:"center",marginBottom:20}}>
+            {isFR
+              ?molecules+" molécules × 2.6 min chacune = "+manualHours+" heures de travail manuel"
+              :molecules+" molecules × 2.6 min each = "+manualHours+" hours of manual work"}
+          </div>
+
+          {steps.map((step,i)=>(
+            <div key={i} style={{display:"flex",gap:16,marginBottom:14,
+              background:C.white,borderRadius:12,padding:"14px 18px",
+              boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+              <div style={{fontSize:28,flexShrink:0}}>{step.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  alignItems:"center",marginBottom:4}}>
+                  <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{step.title}</div>
+                  <span style={{background:C.red+"15",color:C.red,fontWeight:700,
+                    fontSize:11,padding:"3px 10px",borderRadius:20,flexShrink:0}}>
+                    ⏱️ {step.time}
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:C.grey,lineHeight:1.6}}>{step.desc}</div>
+              </div>
+            </div>
+          ))}
+
+          {/* Total bar */}
+          <div style={{background:C.red,borderRadius:12,padding:"16px 20px",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"#fff",fontWeight:800,fontSize:16}}>
+              {isFR?"TOTAL -- Manuellement":"TOTAL -- Manually"}
+            </div>
+            <div style={{color:"#fff",fontWeight:900,fontSize:28}}>{manualHours}h</div>
+          </div>
+        </div>
+
+        {/* NARCOSYNC WAY */}
+        <div style={{maxWidth:800,margin:"0 auto 32px"}}>
+          <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:6,textAlign:"center"}}>
+            {isFR?"Avec NarcoSync -- même travail, 5 minutes":"With NarcoSync -- same work, 5 minutes"}
+          </div>
+          <div style={{color:C.grey,fontSize:13,textAlign:"center",marginBottom:20}}>
+            {isFR
+              ?molecules+" molécules × "+secsPerMolecule+" secondes chacune = moins de 5 minutes"
+              :molecules+" molecules × "+secsPerMolecule+" seconds each = under 5 minutes"}
+          </div>
+
+          {(isFR?[
+            {icon:"📤",time:"1 min", title:"Uploadez vos 3 documents",
+             desc:"Scan du rapport Matrix/MMS + export CSV AssiStRx + photo des bons de livraison"},
+            {icon:"⚡",time:"< 4 min",title:"NarcoSync fait tout",
+             desc:"Lecture automatique des "+molecules+" molécules, calcul du théorique, identification des écarts -- instantané"},
+            {icon:"🖨️",time:"30 sec",title:"Imprimez le rapport officiel",
+             desc:"Rapport OPQ formaté, prêt à signer -- avec blocs de signature et notes d'investigation"},
+          ]:[
+            {icon:"📤",time:"1 min",  title:"Upload your 3 documents",
+             desc:"Scan Matrix/MMS report + AssiStRx CSV export + photo of delivery receipts"},
+            {icon:"⚡",time:"< 4 min",title:"NarcoSync does everything",
+             desc:"Automatic reading of all "+molecules+" molecules, theoretical calculation, discrepancy identification -- instant"},
+            {icon:"🖨️",time:"30 sec",title:"Print the official report",
+             desc:"OPQ-formatted report ready to sign -- with signature blocks and investigation notes"},
+          ]).map((step,i)=>(
+            <div key={i} style={{display:"flex",gap:16,marginBottom:14,
+              background:C.white,borderRadius:12,padding:"14px 18px",
+              boxShadow:"0 1px 6px rgba(0,0,0,.06)"}}>
+              <div style={{fontSize:28,flexShrink:0}}>{step.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{step.title}</div>
+                  <span style={{background:C.green+"15",color:C.green,fontWeight:700,
+                    fontSize:11,padding:"3px 10px",borderRadius:20,flexShrink:0}}>
+                    ✅ {step.time}
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:C.grey,lineHeight:1.6}}>{step.desc}</div>
+              </div>
+            </div>
+          ))}
+
+          {/* Total bar */}
+          <div style={{background:C.green,borderRadius:12,padding:"16px 20px",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"#fff",fontWeight:800,fontSize:16}}>
+              {isFR?"TOTAL -- Avec NarcoSync":"TOTAL -- With NarcoSync"}
+            </div>
+            <div style={{color:"#fff",fontWeight:900,fontSize:28}}>{"< 5 min"}</div>
+          </div>
+        </div>
+
+        {/* WHAT ELSE YOU CAN DO with 10 hours */}
+        <div style={{maxWidth:800,margin:"0 auto 32px",background:C.white,
+          borderRadius:14,padding:"24px 28px",boxShadow:"0 2px 12px rgba(0,0,0,.07)"}}>
+          <div style={{fontWeight:800,fontSize:17,color:C.navy,marginBottom:4}}>
+            {isFR
+              ?"Avec vos "+manualHours+" heures récupérées par cycle, vous pourriez :"
+              :"With your "+manualHours+" hours back per cycle, you could:"}
+          </div>
+          <div style={{color:C.grey,fontSize:12,marginBottom:16}}>
+            {isFR
+              ?manualHours+"h × "+cycles+" cycles = "+(parseFloat(manualHours)*cycles).toFixed(0)+" heures par an récupérées"
+              :manualHours+"h × "+cycles+" cycles = "+(parseFloat(manualHours)*cycles).toFixed(0)+" hours per year recovered"}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
+            {(isFR?[
+              "Consulter plus de patients",
+              "Développer de nouveaux services",
+              "Former votre équipe",
+              "Rentrer chez vous à l'heure",
+              "Gérer d'autres priorités de votre pharmacie",
+              "Tout simplement -- souffler",
+            ]:[
+              "Consult more patients",
+              "Develop new pharmacy services",
+              "Train your team",
+              "Go home on time",
+              "Handle other pharmacy priorities",
+              "Simply -- breathe",
+            ]).map((item,i)=>(
+              <div key={i} style={{display:"flex",gap:8,alignItems:"center",
+                padding:"10px 12px",background:C.light,borderRadius:8}}>
+                <span style={{color:C.green,fontSize:14}}>✓</span>
+                <span style={{fontSize:12,color:C.navy}}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{textAlign:"center",padding:"20px 0"}}>
+          <div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>
+            {isFR?"Prêt à récupérer vos heures?":"Ready to get your hours back?"}
+          </div>
+          <div style={{color:C.grey,fontSize:13,marginBottom:20}}>
+            {isFR
+              ?"30 jours gratuits · Aucune carte de crédit · Annulez quand vous voulez"
+              :"30 days free · No credit card · Cancel anytime"}
+          </div>
+          <button onClick={onSubscribe}
+            style={{padding:"16px 48px",borderRadius:12,border:"none",cursor:"pointer",
+              fontFamily:"inherit",fontWeight:800,fontSize:16,color:"#fff",
+              background:"linear-gradient(135deg,"+C.sky+","+C.navy+")",
+              boxShadow:"0 6px 24px rgba(46,134,222,.4)"}}>
+            {isFR?"Commencer l'essai gratuit →":"Start free trial →"}
+          </button>
+          <div style={{color:C.grey,fontSize:11,marginTop:10}}>
+            {isFR
+              ?"NarcoSync Basic -- 49$ CAD/mois après l'essai · "+roi+"× ROI garanti"
+              :"NarcoSync Basic -- $49 CAD/month after trial · "+roi+"× ROI guaranteed"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pricing & Stripe
+// Replace these with your real Stripe publishable key and price IDs
+// from your Stripe Dashboard → Products → Pricing
+const STRIPE_CONFIG = {
+  publishableKey: "pk_live_YOUR_KEY_HERE", // replace with real key
+  prices: {
+    basic_monthly:     "price_BASIC_MONTHLY_ID",   // $49/month
+    pro_monthly:       "price_PRO_MONTHLY_ID",     // $99/month
+    enterprise_monthly:"price_ENT_MONTHLY_ID",    // $249/month
+  },
+  trialDays: 30,
+};
+
+const PLANS = [
+  {
+    id:"basic",
+    name:"Basic",
+    price:49,
+    currency:"CAD",
+    period:"month",
+    color:"#2E86DE",
+    badge:null,
+    tagline:"Perfect for independent pharmacies",
+    taglineFR:"Idéal pour les pharmacies indépendantes",
+    features:[
+      "Unlimited reconciliations",
+      "All formats: Scan · CSV · Excel · PDF · Photo",
+      "Official regulatory print report",
+      "Compliance alerts per jurisdiction",
+      "Controlled substances database",
+      "Discrepancy investigation workflow",
+      "Reconciliation history",
+      "1 user account",
+      "Email support",
+    ],
+    featuresFR:[
+      "Réconciliations illimitées",
+      "Tous les formats : Scan · CSV · Excel · PDF · Photo",
+      "Rapport officiel réglementaire imprimable",
+      "Alertes de conformité par juridiction",
+      "Base de données des substances contrôlées",
+      "Investigation guidée des écarts",
+      "Historique des réconciliations",
+      "1 compte utilisateur",
+      "Support par email",
+    ],
+    priceKey:"basic_monthly",
+  },
+  {
+    id:"pro",
+    name:"Pro",
+    price:99,
+    currency:"CAD",
+    period:"month",
+    color:"#8E44AD",
+    badge:"Most popular",
+    badgeFR:"Le plus populaire",
+    tagline:"For pharmacies wanting full automation",
+    taglineFR:"Pour les pharmacies qui veulent l'automatisation complète",
+    features:[
+      "Everything in Basic",
+      "Automated SFTP connection (AssiStRx, Kroll, PharmaClik…)",
+      "Up to 3 user accounts",
+      "Priority support (24h response)",
+      "Advanced analytics & reports",
+      "Custom cycle reminders",
+      "Matrix/MMS native integration",
+      "API access",
+    ],
+    featuresFR:[
+      "Tout ce qui est inclus dans Basic",
+      "Connexion SFTP automatisée (AssiStRx, Kroll, PharmaClik…)",
+      "Jusqu'à 3 comptes utilisateurs",
+      "Support prioritaire (réponse 24h)",
+      "Analytiques et rapports avancés",
+      "Rappels de cycle personnalisés",
+      "Intégration native Matrix/MMS",
+      "Accès API",
+    ],
+    priceKey:"pro_monthly",
+  },
+  {
+    id:"enterprise",
+    name:"Enterprise",
+    price:249,
+    currency:"CAD",
+    period:"month / location",
+    color:"#0F2744",
+    badge:"For chains",
+    badgeFR:"Pour les chaînes",
+    tagline:"For pharmacy chains & multi-location groups",
+    taglineFR:"Pour les chaînes et groupes multi-emplacements",
+    features:[
+      "Everything in Pro",
+      "Unlimited user accounts",
+      "Multiple pharmacy locations",
+      "Direct API integration (McKesson, Telus Health)",
+      "Dedicated account manager",
+      "Custom regulatory setup",
+      "Bulk pricing for 5+ locations",
+      "SLA guarantee",
+      "White-label option",
+    ],
+    featuresFR:[
+      "Tout ce qui est inclus dans Pro",
+      "Comptes utilisateurs illimités",
+      "Plusieurs emplacements de pharmacie",
+      "Intégration API directe (McKesson, Telus Health)",
+      "Gestionnaire de compte dédié",
+      "Configuration réglementaire personnalisée",
+      "Tarifs groupés pour 5+ emplacements",
+      "Garantie de niveau de service",
+      "Option marque blanche",
+    ],
+    priceKey:"enterprise_monthly",
+  },
+];
+
+async function redirectToStripeCheckout(priceKey, userEmail){
+  const priceId = STRIPE_CONFIG.prices[priceKey];
+  if(!priceId || priceId.includes("YOUR")) {
+    alert("Stripe not configured yet. Add your Stripe keys to STRIPE_CONFIG.");
+    return;
+  }
+  try {
+    // Load Stripe.js dynamically
+    const stripeJs = document.createElement("script");
+    stripeJs.src = "https://js.stripe.com/v3/";
+    document.head.appendChild(stripeJs);
+    await new Promise(r=>stripeJs.onload=r);
+    const stripe = window.Stripe(STRIPE_CONFIG.publishableKey);
+    // Redirect to Stripe Checkout
+    // In production: create checkout session via your Supabase Edge Function
+    // For now: use client-only checkout with trial
+    const result = await stripe.redirectToCheckout({
+      lineItems:[{price:priceId, quantity:1}],
+      mode:"subscription",
+      customerEmail: userEmail||undefined,
+      successUrl: window.location.origin+"?checkout=success",
+      cancelUrl:  window.location.origin+"?checkout=cancel",
+      subscriptionData:{ trial_period_days: STRIPE_CONFIG.trialDays },
+    });
+    if(result.error) alert(result.error.message);
+  } catch(err){
+    console.error("Stripe error:", err);
+    alert("Payment error. Please try again or contact support.");
+  }
+}
+
+// Pricing Page
+function PricingPage({userEmail,t,onClose}){
+  const [billing] = useState("monthly");
+  const [loading,setLoading] = useState(null);
+  const isFR = t===T.fr;
+
+  async function subscribe(plan){
+    setLoading(plan.id);
+    await redirectToStripeCheckout(plan.priceKey, userEmail);
+    setLoading(null);
+  }
+
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,"+C.navy+" 0%,"+C.blue+" 40%,"+C.light+" 100%)",
+      padding:"32px 20px"}}>
+
+      {onClose&&(
+        <button onClick={onClose} style={{position:"fixed",top:16,left:16,
+          background:"rgba(255,255,255,.15)",border:"none",color:"#fff",
+          borderRadius:20,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>
+          ← {isFR?"Retour":"Back"}
+        </button>
+      )}
+
+      {/* Header */}
+      <div style={{textAlign:"center",marginBottom:36,paddingTop:20}}>
+        <div style={{color:"rgba(255,255,255,.7)",fontSize:13,marginBottom:8}}>💊 NarcoSync</div>
+        <div style={{color:"#fff",fontWeight:800,fontSize:30,marginBottom:8}}>
+          {isFR?"Commencez gratuitement":"Start free"}
+        </div>
+        <div style={{color:"rgba(255,255,255,.65)",fontSize:15,marginBottom:4}}>
+          {isFR
+            ?"30 jours gratuits sur tous les plans · Annulez quand vous voulez"
+            :"30 days free on all plans · Cancel anytime"}
+        </div>
+        <div style={{color:"rgba(255,255,255,.45)",fontSize:12}}>
+          {isFR
+            ?"Aucune carte de crédit requise pour commencer l'essai"
+            :"No credit card required to start your trial"}
+        </div>
+        {/* Automation + security badges */}
+        <div style={{display:"flex",justifyContent:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
+          {[
+            {icon:"⚡",label:isFR?"100% automatique quand connecté":"100% automatic when connected"},
+            {icon:"🔐",label:isFR?"Chiffrement AES-256":"AES-256 Encryption"},
+            {icon:"🏛️",label:"SOC 2 Type II"},
+            {icon:"🏥",label:isFR?"Conforme PIPEDA · Loi 25":"PIPEDA · Law 25 compliant"},
+          ].map(b=>(
+            <div key={b.label} style={{display:"flex",alignItems:"center",gap:5,
+              padding:"5px 12px",borderRadius:20,background:"rgba(255,255,255,.12)",}}>
+              <span style={{fontSize:12}}>{b.icon}</span>
+              <span style={{color:"rgba(255,255,255,.8)",fontSize:10,fontWeight:600}}>{b.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Plan cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:20,
+        maxWidth:960,margin:"0 auto 36px"}}>
+        {PLANS.map(plan=>{
+          const isPop = plan.badge&&plan.id==="pro";
+          const feats = isFR?plan.featuresFR:plan.features;
+          const badge = isFR?(plan.badgeFR||plan.badge):plan.badge;
+          const tag   = isFR?plan.taglineFR:plan.tagline;
+          return(
+            <div key={plan.id} style={{
+              borderRadius:18,overflow:"hidden",
+              border:"2px solid "+isPop?"#fff":"rgba(255,255,255,.2)",
+              boxShadow:isPop?"0 8px 40px rgba(0,0,0,.4)":"0 4px 20px rgba(0,0,0,.2)",
+              transform:isPop?"translateY(-8px)":"none",
+              background:"#fff",
+            }}>
+              {/* Badge */}
+              {badge&&(
+                <div style={{background:plan.color,color:"#fff",textAlign:"center",
+                  padding:"7px",fontSize:11,fontWeight:700}}>
+                  {badge}
+                </div>
+              )}
+
+              {/* Plan header */}
+              <div style={{background:isPop?plan.color:C.navy,padding:"22px 22px 18px"}}>
+                <div style={{color:"rgba(255,255,255,.7)",fontSize:11,fontWeight:700,
+                  textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>
+                  {plan.name}
+                </div>
+                <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:6}}>
+                  <span style={{color:"#fff",fontWeight:900,fontSize:38}}>${plan.price}</span>
+                  <span style={{color:"rgba(255,255,255,.6)",fontSize:12}}>{plan.currency}/{plan.period}</span>
+                </div>
+                <div style={{color:"rgba(255,255,255,.6)",fontSize:11}}>{tag}</div>
+              </div>
+
+              {/* Features */}
+              <div style={{padding:"18px 20px 14px",flex:1}}>
+                {feats.map((f,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
+                    <span style={{color:plan.color,fontSize:13,flexShrink:0,marginTop:1}}>✓</span>
+                    <span style={{fontSize:11,color:C.navy,lineHeight:1.5}}>{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div style={{padding:"0 20px 20px"}}>
+                <button onClick={()=>subscribe(plan)} disabled={loading===plan.id}
+                  style={{width:"100%",padding:"13px",borderRadius:10,border:"none",
+                    cursor:loading===plan.id?"wait":"pointer",fontFamily:"inherit",
+                    fontWeight:700,fontSize:13,color:"#fff",
+                    background:loading===plan.id?"#cbd5e0":plan.color,
+                    transition:"opacity .15s"}}>
+                  {loading===plan.id
+                    ?(isFR?"Redirection…":"Redirecting…")
+                    :(isFR?"Commencer l'essai gratuit →":"Start free trial →")}
+                </button>
+                <div style={{textAlign:"center",marginTop:8,fontSize:10,color:C.grey}}>
+                  {isFR?"30 jours gratuits · Puis":"30 days free · Then"} ${plan.price} {plan.currency}/{isFR?"mois":"month"}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Value proposition -- based on real pharmacy data */}
+      <div style={{maxWidth:760,margin:"0 auto"}}>
+        {/* Big stat */}
+        <div style={{background:"rgba(255,255,255,.12)",borderRadius:14,
+          padding:"24px 28px",textAlign:"center",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",
+            gap:24,flexWrap:"wrap",marginBottom:16}}>
+            <div style={{textAlign:"center"}}>
+              <div style={{color:C.red,fontWeight:900,fontSize:52,lineHeight:1}}>10h</div>
+              <div style={{color:"rgba(255,255,255,.6)",fontSize:11,marginTop:4}}>
+                {isFR?"Inventaire narco manuel":"Manual narcotics inventory"}
+              </div>
+            </div>
+            <div style={{fontSize:32,color:"rgba(255,255,255,.4)"}}>→</div>
+            <div style={{textAlign:"center"}}>
+              <div style={{color:C.green,fontWeight:900,fontSize:52,lineHeight:1}}>
+                {"<5"}
+                <span style={{fontSize:24}}>min</span>
+              </div>
+              <div style={{color:"rgba(255,255,255,.6)",fontSize:11,marginTop:4}}>
+                {isFR?"Avec NarcoSync":"With NarcoSync"}
+              </div>
+            </div>
+          </div>
+          <div style={{color:"rgba(255,255,255,.8)",fontSize:13,lineHeight:1.7,
+            maxWidth:520,margin:"0 auto"}}>
+            {isFR
+              ?"Basé sur des données réelles de pharmacie. Un inventaire cyclique complet prenait 10 heures manuellement. À 50$/h, c'est 500$ par cycle -- 4 000$/an en temps perdu."
+              :"Based on real pharmacy data. A complete cyclical inventory took 10 hours manually. At $50/h, that's $500 per cycle -- $4,000/year in lost time."}
+          </div>
+        </div>
+
+        {/* ROI comparison */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+          {[
+            {label:isFR?"Coût annuel sans NarcoSync":"Annual cost without NarcoSync",
+             value:"$4,000+",color:C.red,sub:isFR?"8 cycles × 10h × 50$/h":"8 cycles × 10h × $50/h"},
+            {label:isFR?"NarcoSync Basic / an":"NarcoSync Basic / year",
+             value:"$588",color:C.green,sub:isFR?"49$/mois × 12 mois":"$49/month × 12 months"},
+            {label:isFR?"Économies année 1":"Year 1 savings",
+             value:">$3,400",color:C.gold,sub:isFR?"Retour sur investissement 7×":"7× return on investment"},
+          ].map(s=>(
+            <div key={s.label} style={{background:"rgba(255,255,255,.1)",borderRadius:10,
+              padding:"14px 16px",textAlign:"center"}}>
+              <div style={{color:s.color,fontWeight:900,fontSize:26,lineHeight:1}}>{s.value}</div>
+              <div style={{color:"rgba(255,255,255,.8)",fontSize:10,fontWeight:700,
+                marginTop:4,marginBottom:3}}>{s.label}</div>
+              <div style={{color:"rgba(255,255,255,.45)",fontSize:9}}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trust signals */}
+      <div style={{display:"flex",justifyContent:"center",gap:32,marginTop:24,flexWrap:"wrap"}}>
+        {[
+          {icon:"🔒",text:isFR?"Paiement 100% sécurisé":"100% secure payment"},
+          {icon:"❌",text:isFR?"Annulez quand vous voulez":"Cancel anytime"},
+          {icon:"🔐",text:"AES-256 · SOC 2 · TLS 1.3"},
+          {icon:"🌍",text:isFR?"75+ pays supportés":"75+ countries supported"},
+          {icon:"⚖️",text:isFR?"OPQ · DEA · GPhC · PIPEDA":"OPQ · DEA · GPhC · PIPEDA"},
+          {icon:"🏥",text:isFR?"Données dans votre propre base":"Data in your own database"},
+        ].map(s=>(
+          <div key={s.text} style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:16}}>{s.icon}</span>
+            <span style={{color:"rgba(255,255,255,.65)",fontSize:11}}>{s.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Connection Mode Data
+const CONNECTION_MODES = [
+  {
+    id:"manual",
+    icon:"📤",
+    title:"Manual Upload",
+    titleFR:"Upload manuel",
+    desc:"Upload your files yourself -- scan, CSV, Excel, PDF, or photo. Works immediately, no setup required.",
+    descFR:"Uploadez vos fichiers vous-même -- scan, CSV, Excel, PDF ou photo. Fonctionne immédiatement, aucune configuration requise.",
+    badge:"Available now",
+    badgeFR:"Disponible maintenant",
+    color:"#1A9E5F",
+    setup:"Self-service",
+    setupFR:"Libre-service",
+    features:[
+      "Upload any format at any time",
+      "Scan · CSV · Excel · PDF · Photo",
+      "Works with any pharmacy system",
+      "No technical setup required",
+    ],
+    featuresFR:[
+      "Uploadez n'importe quel format à tout moment",
+      "Scan · CSV · Excel · PDF · Photo",
+      "Compatible avec tout système de pharmacie",
+      "Aucune configuration technique requise",
+    ],
+  },
+  {
+    id:"sftp",
+    icon:"🔄",
+    title:"Automated File Transfer (SFTP)",
+    titleFR:"Transfert automatique de fichiers (SFTP)",
+    desc:"Your pharmacy system automatically sends files to NarcoSync at a scheduled time (e.g. every night at 2 AM). No manual upload needed.",
+    descFR:"Votre système de pharmacie envoie automatiquement les fichiers à NarcoSync à une heure programmée (ex: chaque nuit à 2h). Aucun upload manuel requis.",
+    badge:"Contact support to activate",
+    badgeFR:"Contactez le support pour activer",
+    color:"#2E86DE",
+    setup:"1-2 business days setup",
+    setupFR:"Configuration 1-2 jours ouvrables",
+    compatible:["AssiStRx","Kroll","PharmaClik","Logibec","WinRx","Any system with SFTP/email export"],
+    compatibleFR:["AssiStRx","Kroll","PharmaClik","Logibec","WinRx","Tout système avec export SFTP/email"],
+    features:[
+      "Fully automatic -- no manual intervention",
+      "Scheduled sync (nightly, hourly, or real-time)",
+      "Works with AssiStRx, Kroll, PharmaClik, Logibec",
+      "NarcoSync provides a secure SFTP endpoint",
+      "Email delivery also supported",
+    ],
+    featuresFR:[
+      "Entièrement automatique -- aucune intervention manuelle",
+      "Synchronisation programmée (nuitée, horaire, ou temps réel)",
+      "Compatible AssiStRx, Kroll, PharmaClik, Logibec",
+      "NarcoSync fournit un point de dépôt SFTP sécurisé",
+      "Livraison par email également supportée",
+    ],
+  },
+  {
+    id:"api",
+    icon:"⚡",
+    title:"Direct API Integration",
+    titleFR:"Intégration API directe",
+    desc:"Real-time connection between NarcoSync and your pharmacy management system. Data flows automatically as prescriptions are dispensed.",
+    descFR:"Connexion en temps réel entre NarcoSync et votre système de gestion de pharmacie. Les données circulent automatiquement à mesure que les ordonnances sont préparées.",
+    badge:"Enterprise -- contact sales",
+    badgeFR:"Entreprise -- contactez les ventes",
+    color:"#8E44AD",
+    setup:"Custom implementation",
+    setupFR:"Implémentation personnalisée",
+    compatible:["Kroll (McKesson API)","PharmaClik (McKesson API)","AssiStRx (Telus Health API)","Matrix/MMS (native)","Custom EHR/PMS"],
+    compatibleFR:["Kroll (API McKesson)","PharmaClik (API McKesson)","AssiStRx (API Telus Health)","Matrix/MMS (natif)","EHR/PMS personnalisé"],
+    features:[
+      "Real-time data sync -- no delay",
+      "Bidirectional: NarcoSync can push back to your system",
+      "Inventory + Sales simultaneously",
+      "Matrix/MMS native integration available",
+      "Requires vendor API agreement (McKesson, Telus Health)",
+    ],
+    featuresFR:[
+      "Synchronisation en temps réel -- aucun délai",
+      "Bidirectionnel : NarcoSync peut remettre à jour votre système",
+      "Inventaire + Ventes simultanément",
+      "Intégration native Matrix/MMS disponible",
+      "Accord API fournisseur requis (McKesson, Telus Health)",
+    ],
+  },
+];
+
+// Connection Settings Page
+function ConnectionPage({profile,t}){
+  const [showContact,setShowContact] = useState(false);
+  const [requestMode,setRequestMode] = useState(null);
+  const [form,setForm] = useState({name:"",pharmacy:"",email:"",system:"",notes:""});
+  const [submitted,setSubmitted] = useState(false);
+
+  const currentMode = profile?.connectionMode||"manual";
+  const isFR = t === T.fr;
+
+  function submit(){
+    // In production this would POST to a backend
+    setSubmitted(true);
+  }
+
+  return(
+    <div style={{padding:"24px 28px"}}>
+      <div style={{marginBottom:22}}>
+        <h1 style={{margin:0,fontSize:19,fontWeight:800,color:C.navy}}>
+          {isFR?"Mode de connexion":"Connection Mode"}
+        </h1>
+        <div style={{color:C.grey,fontSize:12,marginTop:3}}>
+          {isFR
+            ?"Choisissez comment NarcoSync récupère vos données de pharmacie"
+            :"Choose how NarcoSync retrieves your pharmacy data"}
+        </div>
+      </div>
+
+      {/* Current status */}
+      <div style={{background:C.green+"15",border:"1.5px solid "+C.green+"44",
+        borderRadius:12,padding:"12px 18px",marginBottom:20,
+        display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontSize:20}}>✅</span>
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:C.green}}>
+            {isFR?"Mode actuel : Upload manuel":"Current mode: Manual Upload"}
+          </div>
+          <div style={{fontSize:11,color:C.grey}}>
+            {isFR
+              ?"Vous uploadez vos fichiers manuellement. Fonctionne avec tout système."
+              :"You upload files manually. Works with any system."}
+          </div>
+        </div>
+      </div>
+
+      {/* Mode cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
+        {CONNECTION_MODES.map(mode=>{
+          const isActive = currentMode===mode.id;
+          const title = isFR?mode.titleFR:mode.title;
+          const desc  = isFR?mode.descFR:mode.desc;
+          const badge = isFR?mode.badgeFR:mode.badge;
+          const features = isFR?mode.featuresFR:mode.features;
+          const compatible = isFR?(mode.compatibleFR||[]):(mode.compatible||[]);
+          return(
+            <div key={mode.id} style={{
+              borderRadius:14,overflow:"hidden",
+              border:"2px solid "+isActive?mode.color:C.border,
+              boxShadow:isActive?"0 4px 20px "+mode.color+"30":"0 2px 8px rgba(0,0,0,.06)",
+            }}>
+              {/* Card header */}
+              <div style={{background:mode.color,padding:"14px 16px"}}>
+                <div style={{fontSize:24,marginBottom:6}}>{mode.icon}</div>
+                <div style={{color:"#fff",fontWeight:800,fontSize:13,marginBottom:4}}>{title}</div>
+                <span style={{background:"rgba(255,255,255,.25)",color:"#fff",
+                  fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10}}>
+                  {badge}
+                </span>
+              </div>
+
+              {/* Card body */}
+              <div style={{padding:"14px 16px",background:C.white}}>
+                <div style={{fontSize:11,color:C.grey,marginBottom:12,lineHeight:1.6}}>{desc}</div>
+
+                {features.map((f,i)=>(
+                  <div key={i} style={{display:"flex",gap:7,marginBottom:5}}>
+                    <span style={{color:mode.color,fontSize:11,flexShrink:0}}>✓</span>
+                    <span style={{fontSize:11,color:C.navy}}>{f}</span>
+                  </div>
+                ))}
+
+                {compatible.length>0&&(
+                  <div style={{marginTop:10,padding:"8px 10px",background:C.light,borderRadius:8}}>
+                    <div style={{fontSize:9,color:C.grey,fontWeight:700,marginBottom:4}}>
+                      {isFR?"SYSTÈMES COMPATIBLES":"COMPATIBLE SYSTEMS"}
+                    </div>
+                    {compatible.map((c,i)=>(
+                      <div key={i} style={{fontSize:10,color:C.navy}}>{c}</div>
+                    ))}
+                  </div>
+                )}
+
+                {mode.id==="manual"&&(
+                  <div style={{marginTop:12,padding:"8px 10px",background:C.green+"15",
+                    borderRadius:8,fontSize:10,color:C.green,fontWeight:700,textAlign:"center"}}>
+                    {isFR?"✅ Mode actuel -- actif":"✅ Current mode -- active"}
+                  </div>
+                )}
+
+                {mode.id!=="manual"&&(
+                  <button onClick={()=>{setRequestMode(mode);setShowContact(true);}}
+                    style={{marginTop:12,width:"100%",padding:"9px",borderRadius:8,border:"none",
+                      cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,
+                      color:"#fff",background:mode.color}}>
+                    {isFR?"Demander cette intégration →":"Request this integration →"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Matrix/MMS native info */}
+      <div style={{background:"linear-gradient(135deg,"+C.navy+"08,"+C.sky+"12)",
+        border:"1.5px solid "+C.sky+"33",borderRadius:12,padding:"16px 20px",marginBottom:20}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:8}}>
+          ⭐ {isFR?"Intégration native Matrix/MMS":"Native Matrix/MMS Integration"}
+        </div>
+        <div style={{fontSize:11,color:C.grey,lineHeight:1.7}}>
+          {isFR
+            ?"Matrix/MMS dispose d'une intégration native avec NarcoSync. Si votre pharmacie utilise Matrix/MMS comme système d'inventaire, vous pouvez avoir une synchronisation automatique bidirectionnelle sans aucune configuration manuelle. Contactez le support NarcoSync pour activer cette connexion prioritaire."
+            :"Matrix/MMS has a native integration with NarcoSync. If your pharmacy uses Matrix/MMS as your inventory system, you can have automatic bidirectional sync with no manual configuration. Contact NarcoSync support to activate this priority connection."}
+        </div>
+        <button onClick={()=>{setRequestMode(CONNECTION_MODES[2]);setShowContact(true);}}
+          style={{marginTop:12,padding:"8px 18px",borderRadius:8,border:"none",
+            cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,
+            color:"#fff",background:C.navy}}>
+          {isFR?"Connecter Matrix/MMS →":"Connect Matrix/MMS →"}
+        </button>
+      </div>
+
+      {/* Contact / request modal */}
+      {showContact&&!submitted&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,
+          display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:C.white,borderRadius:16,width:"100%",maxWidth:540,
+            padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:C.navy}}>
+                  {isFR?"Demande d'intégration":"Integration Request"}
+                </div>
+                <div style={{fontSize:11,color:C.grey,marginTop:2}}>
+                  {requestMode?.icon} {isFR?requestMode?.titleFR:requestMode?.title}
+                </div>
+              </div>
+              <button onClick={()=>setShowContact(false)} style={{background:"none",border:"none",
+                cursor:"pointer",fontSize:20,color:C.grey}}>✕</button>
+            </div>
+
+            {[
+              {key:"name",label:isFR?"Votre nom complet":"Your full name",placeholder:isFR?"Sylvain Goudreault":"John Smith"},
+              {key:"pharmacy",label:isFR?"Nom de la pharmacie":"Pharmacy name",placeholder:isFR?"Pharmacie Goudreault":"My Pharmacy"},
+              {key:"email",label:isFR?"Adresse email":"Email address",placeholder:"email@pharmacie.com"},
+              {key:"system",label:isFR?"Système de gestion actuel":"Current pharmacy system",placeholder:isFR?"ex: AssiStRx + Matrix/MMS":"e.g. AssiStRx + Matrix/MMS"},
+            ].map(field=>(
+              <div key={field.key} style={{marginBottom:12}}>
+                <label style={{fontSize:11,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>
+                  {field.label}
+                </label>
+                <input value={form[field.key]} onChange={e=>setForm(f=>({...f,[field.key]:e.target.value}))}
+                  placeholder={field.placeholder}
+                  style={{width:"100%",padding:"9px 12px",borderRadius:8,
+                    border:"1.5px solid "+C.border,fontSize:12,
+                    boxSizing:"border-box",fontFamily:"inherit"}}/>
+              </div>
+            ))}
+
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>
+                {isFR?"Notes additionnelles (optionnel)":"Additional notes (optional)"}
+              </label>
+              <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}
+                placeholder={isFR
+                  ?"Ex: nous avons 3 pharmacies, nous voulons connecter AssiStRx pour les ventes et Matrix/MMS pour l'inventaire..."
+                  :"E.g. we have 3 pharmacies, we want to connect AssiStRx for sales and Matrix/MMS for inventory..."}
+                style={{width:"100%",padding:"9px 12px",borderRadius:8,
+                  border:"1.5px solid "+C.border,fontSize:12,
+                  fontFamily:"inherit",resize:"vertical",minHeight:70,
+                  boxSizing:"border-box"}}/>
+            </div>
+
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+              <button onClick={()=>setShowContact(false)}
+                style={{padding:"9px 18px",borderRadius:8,border:"1px solid "+C.border,
+                  background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>
+                {isFR?"Annuler":"Cancel"}
+              </button>
+              <button onClick={submit}
+                disabled={!form.name||!form.pharmacy||!form.email||!form.system}
+                style={{padding:"9px 22px",borderRadius:8,border:"none",
+                  cursor:form.name&&form.pharmacy&&form.email&&form.system?"pointer":"not-allowed",
+                  fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",
+                  background:form.name&&form.pharmacy&&form.email&&form.system?C.sky:"#cbd5e0",
+                  opacity:form.name&&form.pharmacy&&form.email&&form.system?1:.6}}>
+                {isFR?"Envoyer la demande →":"Send request →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showContact&&submitted&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,
+          display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:C.white,borderRadius:16,padding:"40px",
+            textAlign:"center",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontSize:48,marginBottom:12}}>✅</div>
+            <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>
+              {isFR?"Demande envoyée !":"Request sent!"}
+            </div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:20,lineHeight:1.6}}>
+              {isFR
+                ?"Notre équipe technique vous contactera dans les 24-48 heures pour configurer votre intégration."
+                :"Our technical team will contact you within 24-48 hours to configure your integration."}
+            </div>
+            <button onClick={()=>{setShowContact(false);setSubmitted(false);setForm({name:"",pharmacy:"",email:"",system:"",notes:""});}}
+              style={{padding:"10px 24px",borderRadius:8,border:"none",cursor:"pointer",
+                fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green}}>
+              {isFR?"Fermer":"Close"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Controlled Substances Database
+const DRUG_DB = {
+  CA: {
+    "Narcotics (Schedule I -- NCR)": {
+      color:"#D63031", badge:"N", desc:"Narcotic Control Regulations -- strictest controls",
+      drugs:[
+        // Opioids
+        {name:"Morphine",brands:["MS Contin","M-Eslon","Statex","Kadian"],forms:["Tablet","Capsule","Oral solution","Injectable"],notes:"Double count required (OPQ)",lasa:["Hydromorphone (same white round tablet in many generics)","Oxycodone (similar labeling -- Apotex/Teva)"],manufacturers:["Apotex","Teva","Sandoz","PMS"],pillUrl:"https://www.drugs.com/imprints.php?drug=morphine"},
+        {name:"Oxycodone",brands:["OxyContin","OxyNEO","Percocet","Endocet"],forms:["Tablet","Capsule"],notes:"High diversion risk -- strict tracking",lasa:["Hydromorphone (small white tablets -- Apotex generics very similar)","Morphine (similar tablet appearance at equivalent doses)"],manufacturers:["Purdue","Teva","Apotex"],pillUrl:"https://www.drugs.com/imprints.php?drug=oxycodone"},
+        {name:"Hydromorphone",brands:["Dilaudid","Hydromorph Contin","Jurnista"],forms:["Tablet","Capsule","Injectable","Suppository"],notes:"HIGH LASA RISK -- easily confused with Morphine",lasa:["Morphine (Apotex/Teva generics -- nearly identical white tablets)","Oxycodone 1mg (very similar size and color at low doses)"],manufacturers:["Apotex","Teva","PMS","Jamp"],pillUrl:"https://www.drugs.com/imprints.php?drug=hydromorphone"},
+        {name:"Fentanyl",brands:["Duragesic","Abstral","Subsys","Onsolis"],forms:["Patch","Tablet","Lozenge","Injectable"],notes:"Patch count by units AND mcg/h"},
+        {name:"Methadone",brands:["Metadol","Methadose"],forms:["Oral solution","Tablet"],notes:"Special authorization required (OPQ/OCP)"},
+        {name:"Tapentadol",brands:["Nucynta"],forms:["Tablet"],notes:""},
+        {name:"Meperidine (Pethidine)",brands:["Demerol"],forms:["Tablet","Injectable"],notes:""},
+        {name:"Buprenorphine",brands:["Suboxone","Brixam","Sublocade"],forms:["Film","Tablet","Injectable"],notes:"OAT program -- additional records"},
+        {name:"Codeine (pure / >8mg/unit)",brands:["Codeine Contin"],forms:["Tablet"],notes:"Codeine alone = narcotic. <8mg/unit = exempt"},
+        {name:"Hydrocodone",brands:["Hysingla","Zohydro"],forms:["Tablet","Capsule"],notes:""},
+        {name:"Alfentanil",brands:["Alfenta"],forms:["Injectable"],notes:"Hospital/clinic use"},
+        {name:"Sufentanil",brands:["Sufenta"],forms:["Injectable","Nasal"],notes:""},
+        {name:"Remifentanil",brands:["Ultiva"],forms:["Injectable"],notes:"Hospital use only"},
+        // Others
+        {name:"Cocaine",brands:["Cocaine HCl (topical)"],forms:["Topical solution"],notes:"Topical anesthetic only"},
+        {name:"Diacetylmorphine (Heroin)",brands:["Heroin-assisted treatment"],forms:["Injectable"],notes:"Prescribed heroin programs only"},
+      ]
+    },
+    "Controlled Drugs -- Part I (Stimulants)": {
+      color:"#E67E22", badge:"CD1", desc:"CDSA Schedule III -- anorectic agents, stimulants",
+      drugs:[
+        {name:"Amphetamine",brands:["Adderall XR","Dexedrine"],forms:["Tablet","Capsule"],notes:""},
+        {name:"Lisdexamfetamine",brands:["Vyvanse"],forms:["Capsule","Tablet"],notes:""},
+        {name:"Methylphenidate",brands:["Ritalin","Biphentin","Concerta","Foquest"],forms:["Tablet","Capsule"],notes:"Very common -- high volume -- LASA risk",lasa:["Amphetamine/Dextroamphetamine (similar capsule appearance for extended-release)"],manufacturers:["Apotex","Teva","Janssen","PMS"],pillUrl:"https://www.drugs.com/imprints.php?drug=methylphenidate"},
+        {name:"Dextroamphetamine",brands:["Dexedrine"],forms:["Tablet","Capsule"],notes:""},
+        {name:"Methamphetamine",brands:["Desoxyn"],forms:["Tablet"],notes:"Rarely prescribed"},
+        {name:"Phentermine",brands:["Ionamin"],forms:["Capsule"],notes:"Weight management"},
+      ]
+    },
+    "Controlled Drugs -- Part II (Barbiturates)": {
+      color:"#8E44AD", badge:"CD2", desc:"CDSA Schedule IV -- barbiturates",
+      drugs:[
+        {name:"Phenobarbital",brands:["PMS-Phenobarbital"],forms:["Tablet","Elixir","Injectable"],notes:"Epilepsy -- often high volumes"},
+        {name:"Pentobarbital",brands:["Nembutal"],forms:["Injectable"],notes:"Hospital/palliative use"},
+        {name:"Secobarbital",brands:["Seconal"],forms:["Capsule"],notes:"MAiD protocol in some provinces"},
+        {name:"Butalbital",brands:["Fiorinal","Tecnal"],forms:["Capsule","Tablet"],notes:"Combination products"},
+        {name:"Amobarbital",brands:["Amytal"],forms:["Injectable"],notes:"Rare"},
+      ]
+    },
+    "Benzodiazepines & Other Targeted Substances (BOTS)": {
+      color:"#2E86DE", badge:"BZ", desc:"Benzodiazepines and Other Targeted Substances Regulations",
+      drugs:[
+        {name:"Alprazolam",brands:["Xanax","Teva-Alprazolam"],forms:["Tablet"],notes:"HIGH LASA RISK -- oval/oblong white or peach tablet",lasa:["Lorazepam (Apotex -- same blue/white bottle, similar oval white tablet)","Clonazepam (Apotex -- same label design, similar round tablet)","Bromazepam (similar bottle, similar size)"],manufacturers:["Apotex","Teva","Mylan","PMS"],pillUrl:"https://www.drugs.com/imprints.php?drug=alprazolam"},
+        {name:"Lorazepam",brands:["Ativan","Teva-Lorazepam"],forms:["Tablet","Injectable"],notes:"Very common in palliative -- HIGH LASA RISK",lasa:["Alprazolam (Apotex -- same blue/white label, near-identical oval white tablet)","Clonazepam (similar appearance in generic form)"],manufacturers:["Apotex","Teva","PMS","Jamp"],pillUrl:"https://www.drugs.com/imprints.php?drug=lorazepam"},
+        {name:"Diazepam",brands:["Valium","Diastat"],forms:["Tablet","Rectal gel","Injectable"],notes:""},
+        {name:"Clonazepam",brands:["Rivotril","Teva-Clonazepam"],forms:["Tablet","Oral solution"],notes:"High volume -- LASA risk with Alprazolam",lasa:["Alprazolam (same Apotex bottle design -- different drug same shelf area)","Lorazepam (similar round tablet appearance)"],manufacturers:["Apotex","Teva","PMS","Rho"],pillUrl:"https://www.drugs.com/imprints.php?drug=clonazepam"},
+        {name:"Bromazepam",brands:["Lectopam"],forms:["Tablet"],notes:""},
+        {name:"Oxazepam",brands:["Serax"],forms:["Tablet","Capsule"],notes:""},
+        {name:"Temazepam",brands:["Restoril","PMS-Temazepam"],forms:["Capsule"],notes:"Sleep -- high volume"},
+        {name:"Triazolam",brands:["Halcion"],forms:["Tablet"],notes:"Short-term sleep"},
+        {name:"Flurazepam",brands:["Dalmane"],forms:["Capsule"],notes:""},
+        {name:"Nitrazepam",brands:["Mogadon"],forms:["Tablet"],notes:""},
+        {name:"Midazolam",brands:["Versed"],forms:["Injectable","Nasal","Buccal"],notes:"Procedural sedation, palliative"},
+        {name:"Chlordiazepoxide",brands:["Librium"],forms:["Capsule"],notes:"Alcohol withdrawal"},
+        {name:"Clobazam",brands:["Onfi","Frisium"],forms:["Tablet"],notes:"Epilepsy"},
+        {name:"Zopiclone",brands:["Imovane","Teva-Zopiclone"],forms:["Tablet"],notes:"Non-benzo sleep -- LASA risk",lasa:["Zolpidem (same therapeutic class, similar small white tablet)","Alprazolam (Apotex generic -- similar bottle and tablet color)"],manufacturers:["Apotex","Teva","PMS","Jamp"],pillUrl:"https://www.drugs.com/imprints.php?drug=zopiclone"},
+        {name:"Zolpidem",brands:["Sublinox"],forms:["Tablet"],notes:"Non-benzo sleep"},
+        {name:"Zaleplon",brands:["Starnoc"],forms:["Capsule"],notes:""},
+        {name:"GHB (Sodium oxybate)",brands:["Xyrem"],forms:["Oral solution"],notes:"Narcolepsy -- very strict"},
+        {name:"Flunitrazepam",brands:["Rohypnol"],forms:["Tablet"],notes:"Schedule I in some jurisdictions"},
+        {name:"Ketamine",brands:["Ketalar","Ketamine-Omega"],forms:["Injectable","Nasal"],notes:"Anesthetic + emerging psychiatric use"},
+      ]
+    },
+    "Precursor Chemicals": {
+      color:"#27AE60", badge:"PC", desc:"Precursor Control Regulations -- chemicals that can be used to produce controlled substances",
+      drugs:[
+        {name:"Pseudoephedrine",brands:["Sudafed","Various OTC"],forms:["Tablet","Capsule"],notes:"Sale quantity limits apply -- log required"},
+        {name:"Ephedrine",brands:["Bronkaid"],forms:["Tablet"],notes:""},
+        {name:"Ergotamine",brands:["Cafergot","Ergodryl"],forms:["Tablet"],notes:""},
+      ]
+    }
+  }
+};
+
+// Discrepancy Reason Categories
+const DISC_REASONS = [
+  {
+    category:"Administrative Error",
+    color:"#2E86DE", icon:"📋", severity:"low", reportRequired:false,
+    reasons:[
+      {id:"count_error",label:"Counting error",desc:"The physical count was incorrect. Recount the product and verify against the register."},
+      {id:"doc_error",label:"Documentation / recording error",desc:"Wrong quantity entered in AssiStRx, Matrix/MMS, or the register. Find the entry and correct it."},
+      {id:"date_overlap",label:"Cycle date overlap",desc:"A transaction occurred on the boundary between two cycles. Check dates carefully."},
+      {id:"wrong_match",label:"Wrong product matched",desc:"NarcoSync linked the wrong product. Verify drug names and re-reconcile manually."},
+      {id:"unit_convert",label:"Unit / quantity conversion error",desc:"Confusion between units: tablets vs capsules, mL vs mg, patches vs units, vials vs mL."},
+      {id:"multi_din",label:"Multiple DINs for the same product",desc:"Same drug has two DINs in your system (different manufacturer). Both counted separately."},
+      {id:"wrong_bottle",label:"Wrong bottle grabbed -- completely different medication counted",desc:"The wrong bottle was picked up during physical count. Very common when bottles look similar or are stored close together. NarcoSync flags this automatically when two drugs have mirror discrepancy counts."},
+      {id:"wrong_shelf",label:"Wrong shelf section or drawer",desc:"Counted products from the wrong shelf, drawer, or storage area. Common in vaults or refrigerators where similar products are stored nearby."},
+      {id:"lasa_bottle",label:"Look-alike bottle -- same manufacturer, different drug (LASA)",desc:"Same manufacturer (e.g. Apotex, Teva) uses identical blue/white bottles for many different drugs. In a rush, you can grab the wrong one. Very common with benzodiazepines (Alprazolam, Lorazepam, Clonazepam all look the same from Apotex). Use the Substances tab to compare pill appearance."},
+    ]
+  },
+  {
+    category:"Wrong Name or Wrong Milligram",
+    color:"#7C3AED", icon:"⚗️", severity:"medium", reportRequired:false,
+    reasons:[
+      {id:"dose_substitution",label:"Wrong milligram strength counted or entered",desc:"Different mg strength dispensed or counted vs what is in inventory. Example: Morphine 10mg vs 5mg. Check if quantities x doses cancel in total milligrams -- NarcoSync shows the mg math automatically."},
+      {id:"brand_generic",label:"Brand name vs generic name confusion (same mg)",desc:"Same molecule, different name in each system. Example: Dilaudid vs Hydromorphone. NarcoSync auto-detects this -- verify in your dispensing records."},
+      {id:"brand_dose",label:"Wrong name AND wrong milligram at the same time",desc:"Both brand/generic AND different dose simultaneously. Example: Dilaudid 4mg vs Hydromorphone 2mg. Verify mg math: 1x4mg = 2x2mg."},
+      {id:"formulation",label:"Different formulation of same molecule",desc:"Same molecule, different form: tablet vs capsule, oral solution vs tablet, injectable vs oral. Example: Morphine oral solution (mg/mL) vs Morphine tablet. Quantities not directly comparable."},
+      {id:"dose_split",label:"Tablet scoring / dose splitting",desc:"A higher-strength tablet was split (one 10mg used as two 5mg), or two lower-strength tablets used instead of one higher. Common with morphine and hydromorphone."},
+      {id:"concentration",label:"Concentration error (liquids and injectables)",desc:"Confusion between concentration (mg/mL) and volume (mL). Example: 1mg/mL vs 2mg/mL -- same volume but different total dose."},
+    ]
+  },
+  {
+    category:"Dispensing Event",
+    color:"#E67E22", icon:"💊", severity:"medium", reportRequired:false,
+    reasons:[
+      {id:"partial_fill",label:"Partial fill dispensed",desc:"Only part of the prescription dispensed this cycle -- remainder pending. Check AssiStRx for pending fills."},
+      {id:"return_stock",label:"Patient returned medication to stock",desc:"Patient returned medication added back to inventory. Verify return documentation and authorizing pharmacist."},
+      {id:"emergency_supply",label:"Emergency / professional supply",desc:"Medication provided without complete documentation in an emergency. Document retroactively: date, quantity, patient, reason."},
+      {id:"transfer_in",label:"Transfer received from another location",desc:"Stock from another pharmacy location not recorded as a purchase. Add as a transfer receipt with origin location."},
+      {id:"transfer_out",label:"Transfer sent to another location",desc:"Stock sent to another pharmacy -- must be documented with receiving pharmacist signature."},
+      {id:"compound",label:"Used in compounding",desc:"Quantity used as raw ingredient in a compounded preparation. Verify compounding batch log and quantities."},
+      {id:"sample",label:"Manufacturer sample",desc:"Sample provided by manufacturer or rep. Should be documented separately."},
+    ]
+  },
+  {
+    category:"Loss / Destruction",
+    color:"#F0B429", icon:"⚠️", severity:"medium", reportRequired:true,
+    reasons:[
+      {id:"spillage",label:"Accidental spillage, breakage, or contamination",desc:"Product accidentally spilled, dropped, broken, or contaminated. Required: destruction record, date, quantity, witness signature."},
+      {id:"expired",label:"Expired product destroyed",desc:"Product destroyed at expiry. Required: destruction record, lot number, expiry date, witness signature, destruction method."},
+      {id:"wastage",label:"Wastage during preparation or administration",desc:"Portion wasted during IV preparation, dose rounding, patch removal, or patient administration. Document with witness."},
+      {id:"return_mfg",label:"Returned to manufacturer or supplier",desc:"Product returned for recall, damage, or credit. Must have return authorization number and carrier confirmation."},
+      {id:"recall",label:"Health Canada / DEA / regulatory recall",desc:"Active recall. Follow the recall protocol exactly. Document all quantities returned or destroyed."},
+    ]
+  },
+  {
+    category:"Critical -- Report Required",
+    color:"#D63031", icon:"🚨", severity:"critical", reportRequired:true,
+    reasons:[
+      {id:"theft_internal",label:"Suspected internal theft or diversion by staff",desc:"STOP. Do not confront anyone. Contact your pharmacist-in-charge immediately. Secure camera footage. MUST report to regulatory authority within your deadline."},
+      {id:"theft_external",label:"Robbery or external theft",desc:"Contact police IMMEDIATELY. Then notify regulatory authority. Secure premises and preserve all evidence."},
+      {id:"diversion",label:"Suspected patient diversion or prescription fraud",desc:"Report to prescribing physician and regulatory authority. Do NOT confront the patient directly."},
+      {id:"unknown_loss",label:"Unexplained loss -- no cause found after full investigation",desc:"If no reason explains the discrepancy after a complete investigation, this MUST be reported as an unexplained loss to your regulatory authority. Document every step taken."},
+    ]
+  },
+];
+
+
+// Brand / Generic Mapping
+// Maps brand names → generic name so NarcoSync can detect brand/generic offsets.
+// When -200 Dilaudid AND +200 Hydromorphone appear, it flags them as the same molecule.
+const BRAND_GENERIC_MAP = {
+  // Opioids
+  "dilaudid":"hydromorphone","hydromorph contin":"hydromorphone","jurnista":"hydromorphone",
+  "oxycontin":"oxycodone","oxyneo":"oxycodone","percocet":"oxycodone",
+  "endocet":"oxycodone","percodan":"oxycodone",
+  "ms contin":"morphine","m-eslon":"morphine","statex":"morphine","kadian":"morphine",
+  "duragesic":"fentanyl","abstral":"fentanyl","subsys":"fentanyl",
+  "metadol":"methadone","methadose":"methadone",
+  "nucynta":"tapentadol",
+  "demerol":"meperidine","pethidine":"meperidine",
+  "suboxone":"buprenorphine","brixam":"buprenorphine","sublocade":"buprenorphine",
+  "codeine contin":"codeine",
+  "hysingla":"hydrocodone","zohydro":"hydrocodone",
+  "alfenta":"alfentanil","sufenta":"sufentanil","ultiva":"remifentanil",
+  // Stimulants
+  "adderall xr":"amphetamine","adderall":"amphetamine",
+  "dexedrine":"dextroamphetamine",
+  "vyvanse":"lisdexamfetamine",
+  "ritalin":"methylphenidate","biphentin":"methylphenidate",
+  "concerta":"methylphenidate","foquest":"methylphenidate",
+  "desoxyn":"methamphetamine",
+  "ionamin":"phentermine",
+  // Barbiturates
+  "nembutal":"pentobarbital","amytal":"amobarbital","seconal":"secobarbital",
+  "fiorinal":"butalbital","tecnal":"butalbital",
+  // Benzodiazepines
+  "xanax":"alprazolam","teva-alprazolam":"alprazolam","mylan-alprazolam":"alprazolam",
+  "ativan":"lorazepam","teva-lorazepam":"lorazepam","pms-lorazepam":"lorazepam",
+  "valium":"diazepam","diastat":"diazepam",
+  "rivotril":"clonazepam","teva-clonazepam":"clonazepam","pms-clonazepam":"clonazepam",
+  "lectopam":"bromazepam",
+  "serax":"oxazepam",
+  "restoril":"temazepam","pms-temazepam":"temazepam",
+  "halcion":"triazolam",
+  "dalmane":"flurazepam",
+  "mogadon":"nitrazepam",
+  "versed":"midazolam",
+  "librium":"chlordiazepoxide",
+  "onfi":"clobazam","frisium":"clobazam",
+  "imovane":"zopiclone","teva-zopiclone":"zopiclone","pms-zopiclone":"zopiclone",
+  "sublinox":"zolpidem",
+  "starnoc":"zaleplon",
+  "xyrem":"sodium oxybate","ghb":"sodium oxybate",
+  "rohypnol":"flunitrazepam",
+  "ketalar":"ketamine","ketamine-omega":"ketamine",
+  // Precursors
+  "sudafed":"pseudoephedrine","bronkaid":"ephedrine",
+  "cafergot":"ergotamine","ergodryl":"ergotamine",
+};
+
+// Normalize a drug name for matching (lowercase, strip dose, strip punctuation)
+function normalizeDrugName(name){
+  if(!name) return "";
+  return name.toLowerCase()
+    .replace(/\d+\s*(mg|mcg|ml|g|ug|%|mcg\/h|mg\/h|mg\/ml|tab|cap|supp|patch|inj|amp)/gi,"")
+    .replace(/\/hour|\/h/gi,"")
+    .replace(/\(.*?\)/g,"")         // remove parenthetical
+    .replace(/[----]/g," ")
+    .replace(/[^a-z0-9 ]/g,"")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+// Get generic name for a drug (brand or generic)
+function getGeneric(name){
+  const norm = normalizeDrugName(name);
+  return BRAND_GENERIC_MAP[norm] || norm;
+}
+
+// Dose Extraction
+// Extracts numeric dose (mg, mcg, etc.) from a drug name string.
+// e.g. "Morphine 10mg" → {value:10, unit:"mg"}
+// e.g. "Fentanyl 25mcg/h" → {value:25, unit:"mcg"}
+function extractDose(name){
+  if(!name) return null;
+  const match = name.match(/(\d+(?:\.\d+)?)\s*(mg|mcg|ug|g|ml|%|mcg\/h|mg\/h)/i);
+  if(!match) return null;
+  let value = parseFloat(match[1]);
+  let unit = match[2].toLowerCase().replace("/h","");
+  // Normalize: mcg/ug → mcg
+  if(unit==="ug") unit="mcg";
+  // Convert mcg to mg for cross-comparison
+  if(unit==="mcg") value = value/1000;
+  return {value, unit:unit==="mcg"?"mg(mcg)":unit, original:match[0]};
+}
+
+// Offset Detection Engine
+// Detects ALL possible offset scenarios:
+// 1. Brand vs generic (same dose)
+// 2. Different strength of same molecule (e.g. 10mg vs 5mg)
+// 3. Brand + different strength combined
+// 4. Formulation differences (tablet vs solution vs patch)
+function detectOffsets(results){
+  if(!results||!results.length) return {annotated:results, offsets:[]};
+
+  const ecarts = results.filter(r=>r.status==="ECART");
+  const offsets = [];
+  const matched = new Set();
+
+  // Extract formulation type from drug name
+  function getFormulation(name){
+    const n = (name||"").toLowerCase();
+    if(/patch|transdermal/.test(n)) return "patch";
+    if(/injectable|inj|iv |im |sc /.test(n)) return "injectable";
+    if(/solution|syrup|liquid|oral sol/.test(n)) return "liquid";
+    if(/suppository|supp/.test(n)) return "suppository";
+    if(/capsule|cap/.test(n)) return "capsule";
+    return "tablet";
+  }
+
+  // Build enriched ecart objects
+  const enriched = ecarts.map(r=>{
+    const dose = extractDose(r.medication);
+    const generic = getGeneric(r.medication);
+    const formulation = getFormulation(r.medication);
+    const totalMg = dose ? Math.abs(r.ecart||0) * dose.value : null;
+    return {...r, _dose:dose, _generic:generic, _form:formulation, _totalMg:totalMg};
+  });
+
+  // Compare every pair of ECARTs for offset relationships
+  for(let i=0;i<enriched.length;i++){
+    for(let j=i+1;j<enriched.length;j++){
+      const a = enriched[i];
+      const b = enriched[j];
+
+      // Must be opposite signs to potentially cancel
+      const aSign = (a.ecart||0) >= 0 ? "+" : "-";
+      const bSign = (b.ecart||0) >= 0 ? "+" : "-";
+      if(aSign === bSign) continue;
+
+      // Must be same generic molecule
+      if(a._generic !== b._generic) continue;
+
+      const netUnits = (a.ecart||0) + (b.ecart||0);
+      const sameDose = a._dose && b._dose && Math.abs(a._dose.value - b._dose.value) < 0.01;
+      const sameForm = a._form === b._form;
+
+      // Calculate net in mg if possible
+      let netMg = null;
+      let mgBalanced = false;
+      if(a._dose && b._dose){
+        const aMg = (a.ecart||0) * a._dose.value;
+        const bMg = (b.ecart||0) * b._dose.value;
+        netMg = aMg + bMg;
+        mgBalanced = Math.abs(netMg) < 0.5;
+      }
+
+      // Determine offset type
+      let offsetType, explanation, severity;
+
+      if(sameDose && sameForm){
+        // Same drug, different name -- brand vs generic
+        offsetType = Math.abs(netUnits)<0.5 ? "full_cancel" : "partial_cancel";
+        explanation = Math.abs(netUnits)<0.5
+          ? "Same drug, different name -- did you enter one under the brand name and count the generic (or vice versa)?"
+          : "Same drug, different name -- partial offset. "+Math.abs(netUnits).toFixed(0)+" units still unexplained after accounting for the name difference.";
+        severity = Math.abs(netUnits)<0.5 ? "low" : "medium";
+      } else if(!sameDose && mgBalanced){
+        // Wrong mg counted -- but total mg is zero
+        offsetType = "dose_substitution_cancel";
+        explanation = "Wrong mg strength -- did you accidentally count or enter the "+b._dose?.original||"wrong strength"+" instead of "+a._dose?.original||"the correct strength"+"? The total milligrams cancel out.";
+        severity = "medium";
+      } else if(!sameDose && !mgBalanced && netMg!==null){
+        // Wrong mg AND total mg doesn't cancel
+        offsetType = "dose_substitution_partial";
+        explanation = "Possible wrong mg strength -- "+a._dose?.original||""+" vs "+b._dose?.original||""+". The totals do not fully cancel ("+netMg>0?"+":""+netMg.toFixed(1)+"mg remaining). Investigate both the name and the strength.";
+        severity = "high";
+      } else if(!sameForm){
+        // Same molecule, different form (tablet vs liquid etc.)
+        offsetType = Math.abs(netUnits)<0.5 ? "formulation_cancel" : "formulation_partial";
+        explanation = Math.abs(netUnits)<0.5
+          ? "Different form of the same drug -- "+a._form+" vs "+b._form+". Units cancel, but verify the doses are equivalent."
+          : "Different form of the same drug -- "+a._form+" vs "+b._form+". Partial offset only.";
+        severity = "medium";
+      } else {
+        offsetType = Math.abs(netUnits)<0.5 ? "full_cancel" : "partial_cancel";
+        explanation = Math.abs(netUnits)<0.5
+          ? "These two discrepancies cancel each other out -- likely the same mistake counted in two places."
+          : "Partial offset -- "+Math.abs(netUnits).toFixed(0)+" units still unexplained.";
+        severity = "medium";
+      }
+
+      offsets.push({
+        generic: a._generic,
+        drugs: [a, b],
+        netOffset: +netUnits.toFixed(2),
+        netMg: netMg !== null ? +netMg.toFixed(2) : null,
+        mgBalanced,
+        type: offsetType,
+        explanation,
+        severity,
+        doseA: a._dose,
+        doseB: b._dose,
+        formA: a._form,
+        formB: b._form,
+      });
+      matched.add(i); matched.add(j);
+    }
+  }
+
+  // WRONG BOTTLE DETECTION
+  // Catches mirror count patterns between ANY two drugs -- even completely different
+  // molecules. If -30 Dilaudid AND +30 Alprazolam, someone grabbed the wrong bottle.
+  const alreadyMatched = new Set(offsets.flatMap(o=>o.drugs.map(d=>d.medication)));
+
+  const unmatched = ecarts.filter(r=>!alreadyMatched.has(r.medication));
+
+  for(let i=0;i<unmatched.length;i++){
+    for(let j=i+1;j<unmatched.length;j++){
+      const a = unmatched[i];
+      const b = unmatched[j];
+
+      const aEcart = a.ecart||0;
+      const bEcart = b.ecart||0;
+
+      // Must be opposite signs
+      if((aEcart>=0&&bEcart>=0)||(aEcart<0&&bEcart<0)) continue;
+
+      const diff = Math.abs(Math.abs(aEcart)-Math.abs(bEcart));
+      const avg  = (Math.abs(aEcart)+Math.abs(bEcart))/2;
+
+      // Mirror pattern: counts match exactly or within 5%
+      const isMirror   = diff===0;
+      const isNearMiss = diff>0 && avg>0 && (diff/avg)<0.05;
+
+      if(!isMirror && !isNearMiss) continue;
+
+      // Use Rx count as evidence
+      // Drug that LOST units should have Rx (it was dispensed = expected)
+      // Drug that GAINED units should have 0 Rx (was never supposed to be counted here)
+      const loser  = aEcart<0 ? a : b;  // negative ecart = we're short
+      const gainer = aEcart>0 ? a : b;  // positive ecart = we have extra
+
+      const rxEvidence = loser.rx_count>0 && (!gainer.rx_count||gainer.rx_count===0);
+      const netOffset  = aEcart+bEcart;
+
+      let explanation, type, severity;
+
+      if(isMirror&&rxEvidence){
+        type="wrong_bottle_confirmed";
+        severity="high";
+        explanation="Wrong bottle -- "+loser.medication+" had "+loser.rx_count+" Rx dispensed but is short "+Math.abs(aEcart<0?aEcart:bEcart)+" units. "+gainer.medication+" has "+Math.abs(aEcart>0?aEcart:bEcart)+" extra units and 0 Rx. Very likely "+gainer.medication+" was counted instead of "+loser.medication+".";
+      } else if(isMirror){
+        type="wrong_bottle_possible";
+        severity="medium";
+        explanation="Possible wrong bottle -- exact same count ("+Math.abs(aEcart)+" units) missing from "+a.medication+" and extra in "+b.medication+". These are different medications. Did you accidentally count "+b.medication+" instead of "+a.medication+", or vice versa?";
+      } else {
+        type="wrong_bottle_near";
+        severity="medium";
+        explanation="Near-mirror count -- "+Math.abs(aEcart)+" vs "+Math.abs(bEcart)+" units. Possibly counted wrong bottle or section of shelf. Investigate physical location of both products.";
+      }
+
+      offsets.push({
+        generic:"⚠️ DIFFERENT MEDICATIONS",
+        drugs:[a,b],
+        netOffset,
+        type,
+        explanation,
+        severity,
+        isWrongBottle:true,
+        rxEvidence,
+        loserDrug: loser.medication,
+        gainerDrug: gainer.medication,
+      });
+    }
+  }
+
+  // Annotate results
+  const annotated = results.map(r=>{
+    const offsetInfo = offsets.find(o=>o.drugs.some(d=>d.medication===r.medication));
+    return offsetInfo ? {...r, offsetGroup:offsetInfo} : r;
+  });
+
+  return {annotated, offsets};
+}
+
+
+//
+// CLINICAL TOOLS + PHARMACIST BILLING
+//
+function ClinicalPage({profile,t}){
+  const isFR = t===T.fr;
+  const [tab,setTab] = useState("calculators");
+  const [ailment,setAilment] = useState(null);
+  const [billingTab,setBillingTab] = useState("overview");
+
+  const [calc,setCalc] = useState({
+    age:"",weight:"",scr:"",sex:"female",
+    height:"",bmi_weight:"",
+    chf:false,htn:false,age75:false,dm:false,stroke:false,
+    vasc:false,age65:false,female_c:false,
+    confusion:false,urea:false,rr:false,bp:false,age65c:false,
+    ac:false,paralysis:false,bedridden:false,tenderness:false,
+    entire_leg:false,calf3:false,pitting:false,collateral:false,alt_dx:false,
+  });
+
+  const u = (k,v)=>setCalc(c=>({...c,[k]:v}));
+
+  // CrCl Cockcroft-Gault
+  const crclRaw = ()=>{
+    const a=parseFloat(calc.age),w=parseFloat(calc.weight),s=parseFloat(calc.scr);
+    if(!a||!w||!s) return null;
+    return (((140-a)*w)/(72*s))*(calc.sex==="female"?0.85:1);
+  };
+  const crcl = crclRaw();
+  const crclF = crcl?crcl.toFixed(1):null;
+  const crclCol = crcl?crcl>60?C.green:crcl>30?C.orange:C.red:C.grey;
+  const crclStage = crcl?crcl>90?"Normal >90 mL/min":crcl>60?"Mild CKD -- 60-90":crcl>30?"Moderate CKD -- 30-60":crcl>15?"Severe CKD -- 15-30":"Kidney failure <15":"--";
+  const crclWarnings = crcl&&crcl<60?[
+    crcl<30&&"Nitrofurantoin: AVOID (ineffective + toxic)",
+    crcl<30&&"Metformin: HOLD",
+    crcl<50&&"Gabapentin/Pregabalin: dose reduce 50%",
+    crcl<50&&"Edoxaban: dose reduce to 30mg/day",
+    crcl<30&&"Apixaban: use with caution",
+    crcl<30&&"Spironolactone: AVOID (hyperkalemia risk)",
+    crcl<50&&"Digoxin: reduce dose, monitor levels",
+  ].filter(Boolean):[];
+
+  // BMI
+  const bmiRaw = ()=>{const h=parseFloat(calc.height)/100,w=parseFloat(calc.bmi_weight);if(!h||!w)return null;return w/(h*h);};
+  const bmi=bmiRaw(); const bmiF=bmi?bmi.toFixed(1):null;
+  const bmiCol=bmi?bmi<18.5?C.sky:bmi<25?C.green:bmi<30?C.orange:C.red:C.grey;
+  const bmiLabel=bmi?bmi<18.5?"Underweight":bmi<25?"Normal weight":bmi<30?"Overweight":bmi<35?"Obese I":bmi<40?"Obese II":"Obese III":"--";
+
+  // CHADS2-VASc
+  const chads=[calc.chf,calc.htn,calc.dm,calc.vasc].filter(Boolean).length
+    +(calc.age75?2:calc.age65?1:0)+(calc.stroke?2:0)+(calc.female_c?1:0);
+  const chadsCol=chads===0?C.green:chads===1?C.orange:C.red;
+  const chadsRec=chads===0?"No anticoagulation needed":chads===1?"Consider anticoagulation (discuss with MD)":"Anticoagulation recommended";
+  const strokeRisk=["0%","1.3%","2.2%","3.2%","4.0%","6.7%","9.8%","9.6%","12.5%","15.2%"];
+
+  // CURB-65
+  const curb=[calc.confusion,calc.urea,calc.rr,calc.bp,calc.age65c].filter(Boolean).length;
+  const curbCol=curb<=1?C.green:curb<=2?C.orange:C.red;
+  const curbRec=curb<=1?"Low severity -- outpatient treatment":curb<=2?"Moderate -- consider hospital admission":"High severity -- hospitalize, consider ICU";
+
+  const Chk=({k,label,pts})=>(
+    <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}>
+      <div onClick={()=>u(k,!calc[k])}
+        style={{width:18,height:18,borderRadius:4,flexShrink:0,cursor:"pointer",
+          border:"2px solid "+(calc[k]?C.sky:C.border),
+          background:calc[k]?C.sky:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {calc[k]&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+      </div>
+      <span style={{fontSize:11,color:C.navy}}>{label}</span>
+      {pts&&<span style={{fontSize:9,fontWeight:700,color:C.sky,marginLeft:"auto"}}>{pts}</span>}
+    </label>
+  );
+
+  const AILMENTS=[
+    {id:"uti",name:"Uncomplicated UTI",icon:"🦠",
+     provinces:["QC","ON","BC","AB","SK","MB","NS","NB","NL"],
+     criteria:["Women 18-65 only (uncomplicated)","No fever, no flank pain, no N/V, no pregnancy","No UTI within past 4 weeks","No structural urinary tract abnormality","No indwelling catheter"],
+     rx:"Nitrofurantoin 100mg SR BID × 5 days",
+     alt:["Trimethoprim-sulfamethoxazole DS BID × 3 days (if local susceptibility known)","Fosfomycin 3g sachet × single dose"],
+     counsel:["Take with food to reduce GI upset","Drink 8+ glasses water daily","Avoid if CrCl <30 (nitrofurantoin ineffective and toxic)","Urine may turn orange-brown with nitrofurantoin -- normal","Return if no improvement in 48h or if fever develops"],
+     fu:"48-72h follow-up if no improvement → refer to physician",
+     billing:"RAMQ covered (QC) -- minor ailment prescribing code"},
+    {id:"coldsore",name:"Cold Sores (HSV-1 Labialis)",icon:"💋",
+     provinces:["QC","ON","BC","AB","SK","MB"],
+     criteria:["Prior confirmed diagnosis of recurrent cold sores","Symptom onset within past 72h","No lesion near or in eye","Not immunocompromised"],
+     rx:"Valacyclovir 2g BID × 1 day (initiate at first sign)",
+     alt:["Acyclovir 400mg 5x/day × 5 days","Penciclovir 1% cream q2h while awake × 4 days (topical only)","Famciclovir 1500mg single dose"],
+     counsel:["Start treatment at VERY FIRST sign -- tingling, burning, itching","Do not touch lesion; wash hands if you do","Avoid kissing, sharing utensils","Valacyclovir 2g BID × 1 day -- same efficacy as 5-day course"],
+     fu:"Refer if lesion near eye, not healing in 10-14 days, or >6 episodes/year (consider suppression)",
+     billing:"RAMQ covered (QC) -- minor ailment prescribing"},
+    {id:"rhinitis",name:"Allergic Rhinitis",icon:"🤧",
+     provinces:["QC","ON","BC","AB","SK","MB","NS"],
+     criteria:["Seasonal or perennial allergic rhinitis history","Age ≥ 12 years","No severe nasal obstruction or polyps","No rhinosinusitis (fever, unilateral pain)"],
+     rx:"Fluticasone furoate (Flonase Sensimist) 2 sprays/nostril OD",
+     alt:["Mometasone furoate 2 sprays/nostril OD","Budesonide 2 sprays/nostril OD","Cetirizine 10mg OD or loratadine 10mg OD (if predominantly itching/sneezing)"],
+     counsel:["Aim spray toward outer nostril wall (not septum)","2-4 weeks for full anti-inflammatory effect","Antihistamine for immediate symptom relief while steroid works","Non-pharm: HEPA filter, allergen avoidance, saline rinse"],
+     fu:"Reassess after 4 weeks. Refer if no response or symptoms suggest infection.",
+     billing:"RAMQ covered (QC)"},
+    {id:"smoking",name:"Smoking Cessation",icon:"🚬",
+     provinces:["QC","ON","BC","AB","SK","MB","NS","NB","NL","PEI"],
+     criteria:["Patient motivated to quit with set quit date","Rule out pregnancy for varenicline","No current seizure disorder (bupropion)","Confirm nicotine dependence level"],
+     rx:"Varenicline (Champix) -- Start 1 week before quit date\n0.5mg OD × 3d → 0.5mg BID × 4d → 1mg BID × 12 weeks",
+     alt:["Bupropion SR 150mg OD × 3d → 150mg BID × 7-12 weeks (start 1-2 wks before quit date)","NRT combination: patch + short-acting (gum or lozenge) -- most effective OTC approach","Cytisine (Cravv) -- new natural alternative"],
+     counsel:["Varenicline: take with food and full glass of water","Monitor for mood changes, unusual behaviour (counsel patient and family)","Free telephone support: 1-866-JARRETE (QC) / 1-800-668-5555 (ON)","Quitnow.ca -- free app + coaching","Combination NRT outperforms single NRT alone"],
+     fu:"Follow-up at 1 week (around quit date), 1 month, 3 months, 6 months",
+     billing:"RAMQ covers NRT products (QC) -- Aide à l'arrêt tabagique program"},
+    {id:"insomnia",name:"Insomnia (Short-term)",icon:"😴",
+     provinces:["QC","ON","BC"],
+     criteria:["Age ≥ 18 years","Acute or short-term insomnia (<3 months)","No sleep apnea, no pregnancy","No benzodiazepine dependence history","No other untreated medical/psychiatric cause"],
+     rx:"Melatonin 3-10mg, 30-60 min before bed (start 0.5-3mg, titrate)",
+     alt:["Doxylamine 25mg at bedtime (max 2 weeks -- tolerance develops)","Diphenhydramine 25-50mg (avoid in elderly -- Beers Criteria)","CBT-I (Cognitive Behavioural Therapy for Insomnia) -- FIRST-LINE, most durable"],
+     counsel:["Sleep hygiene: consistent wake time, dark/cool room, no screens 1h before bed","Avoid caffeine after 14h00, limit alcohol","CBT-I: shleep.com, Insomnia Coach app (free, Veterans Affairs)","Short-term pharmacological use only -- address underlying cause"],
+     fu:"Refer for CBT-I if chronic (>3 months). Refer to physician if suspected apnea.",
+     billing:"RAMQ covered (QC) -- insomnia minor ailment"},
+    {id:"travel",name:"Travel Health Consultation",icon:"✈️",
+     provinces:["QC","ON","BC","AB","SK","MB","NS"],
+     criteria:["International travel planned in next 4-6 weeks","Patient 18+ (pediatric travel: refer to travel clinic)","No complex immunocompromised state","Routine and travel vaccines only (no yellow fever -- refer)"],
+     rx:"Individualize based on destination -- see vaccine tab",
+     alt:["Hepatitis A: Havrix 1440 EL.U IM × 1 (booster at 6-12 months)","Typhoid: Vivotif oral (4 capsules) or Typhim Vi IM","Malaria prophylaxis: destination-dependent (see below)","Travel diarrhea: azithromycin 500mg × 3d OR 1g × 1 dose (standby)"],
+     counsel:["Mosquito protection: DEET 30% or Icaridin 20%, long sleeves, treated nets","Food/water safety: 'boil it, cook it, peel it, or forget it'","Travel insurance: ensure medical evacuation coverage","COVID requirements: check destination government website"],
+     fu:"Post-travel follow-up if unwell within 3 weeks of return",
+     billing:"💡 BILLABLE -- See Billing & Fees tab for full fee guide"},
+  ];
+
+  // GLOBAL SCOPE OF PRACTICE + BILLING DATA
+  const GLOBAL_COUNTRIES = [
+    {
+      country:"🇨🇦 Canada (Quebec)",code:"QC",level:"advanced",
+      headline:"Most comprehensive pharmacist prescribing in North America",
+      scope:["Prescribe for 21 minor ailments independently","Adjust, substitute, and adapt prescriptions","Administer vaccines (all ages)","Order and interpret lab tests","Prescribe oral contraceptives (BC, ON, AB -- expanding)","Home visit services -- billable","Smoking cessation primary provider (RAMQ-funded)","Medication reconciliation at hospital discharge"],
+      billing:["RAMQ direct billing -- AF-13 ($25.40), SF-13 ($25.40), CS-13 ($42.00)","Travel consultation: $50-100 direct to patient","Vaccination admin fee: $15-25 per injection","Home visit modifier: +25% on any RAMQ code","Private insurance covers most non-RAMQ services"],
+      notYet:["Full independent prescribing (not yet -- physician collaboration still required for complex cases)","Yellow fever vaccination (designated centres only)"],
+      legalBasis:"Loi sur la pharmacie (QC) -- Law 41 (2014), expanded 2022. RAMQ provider agreement.",
+      score:9
+    },
+    {
+      country:"🇬🇧 United Kingdom",code:"UK",level:"world_leader",
+      headline:"World's most advanced -- pharmacist independent prescribers can prescribe ANY medicine",
+      scope:["Independent Prescribers (IP): prescribe any medicine including controlled drugs","Pharmacist Supplementary Prescribers (SP): wide scope with clinical management plan","NHS Pharmacy First (2024): 7 conditions without GP referral (UTI, sore throat, sinusitis, impetigo, infected insect bite, shingles, ear infection)","Community Pharmacy Consultation Service (CPCS): urgent referrals from NHS 111","Administer all vaccines including yellow fever (if trained)","Medicines Use Reviews (MURs) -- billed to NHS","Discharge Medicines Service (DMS) -- NHS funded"],
+      billing:["NHS Pharmacy First: £15/consultation + advanced service fees","Vaccination: NHS-funded or private (£15-50/injection)","Independent prescribing consultations: NHS or private (£30-80)","MUR equivalent services: NHS advanced service payments","Private IP clinics: £50-150/appointment"],
+      notYet:["Some controlled drug classes require additional registration","Yellow fever: requires specific Travel Clinic accreditation (ISTM)"],
+      legalBasis:"Medicines Act 1968 + Human Medicines Regulations 2012. GPhC registration required. NHS Standard Contract.",
+      score:10
+    },
+    {
+      country:"🇦🇺 Australia",code:"AU",level:"advanced",
+      headline:"Pharmacists can vaccinate, prescribe for selected conditions, and bill Medicare",
+      scope:["Administer all schedule vaccines (all states)","Pharmacist-only medicines (Schedule 3) -- supplied without prescription","Community Pharmacy Agreement (7CPA): funded clinical services","MedsCheck -- funded medication review","Dose Administration Aids (DAA) -- billed to PBS","Home Medicines Review (HMR) -- billable","Pharmacist prescribing pilots -- expanding rapidly (QLD, NSW, VIC)","Emergency contraception without prescription (all states)"],
+      billing:["MedsCheck: AUD $55 (PBS)","HMR: AUD $192 (bulk-billed via GP referral)","DAA: AUD $16.08/fortnight per patient (PBS)","Vaccination admin: AUD $12-25","Private consultations: AUD $50-120"],
+      notYet:["Full independent prescribing (trials underway 2024-2025)","Prescribing for chronic conditions independently"],
+      legalBasis:"Therapeutic Goods Act 1989. State-based Pharmacy Acts. 7th Community Pharmacy Agreement (2020-2025).",
+      score:8
+    },
+    {
+      country:"🇳🇿 New Zealand",code:"NZ",level:"advanced",
+      headline:"Pharmacist prescribers with broad independent scope",
+      scope:["Pharmacist Prescribers: full independent prescribing authority","Administer all vaccines","Collaborative prescribing with physicians","Minor ailment scheme","Community Services Card services -- subsidised","Methadone and opioid substitution therapy management"],
+      billing:["Prescribing consultations: NZD $25-80","Vaccination: NZD $15-30 admin fee","Government subsidised services via DHB contracts","Private: NZD $50-100/consultation"],
+      notYet:["Some hospital-only medicines","Certain restricted medicines classes"],
+      legalBasis:"Medicines Act 1981. Pharmacist Prescriber registration via Pharmacy Council NZ (2013).",
+      score:9
+    },
+    {
+      country:"🇺🇸 United States",code:"USA",level:"intermediate",
+      headline:"Highly variable by state -- from full prescribing (NM) to very limited (some states)",
+      scope:["Collaborative Drug Therapy Management (CDTM): 45 states -- manage therapy under physician protocol","New Mexico: full independent prescribing authority","California: pharmacist prescribers (2016), statewide collaborative","Test and Treat: CVS, Walgreens, etc. -- treat strep, flu, COVID in-store","Administer all vaccines (all states, expanded post-COVID)","MTM (Medication Therapy Management): Medicare Part D billed service","Contraceptives without prescription: CA, OR, CO, 20+ states","Naloxone without prescription: all states"],
+      billing:["MTM (CMR): $99-150 via Medicare Part D (billed through PBM)","Vaccination admin: $20-40 (billed to insurance/Medicare B)","In-store clinic consultations: $60-100 (private insurance)","Collaborative practice services: varies by agreement","Contraception consultations: $25-75 (billed as pharmacy service)"],
+      notYet:["Federal recognition of pharmacist provider status (key advocacy issue)","Insurance billing parity in many states","Most states: still need physician collaboration agreement"],
+      legalBasis:"Varies by state. Federal: PREP Act (vaccines), Medicare Part D (MTM). State pharmacy practice acts.",
+      score:6
+    },
+    {
+      country:"🇫🇷 France",code:"FR",level:"developing",
+      headline:"Expanding fast -- pharmacists now vaccinate and conduct health screenings",
+      scope:["Administer all vaccines (major expansion 2023)","Dépistage (screening): HIV, hepatitis, STIs","Entretiens pharmaceutiques (pharmaceutical interviews) -- billed to Assurance Maladie","Bilan de médication (medication review) for polypharmacy patients","Substitution générique: extensive brand-to-generic authority","First aid and emergency supply of certain medicines","Seasonal flu vaccination fully autonomous"],
+      billing:["Entretien pharmaceutique: €40 per session (Assurance Maladie)","Bilan de médication: €60 (Assurance Maladie)","Vaccination: tariff acte NGAP","HIV screening: fully reimbursed","TROD (rapid tests): €6-9 per test (Assurance Maladie)"],
+      notYet:["Prescribing authority (not yet -- physicians only)","Independent treatment of minor ailments (consultation without Rx)"],
+      legalBasis:"Code de la santé publique. Arrêtés expanding pharmacist acts (2017, 2020, 2022, 2023). CNAM conventions.",
+      score:6
+    },
+    {
+      country:"🇧🇷 Brazil",code:"BR",level:"developing",
+      headline:"Clinical pharmacy growing rapidly -- CFF pushing for prescribing rights",
+      scope:["Prescribing for minor ailments in some states (Minas Gerais, others -- pilot)","Administer vaccines (all pharmacists)","Pharmaceutical care (atenção farmacêutica) -- widely practiced","POC testing (glucose, cholesterol, INR) -- common in pharmacies","Pharmacist-administered injections","Drug therapy monitoring","Prescription adaptation (substitution, dosage form)"],
+      billing:["Private clinical consultations: R$ 100-300","Vaccination: R$ 30-100 admin fee","POC testing packages: R$ 50-150","Insurance reimbursement: still limited","SUS (public): limited pharmacist billing"],
+      notYet:["Full prescribing (CFF advocacy ongoing)","National minor ailment scheme","Standardised billing codes"],
+      legalBasis:"Lei 13.021/2014 (Lei das Farmácias). CFF Resolução 585/2013. ANVISA regulations.",
+      score:5
+    },
+    {
+      country:"🇲🇽 Mexico",code:"MX",level:"emerging",
+      headline:"Farmacias expanding clinical services -- Similares model pioneered pharmacy clinics",
+      scope:["Médicos en farmacias (pharmacy-based physicians): major model since 1997","Pharmacists increasingly doing medication counseling","Vaccination programs (Secretaría de Salud)","POC testing in pharmacies","Methadone dispensing program pharmacists"],
+      billing:["Consultation (with physician): $20-50 MXN (very affordable, private)","Vaccination: $50-150 MXN per vaccine","Private clinical services growing"],
+      notYet:["Independent pharmacist prescribing (physicians required)","Standardised pharmacist clinical billing","Minor ailment schemes"],
+      legalBasis:"Ley General de Salud. NOM-072-SSA1. Reglamento de Insumos para la Salud.",
+      score:4
+    },
+    {
+      country:"🇨🇷 Costa Rica",code:"CR",level:"developing",
+      headline:"CCSS pharmacists play key clinical role -- private pharmacy expanding",
+      scope:["CCSS hospital pharmacists: full clinical pharmacy teams","Vaccination at CCSS -- pharmacist-administered","Drug therapy management within CCSS","Private pharmacy consultation growing","Medication reconciliation programs","Community pharmacist dispensing advice"],
+      billing:["CCSS: pharmacist services covered as part of social security","Private consultation: ₡5,000-15,000 CRC ($10-30)","Vaccination admin: varies","Growing interest in billing for clinical services"],
+      notYet:["Independent prescribing","Minor ailment scheme","Formal private billing codes"],
+      legalBasis:"Ley General de Salud (No. 5395). Reglamento de Farmacéuticos. Colegio de Farmacéuticos de Costa Rica.",
+      score:5
+    },
+    {
+      country:"🇮🇳 India",code:"IN",level:"emerging",
+      headline:"Hospital clinical pharmacy established -- community pharmacy expanding",
+      scope:["Hospital clinical pharmacists: well-established in major cities","Pharmacovigilance reporting","Drug information centres","Anticoagulation clinics (pharmacist-managed)","Diabetes management programs (growing)","Vaccination administration (approved 2021)"],
+      billing:["Hospital: service bundled into patient care costs","Private clinical: ₹200-1,000 per consultation","Vaccination: ₹100-500 per dose"],
+      notYet:["Community pharmacist prescribing","Minor ailment scheme","Standardised billing"],
+      legalBasis:"Pharmacy Act 1948. Drugs and Cosmetics Act 1940. State Pharmacy Council regulations.",
+      score:4
+    },
+    {
+      country:"🇲🇦 Morocco",code:"MA",level:"emerging",
+      headline:"Pharmacists well-regarded -- clinical expansion underway",
+      scope:["Vaccination authority (since 2021 -- COVID accelerated)","Primary care medication counseling","Chronic disease monitoring (hypertension, diabetes)","Some emergency supply authority","POC testing expanding"],
+      billing:["Consultation fees: 100-300 MAD","Vaccination admin: 50-100 MAD","Growing private clinical model"],
+      notYet:["Independent prescribing","Formal minor ailment scheme","National clinical billing codes"],
+      legalBasis:"Dahir 1-09-163 (Pharmacy Law). Ministère de la Santé regulations.",
+      score:4
+    },
+    {
+      country:"🇸🇦 Saudi Arabia",code:"SA",level:"developing",
+      headline:"Rapid clinical pharmacy expansion driven by Vision 2030",
+      scope:["Clinical pharmacist teams in all hospitals (CBAHI standard)","Anticoagulation clinic management","Pharmacist-led diabetes clinics","Vaccination authority (community + hospital)","MTM-equivalent services","Formulary management"],
+      billing:["Hospital: bundled services","Private: SAR 100-300 per consultation","Vaccination admin fee: SAR 50-100"],
+      notYet:["Independent community prescribing","National minor ailment scheme"],
+      legalBasis:"Saudi Food & Drug Authority (SFDA). SCFHS classification. MOH regulations.",
+      score:6
+    },
+    {
+      country:"🇿🇦 South Africa",code:"ZA",level:"developing",
+      headline:"SAPC expanding scope -- pharmacist prescribing trials underway",
+      scope:["Vaccination authority -- all ages","Repeat prescription dispensing","Emergency supply authority","Pharmacist-initiated treatment: HIV testing/ARV initiation (specific programs)","Tuberculosis treatment programs","Chronic dispensing unit programs (CDU)"],
+      billing:["Consultation: R 150-400","Vaccination: R 100-300 admin","Private insurer billing growing (Discovery, Momentum)"],
+      notYet:["Full prescribing authority","Minor ailment scheme","Standardised billing codes across all insurers"],
+      legalBasis:"Pharmacy Act 53 of 1974. South African Pharmacy Council (SAPC). National Health Act.",
+      score:5
+    },
+    {
+      country:"🇦🇪 UAE",code:"UAE",level:"developing",
+      headline:"DHA and MOH expanding pharmacist clinical roles rapidly",
+      scope:["Vaccination authority","Chronic disease counseling","DHA-licenced pharmacist prescribers (pilot 2023)","POC testing authority","Telemedicine-pharmacy integration","Methadone program participation"],
+      billing:["DHA consultation: AED 50-200","Vaccination admin: AED 50-150","Private insurance billing growing"],
+      notYet:["Full independent prescribing","National minor ailment scheme"],
+      legalBasis:"DHA Health Regulations. MOH UAE Pharmacy Practice Standards. HAAD (Abu Dhabi).",
+      score:6
+    },
+  ];
+
+  const LEVEL_CONFIG = {
+    world_leader:{label:"World Leader",color:"#7C3AED",bg:"#EDE9FE",desc:"Full independent prescribing authority"},
+    advanced:{label:"Advanced",color:"#059669",bg:"#ECFDF5",desc:"Broad prescribing + billing rights established"},
+    intermediate:{label:"Intermediate",color:"#2E86DE",bg:"#EFF6FF",desc:"Significant rights, variable by state/province"},
+    developing:{label:"Developing",color:"#D97706",bg:"#FFFBEB",desc:"Expanding -- formal clinical roles emerging"},
+    emerging:{label:"Emerging",color:"#6B7280",bg:"#F9FAFB",desc:"Growing awareness, advocacy needed"},
+  };
+
+  const NURSE_VS_PHARM = [
+    {service:"Travel health consultation (30-45 min)",nurse:"$75-150 · Billed direct",pharmacist:"$50-120 · Billed direct to patient or private insurer",verdict:"equal",key:"Travel consultation fees are not exclusive to nurses. Any regulated health professional providing the service can charge."},
+    {service:"Vaccine administration fee (per injection)",nurse:"$15-30",pharmacist:"$15-25 · Per injection, on top of vaccine cost",verdict:"equal",key:"RAMQ (QC) does not cover administration of travel vaccines -- both nurses and pharmacists bill patients directly."},
+    {service:"Minor ailment prescribing",nurse:"RN cannot prescribe. NP can -- billed to RAMQ/OHIP.",pharmacist:"Pharmacist CAN prescribe (QC, ON, AB, BC, SK, MB) -- billed to RAMQ or patient.",verdict:"pharmacist_wins",key:"In Quebec, pharmacists have MORE prescribing rights for minor ailments than most registered nurses (who cannot prescribe at all). Only nurse practitioners can."},
+    {service:"Smoking cessation program",nurse:"Billed if NP. RN: minimal billing.",pharmacist:"RAMQ-funded program (QC). Primary provider. $42 initial + $25 per follow-up × 6.",verdict:"pharmacist_wins",key:"Pharmacists are THE primary billable provider for smoking cessation in Quebec. This is one of the highest-value clinical billing opportunities."},
+    {service:"Chronic disease follow-up",nurse:"NP: billed. RN in clinic: billed through institution.",pharmacist:"RAMQ SF-13 ($25.40), SF-14 ($38.10). Up to 4 visits/year/patient.",verdict:"equal",key:"Pharmacists can bill RAMQ directly for chronic disease follow-up -- no physician referral needed."},
+    {service:"Home visit",nurse:"$75-150 direct + travel. RAMQ-funded for certain programs.",pharmacist:"RAMQ code + DOM modifier (+25%). Legal. Under-utilised.",verdict:"equal",key:"There is NO law preventing pharmacists from doing home visits and billing for them. This is a practice gap, not a legal barrier."},
+    {service:"Medication review (polypharmacy)",nurse:"Limited billing.",pharmacist:"SF-14 ($38.10) for complex patients. MedsCheck (ON $75). Most comprehensive clinical service.",verdict:"pharmacist_wins",key:"Medication review is THE pharmacist's domain. Nurses do not have the pharmacotherapy expertise to match this. Full billing authority."},
+    {service:"HIV / STI rapid testing",nurse:"Billed through clinic or public health programs.",pharmacist:"Legal in many provinces. QC: pharmacies can do TROD (rapid tests). FR: fully reimbursed.",verdict:"equal",key:"Pharmacists can provide and bill for rapid HIV, hepatitis, and STI testing. Growing service with strong public health value."},
+  ];
+
+  const RAMQ_CODES=[
+    {code:"AF-13",desc:"Minor ailment -- first visit",fee:"$25.40",notes:"21 eligible conditions. Requires CDSPI attestation. Document in dossier pharmaco."},
+    {code:"AF-14",desc:"Minor ailment -- follow-up",fee:"$16.20",notes:"Within 30 days of AF-13. Max 2 follow-ups per episode per condition."},
+    {code:"SF-13",desc:"Chronic disease follow-up",fee:"$25.40",notes:"Diabetes, HTN, dyslipidemia, asthma, COPD, epilepsy, heart failure. Max 4/year/patient."},
+    {code:"SF-14",desc:"Complex patient follow-up (≥5 Rx or high-risk drug)",fee:"$38.10",notes:"Anticoagulants, immunosuppressants, lithium, narrow therapeutic index drugs. Max 4/year."},
+    {code:"BM-13",desc:"Medication reconciliation -- hospital discharge",fee:"$40.30",notes:"Within 30 days of discharge. Requires hospital discharge summary."},
+    {code:"CS-13",desc:"Smoking cessation -- initial assessment",fee:"$42.00",notes:"Fagerström test, motivation, quit plan, Rx if indicated. High-value service."},
+    {code:"CS-14",desc:"Smoking cessation -- follow-up (max 6)",fee:"$25.40",notes:"Weeks 1, 4, 12, 24, 36, 52. Each billable separately. Up to $152.40 total per patient."},
+    {code:"VA-13",desc:"Public program vaccination",fee:"RAMQ rate",notes:"Flu, COVID, pneumococcal, travel (if public program). Private vaccines: direct patient billing."},
+    {code:"DOM",desc:"Home visit modifier",fee:"+25% on base fee",notes:"Added to any SF/AF/BM code when visit occurs at patient's home or CHSLD."},
+    {code:"OP-13",desc:"Oral contraceptive -- new start",fee:"$25.40",notes:"QC expanded 2023. 3-month supply. Follow-up required at 3 months."},
+  ];
+
+  const TRAVEL_FEES=[
+    {item:"Travel consultation (30-45 min)",nurse:"$75-120",pharmacist:"$50-100",how:"Invoice via POS -- 'Consultation santé-voyage'",notes:"Private insurer reimbursement: Sunlife, Manulife, GWL up to $100. Keep consultation notes."},
+    {item:"Hepatitis A (Havrix/Avaxim) + admin",nurse:"$85-130",pharmacist:"$85-130",how:"Vaccine cost + $15-20 admin fee separately",notes:"Not RAMQ-covered. Both vaccine and admin direct to patient."},
+    {item:"Typhoid (Typhim Vi IM / Vivotif oral)",nurse:"$70-100",pharmacist:"$70-100",how:"Direct billing -- vaccine + admin",notes:"Vivotif: 4 capsules over 7 days. Remind about food interactions."},
+    {item:"Shingrix ×2 (50+ years)",nurse:"$400-500 total",pharmacist:"$400-500 total",how:"Direct or private insurance",notes:"ODB covers in Ontario (65+). Private insurers vary. $15-20 admin/dose."},
+    {item:"Yellow fever",nurse:"$150-200",pharmacist:"Refer -- designated clinic only",how:"Cannot administer",notes:"⚠️ Yellow fever REQUIRES a designated Travel Health clinic (PHAC-approved). Always refer."},
+    {item:"Malaria prophylaxis Rx + counseling",nurse:"NP only",pharmacist:"$25-50 consult + Rx",how:"Consultation fee direct + Rx through insurance",notes:"Malarone, doxycycline, mefloquine. Pharmacist prescribers can issue Rx in QC."},
+    {item:"Rabies pre-exposure series (×3)",nurse:"$200-400/series",pharmacist:"$200-400/series",how:"Direct -- private clinics or patient",notes:"Increasingly offered in pharmacies. Admin fee per injection."},
+    {item:"Japanese Encephalitis (Ixiaro)",nurse:"$150-250/dose",pharmacist:"$150-250/dose",how:"Direct patient billing",notes:"2-dose series. High cost. Growing pharmacy offering."},
+  ];
+
+
+
+  const tabs=[
+    {id:"calculators",icon:"🧮",label:isFR?"Calculateurs":"Calculators"},
+    {id:"ailments",icon:"🩺",label:isFR?"Prescriptions mineures":"Minor Ailments"},
+    {id:"labs",icon:"🧪",label:isFR?"Valeurs de labo":"Lab Values"},
+    {id:"vaccines",icon:"💉",label:isFR?"Vaccins":"Vaccines"},
+    {id:"billing",icon:"💳",label:isFR?"Facturation":"Billing & Fees"},
+  ];
+
+  return(
+    <div style={{minHeight:"100%",background:C.light}}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",padding:"22px 28px 0"}}>
+        <div style={{fontWeight:900,fontSize:20,color:"#fff",marginBottom:3}}>
+          🏥 {isFR?"Outils cliniques":"Clinical Tools"}
+        </div>
+        <div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginBottom:16}}>
+          {isFR?"Clinique pharmacie · Prescriptions · Calculateurs · Facturation"
+                :"Pharmacy clinic · Prescribing · Calculators · Billing & Fees"}
+        </div>
+        <div style={{display:"flex",gap:2,overflowX:"auto"}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>{setTab(t.id);setAilment(null);}}
+              style={{padding:"9px 16px",borderRadius:"10px 10px 0 0",border:"none",
+                cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,
+                whiteSpace:"nowrap",flexShrink:0,
+                background:tab===t.id?"#fff":"transparent",
+                color:tab===t.id?C.navy:"rgba(255,255,255,.55)"}}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{padding:"24px 28px"}}>
+
+        {/* -- CALCULATORS ------------------------------------------- */}
+        {tab==="calculators"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+
+            {/* CrCl */}
+            <div style={{background:C.white,borderRadius:16,padding:"20px",
+              boxShadow:"0 2px 12px rgba(0,0,0,.07)",borderTop:"4px solid "+C.sky}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:2}}>
+                🧮 CrCl -- Cockcroft-Gault
+              </div>
+              <div style={{fontSize:11,color:C.grey,marginBottom:14,lineHeight:1.5}}>
+                Creatinine clearance. Used for dosing of renally-cleared drugs.
+                Most important pharmacokinetic calculation in clinical pharmacy.
+              </div>
+              {[{k:"age",l:"Age (years)",ph:"e.g. 72"},{k:"weight",l:"Weight (kg)",ph:"e.g. 68"},{k:"scr",l:"Serum Creatinine (μmol/L)",ph:"e.g. 115"}].map(f=>(
+                <div key={f.k} style={{marginBottom:10}}>
+                  <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
+                  <input type="number" value={calc[f.k]} onChange={e=>u(f.k,e.target.value)}
+                    placeholder={f.ph} style={{width:"100%",padding:"9px 11px",borderRadius:8,
+                      border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",
+                      boxSizing:"border-box",outline:"none"}}/>
+                </div>
+              ))}
+              <div style={{display:"flex",gap:8,marginBottom:14}}>
+                {["female","male"].map(s=>(
+                  <button key={s} onClick={()=>u("sex",s)}
+                    style={{flex:1,padding:"8px",borderRadius:8,
+                      border:"2px solid "+calc.sex===s?C.sky:C.border,
+                      background:calc.sex===s?C.sky+"15":"none",cursor:"pointer",
+                      fontFamily:"inherit",fontSize:11,fontWeight:calc.sex===s?700:400,
+                      color:calc.sex===s?C.sky:C.grey}}>
+                    {s==="female"?"♀ Female":"♂ Male"}
+                  </button>
+                ))}
+              </div>
+              {crclF&&(
+                <div>
+                  <div style={{background:crclCol+"12",borderRadius:12,padding:"14px",
+                    border:"2px solid "+crclCol+"30",textAlign:"center",marginBottom:10}}>
+                    <div style={{fontSize:36,fontWeight:900,color:crclCol,lineHeight:1}}>{crclF}</div>
+                    <div style={{fontSize:11,color:crclCol,fontWeight:700,marginTop:2}}>mL/min · {crclStage}</div>
+                  </div>
+                  {crclWarnings.length>0&&(
+                    <div style={{background:"#FEF2F2",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontSize:10,fontWeight:800,color:C.red,marginBottom:6}}>
+                        ⚠️ Dose adjustments required:
+                      </div>
+                      {crclWarnings.map((w,i)=>(
+                        <div key={i} style={{fontSize:10,color:"#7F1D1D",marginBottom:3}}>• {w}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* BMI */}
+            <div style={{background:C.white,borderRadius:16,padding:"20px",
+              boxShadow:"0 2px 12px rgba(0,0,0,.07)",borderTop:"4px solid #7C3AED"}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:2}}>📏 BMI Calculator</div>
+              <div style={{fontSize:11,color:C.grey,marginBottom:14}}>Body Mass Index. Used for drug dosing, risk stratification, and clinical decisions.</div>
+              {[{k:"height",l:"Height (cm)",ph:"e.g. 165"},{k:"bmi_weight",l:"Weight (kg)",ph:"e.g. 72"}].map(f=>(
+                <div key={f.k} style={{marginBottom:12}}>
+                  <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
+                  <input type="number" value={calc[f.k]} onChange={e=>u(f.k,e.target.value)}
+                    placeholder={f.ph} style={{width:"100%",padding:"9px 11px",borderRadius:8,
+                      border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
+                </div>
+              ))}
+              {bmiF&&(
+                <div style={{background:bmiCol+"12",borderRadius:12,padding:"14px",
+                  border:"2px solid "+bmiCol+"30",textAlign:"center",marginTop:4}}>
+                  <div style={{fontSize:44,fontWeight:900,color:bmiCol,lineHeight:1}}>{bmiF}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:bmiCol,marginTop:4}}>{bmiLabel}</div>
+                  <div style={{fontSize:10,color:C.grey,marginTop:6}}>
+                    &lt;18.5 Underweight · 18.5-24.9 Normal · 25-29.9 Overweight · ≥30 Obese
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* CHADS2-VASc */}
+            <div style={{background:C.white,borderRadius:16,padding:"20px",
+              boxShadow:"0 2px 12px rgba(0,0,0,.07)",borderTop:"4px solid "+C.red}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:2}}>❤️ CHADS₂-VASc</div>
+              <div style={{fontSize:11,color:C.grey,marginBottom:14}}>
+                Stroke risk in non-valvular atrial fibrillation. Guides anticoagulation.
+              </div>
+              {[
+                {k:"chf",l:"Congestive heart failure",pts:"1"},
+                {k:"htn",l:"Hypertension",pts:"1"},
+                {k:"age75",l:"Age ≥ 75 years",pts:"2"},
+                {k:"dm",l:"Diabetes mellitus",pts:"1"},
+                {k:"stroke",l:"Prior stroke / TIA / thromboembolism",pts:"2"},
+                {k:"vasc",l:"Vascular disease (MI, PAD, aortic plaque)",pts:"1"},
+                {k:"age65",l:"Age 65-74 years",pts:"1"},
+                {k:"female_c",l:"Female sex",pts:"1"},
+              ].map(i=><Chk key={i.k} k={i.k} label={i.l} pts={"+"+i.pts}/>)}
+              <div style={{background:chadsCol+"12",borderRadius:12,padding:"12px",
+                border:"2px solid "+chadsCol+"30",marginTop:10,textAlign:"center"}}>
+                <div style={{fontSize:32,fontWeight:900,color:chadsCol}}>{chads}</div>
+                <div style={{fontSize:11,fontWeight:700,color:chadsCol,marginTop:2}}>{chadsRec}</div>
+                <div style={{fontSize:10,color:C.grey,marginTop:4}}>
+                  Annual stroke risk ≈ {strokeRisk[Math.min(chads,9)]}
+                </div>
+              </div>
+            </div>
+
+            {/* CURB-65 */}
+            <div style={{background:C.white,borderRadius:16,padding:"20px",
+              boxShadow:"0 2px 12px rgba(0,0,0,.07)",borderTop:"4px solid "+C.orange}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:2}}>🫁 CURB-65 -- Pneumonia</div>
+              <div style={{fontSize:11,color:C.grey,marginBottom:14}}>Community-acquired pneumonia severity. Guides hospitalization decision.</div>
+              {[
+                {k:"confusion",l:"New-onset confusion"},
+                {k:"urea",l:"BUN > 7 mmol/L (or > 19 mg/dL)"},
+                {k:"rr",l:"Respiratory rate ≥ 30/min"},
+                {k:"bp",l:"Systolic BP < 90 mmHg or diastolic ≤ 60"},
+                {k:"age65c",l:"Age ≥ 65 years"},
+              ].map(i=><Chk key={i.k} k={i.k} label={i.l}/>)}
+              <div style={{background:curbCol+"12",borderRadius:12,padding:"12px",
+                border:"2px solid "+curbCol+"30",marginTop:10,textAlign:"center"}}>
+                <div style={{fontSize:32,fontWeight:900,color:curbCol}}>{curb} / 5</div>
+                <div style={{fontSize:12,fontWeight:700,color:curbCol,marginTop:2}}>{curbRec}</div>
+                <div style={{fontSize:10,color:C.grey,marginTop:4}}>
+                  Score 0-1: outpatient · 2: hospital assess · 3+: admit · 4-5: ICU possible
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* -- MINOR AILMENTS ----------------------------------------- */}
+        {tab==="ailments"&&!ailment&&(
+          <div>
+            <div style={{fontWeight:800,fontSize:15,color:C.navy,marginBottom:4}}>
+              Pharmacist Prescribing -- Canadian Minor Ailments
+            </div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:18}}>
+              Select a condition to see prescribing criteria, first-line therapy, counseling points, and billing information.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+              {AILMENTS.map(a=>(
+                <div key={a.id} onClick={()=>setAilment(a)}
+                  style={{background:C.white,borderRadius:14,padding:"18px",
+                    boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",
+                    border:"1.5px solid "+C.border,transition:"all .15s"}}
+                  onMouseOver={e=>{e.currentTarget.style.borderColor=C.sky;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,.1)";}}
+                  onMouseOut={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.06)";}}>
+                  <div style={{fontSize:30,marginBottom:10}}>{a.icon}</div>
+                  <div style={{fontWeight:700,fontSize:13,color:C.navy,marginBottom:8}}>{a.name}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+                    {a.provinces.slice(0,5).map(p=>(
+                      <span key={p} style={{background:C.sky+"15",color:C.sky,
+                        fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{p}</span>
+                    ))}
+                    {a.provinces.length>5&&<span style={{fontSize:9,color:C.grey}}>+{a.provinces.length-5}</span>}
+                  </div>
+                  {a.billing.includes("💡")&&(
+                    <div style={{fontSize:9,fontWeight:700,color:C.green}}>
+                      💰 Billable -- see Billing tab
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab==="ailments"&&ailment&&(
+          <div>
+            <button onClick={()=>setAilment(null)}
+              style={{display:"flex",alignItems:"center",gap:6,marginBottom:20,
+                padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,
+                background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>
+              ← {isFR?"Toutes les conditions":"All conditions"}
+            </button>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
+              <span style={{fontSize:40}}>{ailment.icon}</span>
+              <div>
+                <div style={{fontWeight:900,fontSize:18,color:C.navy}}>{ailment.name}</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:5}}>
+                  {ailment.provinces.map(p=>(
+                    <span key={p} style={{background:C.sky+"15",color:C.sky,
+                      fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{p}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <div style={{background:C.white,borderRadius:14,padding:"18px",boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.red,marginBottom:12}}>
+                  ✅ Prescribing Criteria -- Verify ALL before prescribing
+                </div>
+                {ailment.criteria.map((c,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:8}}>
+                    <span style={{color:C.green,fontSize:12,flexShrink:0,marginTop:1}}>✓</span>
+                    <span style={{fontSize:11,color:C.navy}}>{c}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:C.white,borderRadius:14,padding:"18px",boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.sky,marginBottom:12}}>💊 First-Line Therapy</div>
+                <div style={{background:C.sky+"10",borderRadius:10,padding:"12px 14px",
+                  fontSize:12,color:C.navy,fontWeight:600,lineHeight:1.7,marginBottom:12}}>
+                  {ailment.rx}
+                </div>
+                <div style={{fontWeight:600,fontSize:11,color:C.grey,marginBottom:7}}>Alternatives:</div>
+                {ailment.alt.map((a,i)=>(
+                  <div key={i} style={{fontSize:11,color:C.navy,marginBottom:5,lineHeight:1.5}}>• {a}</div>
+                ))}
+              </div>
+              <div style={{background:C.white,borderRadius:14,padding:"18px",boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
+                <div style={{fontWeight:700,fontSize:12,color:"#7C3AED",marginBottom:12}}>🗣️ Patient Counseling Points</div>
+                {ailment.counsel.map((c,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:7}}>
+                    <span style={{color:"#7C3AED",fontSize:11,flexShrink:0}}>•</span>
+                    <span style={{fontSize:11,color:C.navy,lineHeight:1.5}}>{c}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:C.white,borderRadius:14,padding:"18px",boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.orange,marginBottom:8}}>📋 Follow-up</div>
+                <div style={{fontSize:11,color:C.navy,lineHeight:1.7,marginBottom:14}}>{ailment.fu}</div>
+                <div style={{fontWeight:700,fontSize:12,color:C.green,marginBottom:6}}>💰 Billing</div>
+                <div style={{fontSize:11,color:C.navy,lineHeight:1.7,
+                  background:C.green+"10",borderRadius:8,padding:"8px 10px"}}>{ailment.billing}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* -- LAB VALUES --------------------------------------------- */}
+        {tab==="labs"&&(
+          <div>
+            <div style={{fontWeight:800,fontSize:15,color:C.navy,marginBottom:4}}>Lab Value Reference</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:18}}>
+              Normal ranges, clinical targets, critical values, and drug-specific considerations.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              {[
+                {name:"HbA1c",unit:"%",normal:"< 6.0",target:"< 7.0 (most diabetics)",concern:"≥ 8.0",critical:"≥ 10.0",drugs:["Metformin -- check renal function before/after","Insulin -- dose adjust","SGLT2i -- hold if CrCl <45 (canagliflozin) or <30 (empagliflozin)"]},
+                {name:"Serum Creatinine",unit:"μmol/L",normal:"50-100 (F) / 60-115 (M)",target:"Baseline",concern:"> 130",critical:"> 300 (possible AKI)",drugs:["Metformin -- hold if Cr >132 (F) or >150 (M)","ACE inhibitors -- 30% rise acceptable, >50% = stop","Aminoglycosides -- avoid or monitor closely","NSAIDs -- avoid if CrCl <30"]},
+                {name:"Potassium (K⁺)",unit:"mmol/L",normal:"3.5-5.0",target:"3.5-5.0",concern:"< 3.0 or > 5.5",critical:"< 2.5 or > 6.5 (cardiac risk)",drugs:["Digoxin -- toxicity enhanced at K+ <3.5","Spironolactone/eplerenone -- can raise K+","ACE inhibitors/ARBs -- monitor K+","Loop diuretics (furosemide) -- lower K+"]},
+                {name:"INR",unit:"ratio",normal:"0.8-1.2 (no Rx)",target:"2.0-3.0 (AFib/VTE) · 2.5-3.5 (mech. valve)",concern:"< 1.5 or > 4.0",critical:"> 5.0 (major bleeding risk)",drugs:["Warfarin -- adjust dose per INR","Antibiotics -- many raise INR (Cipro, metro, macrolides)","NSAIDs + warfarin -- avoid (GI bleed risk)","Vitamin K -- lowers INR"]},
+                {name:"eGFR",unit:"mL/min/1.73m²",normal:"> 90",target:"> 60",concern:"30-60 (G3 CKD)",critical:"< 15 (G5 -- dialysis territory)",drugs:["Metformin -- hold <30","Gabapentin/pregabalin -- 50% dose at <60","Methotrexate -- AVOID if <30","Lithium -- weekly levels if <60","DOAC -- manufacturer-specific thresholds"]},
+                {name:"TSH",unit:"mU/L",normal:"0.4-4.5",target:"0.5-2.5 (on levothyroxine)",concern:"< 0.1 (hyperthyroid) or > 10",critical:"< 0.01 or > 20",drugs:["Levothyroxine -- adjust dose to target TSH","Amiodarone -- causes both hypo and hyperthyroid","Lithium -- hypothyroidism in 20-30% of patients","Tyrosine kinase inhibitors -- monitor thyroid"]},
+              ].map((lab,i)=>(
+                <div key={i} style={{background:C.white,borderRadius:14,padding:"16px",
+                  boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{lab.name}</div>
+                    <span style={{background:C.light,color:C.grey,fontSize:10,
+                      padding:"2px 8px",borderRadius:10,fontWeight:600}}>{lab.unit}</span>
+                  </div>
+                  {[{l:"Normal",v:lab.normal,c:C.green},{l:"Target",v:lab.target,c:C.sky},
+                    {l:"⚠️ Concern",v:lab.concern,c:C.orange},{l:"🚨 Critical",v:lab.critical,c:C.red}].map(r=>(
+                    <div key={r.l} style={{display:"flex",gap:8,marginBottom:5,alignItems:"baseline"}}>
+                      <span style={{fontSize:9,fontWeight:700,color:r.c,width:68,flexShrink:0}}>{r.l}</span>
+                      <span style={{fontSize:10,color:C.navy,lineHeight:1.4}}>{r.v}</span>
+                    </div>
+                  ))}
+                  <div style={{borderTop:"1px solid "+C.border,paddingTop:8,marginTop:8}}>
+                    <div style={{fontSize:9,fontWeight:800,color:C.grey,marginBottom:5}}>DRUG CONSIDERATIONS</div>
+                    {lab.drugs.map((d,di)=>(
+                      <div key={di} style={{fontSize:10,color:C.navy,marginBottom:3,lineHeight:1.4}}>• {d}</div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* -- VACCINES ----------------------------------------------- */}
+        {tab==="vaccines"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,color:C.navy}}>Vaccination Tracker</div>
+                <div style={{fontSize:12,color:C.grey}}>Patient vaccination history, upcoming doses, and schedule reminders.</div>
+              </div>
+              <button style={{padding:"9px 18px",borderRadius:10,border:"none",
+                background:C.sky,color:C.white,fontWeight:700,cursor:"pointer",
+                fontFamily:"inherit",fontSize:12}}>
+                + Record vaccine
+              </button>
+            </div>
+            <div style={{background:C.white,borderRadius:14,overflow:"hidden",
+              boxShadow:"0 2px 12px rgba(0,0,0,.07)",marginBottom:16}}>
+              <div style={{background:C.navy,display:"grid",
+                gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:"10px 18px"}}>
+                {["Vaccine","Last dose","Next dose","Status"].map(h=>(
+                  <div key={h} style={{color:"rgba(255,255,255,.6)",fontSize:10,fontWeight:700}}>{h}</div>
+                ))}
+              </div>
+              {[
+                {name:"Influenza (seasonal)",last:"2024-10-15",next:"2025-10",status:"ok"},
+                {name:"COVID-19 (XBB.1.5)",last:"2024-09-01",next:"2025-09",status:"ok"},
+                {name:"Tdap (booster)",last:"2020-03-10",next:"2030-03",status:"ok"},
+                {name:"Shingrix -- Dose 1",last:"2024-06-20",next:"Done",status:"ok"},
+                {name:"Shingrix -- Dose 2",last:"Not done",next:"Overdue (Aug 2024)",status:"overdue"},
+                {name:"Pneumococcal PCV20",last:"Not done",next:"Recommended (age 65+)",status:"recommended"},
+                {name:"Hepatitis A (travel)",last:"Not done",next:"If traveling",status:"recommended"},
+              ].map((v,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",
+                  padding:"12px 18px",borderBottom:"1px solid "+C.border,
+                  background:i%2===0?C.white:"#FAFBFF",alignItems:"center"}}>
+                  <div style={{fontWeight:600,fontSize:12,color:C.navy}}>{v.name}</div>
+                  <div style={{fontSize:11,color:C.grey}}>{v.last}</div>
+                  <div style={{fontSize:11,color:v.status==="overdue"?C.red:C.grey}}>{v.next}</div>
+                  <span style={{display:"inline-block",
+                    background:v.status==="ok"?"#D1FAE5":v.status==="overdue"?"#FEE2E2":"#FEF3C7",
+                    color:v.status==="ok"?C.green:v.status==="overdue"?C.red:C.gold,
+                    fontWeight:700,fontSize:9,padding:"2px 9px",borderRadius:20}}>
+                    {v.status==="ok"?"Up to date":v.status==="overdue"?"⚠️ OVERDUE":"Recommended"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{background:C.sky+"10",border:"1px solid "+C.sky+"30",borderRadius:12,
+              padding:"12px 16px",fontSize:11,color:C.navy}}>
+              💡 Quebec adult schedule: Influenza annually · COVID annually · Tdap q10y ·
+              Shingrix ×2 doses (age 50+) · PCV20 once (age 65+) · MMR if non-immune ·
+              Hep B if not previously vaccinated
+            </div>
+          </div>
+        )}
+
+        {/* -- BILLING & FEES -------------------------------------------- */}
+        {tab==="billing"&&(
+          <div>
+            <div style={{fontWeight:800,fontSize:15,color:C.navy,marginBottom:4}}>
+              💳 {isFR?"Facturation & Honoraires -- Monde entier":"Billing & Fees -- Worldwide"}
+            </div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:20,lineHeight:1.7}}>
+              {isFR
+                ?"Beaucoup de pharmaciens laissent de l'argent sur la table faute de connaître leurs droits. Cette section couvre 14 pays. Le Québec est parmi les plus avancés au monde -- mais même ici, beaucoup de services facturables restent non utilisés."
+                :"Many pharmacists worldwide leave significant revenue unclaimed simply because they don't know their billing rights. This section covers 14 countries. Quebec is among the world's most advanced -- but even there, many billable services go unused."}
+            </div>
+
+            {/* Sub tabs */}
+            <div style={{display:"flex",gap:8,marginBottom:24,flexWrap:"wrap"}}>
+              {[
+                {id:"overview",label:isFR?"Pharmacien vs Infirmier":"Nurse vs Pharmacist"},
+                {id:"world",label:isFR?"Portée mondiale":"Global Scope"},
+                {id:"ramq",label:"RAMQ Codes (QC)"},
+                {id:"travel",label:isFR?"Guide voyage":"Travel Fees"},
+              ].map(bt=>(
+                <button key={bt.id} onClick={()=>setBillingTab(bt.id)}
+                  style={{padding:"8px 18px",borderRadius:10,border:"none",cursor:"pointer",
+                    fontFamily:"inherit",fontSize:11,fontWeight:700,
+                    background:billingTab===bt.id?C.navy:C.white,
+                    color:billingTab===bt.id?C.white:C.grey,
+                    boxShadow:"0 1px 4px rgba(0,0,0,.08)"}}>
+                  {bt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* -- NURSE VS PHARMACIST -- */}
+            {billingTab==="overview"&&(
+              <div>
+                <div style={{background:"linear-gradient(135deg,#064E3B,#059669)",
+                  borderRadius:14,padding:"16px 20px",marginBottom:20}}>
+                  <div style={{fontWeight:900,fontSize:14,color:C.white,marginBottom:4}}>
+                    ✅ The direct answer: YES -- pharmacists can bill for almost everything nurses bill for.
+                  </div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,.85)",lineHeight:1.8}}>
+                    Travel consultation · Vaccination admin fees · Prescribing consultations · Chronic disease follow-up ·
+                    Smoking cessation · Home visits · Medication reviews.
+                    The barrier is not the law. The barrier is not knowing the billing mechanism.
+                  </div>
+                </div>
+                {NURSE_VS_PHARM.map((item,i)=>(
+                  <div key={i} style={{background:C.white,borderRadius:14,marginBottom:12,
+                    overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,.06)",
+                    borderLeft:"4px solid "+item.verdict==="pharmacist_wins"?C.green:C.sky}}>
+                    <div style={{background:item.verdict==="pharmacist_wins"
+                      ?"linear-gradient(135deg,"+C.greenDark+","+C.green+")"
+                      :"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+                      padding:"11px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{fontWeight:700,fontSize:13,color:C.white}}>{item.service}</div>
+                      {item.verdict==="pharmacist_wins"&&(
+                        <span style={{background:"rgba(255,255,255,.25)",color:C.white,
+                          fontSize:10,fontWeight:800,padding:"2px 10px",borderRadius:20}}>
+                          💰 Pharmacist billing right
+                        </span>
+                      )}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+                      <div style={{padding:"13px 16px",borderRight:"1px solid "+C.border}}>
+                        <div style={{fontSize:9,fontWeight:800,color:C.grey,marginBottom:5,textTransform:"uppercase",letterSpacing:.5}}>
+                          👩‍⚕️ Nurse
+                        </div>
+                        <div style={{fontSize:11,color:C.navy,lineHeight:1.7}}>{item.nurse}</div>
+                      </div>
+                      <div style={{padding:"13px 16px",
+                        background:item.verdict==="pharmacist_wins"?C.green+"08":"transparent"}}>
+                        <div style={{fontSize:9,fontWeight:800,color:C.green,marginBottom:5,textTransform:"uppercase",letterSpacing:.5}}>
+                          💊 Pharmacist
+                        </div>
+                        <div style={{fontSize:11,color:C.navy,lineHeight:1.7}}>{item.pharmacist}</div>
+                      </div>
+                    </div>
+                    <div style={{padding:"9px 16px",borderTop:"1px solid "+C.border,
+                      background:"#FAFBFF",fontSize:10,color:C.grey,lineHeight:1.6}}>
+                      ⚖️ <strong>Key point:</strong> {item.key}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* -- GLOBAL SCOPE -- */}
+            {billingTab==="world"&&(
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>
+                  🌍 Pharmacist Scope of Practice -- 14 Countries
+                </div>
+                <div style={{fontSize:12,color:C.grey,marginBottom:16,lineHeight:1.7}}>
+                  How each country compares. This is a living map -- scope is expanding globally.
+                  Quebec is among the most advanced, but the UK leads the world.
+                  Use this section to understand your rights -- or to advocate for more.
+                </div>
+                {/* Level legend */}
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+                  {Object.entries(LEVEL_CONFIG).map(([k,v])=>(
+                    <div key={k} style={{display:"flex",alignItems:"center",gap:6,
+                      padding:"4px 10px",borderRadius:20,background:v.bg,
+                      border:"1px solid "+v.color+"44"}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:v.color}}/>
+                      <span style={{fontSize:10,fontWeight:700,color:v.color}}>{v.label}</span>
+                      <span style={{fontSize:9,color:C.grey}}>-- {v.desc}</span>
+                    </div>
+                  ))}
+                </div>
+                {GLOBAL_COUNTRIES.map((country,i)=>{
+                  const lvl = LEVEL_CONFIG[country.level];
+                  return(
+                    <div key={i} style={{background:C.white,borderRadius:14,marginBottom:14,
+                      overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+                      {/* Country header */}
+                      <div style={{background:"linear-gradient(135deg,"+C.navy+","+C.blue+")",
+                        padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                        <div>
+                          <div style={{fontWeight:900,fontSize:15,color:C.white,marginBottom:3}}>
+                            {country.country}
+                          </div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>{country.headline}</div>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                          <span style={{background:lvl.color,color:"#fff",
+                            fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:20}}>
+                            {lvl.label}
+                          </span>
+                          <div style={{display:"flex",gap:2}}>
+                            {Array.from({length:10},(_,si)=>(
+                              <div key={si} style={{width:12,height:6,borderRadius:2,
+                                background:si<country.score?lvl.color:"rgba(255,255,255,.2)"}}/>
+                            ))}
+                          </div>
+                          <span style={{fontSize:9,color:"rgba(255,255,255,.5)"}}>
+                            Scope: {country.score}/10
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:0}}>
+                        {/* What they can do */}
+                        <div style={{padding:"14px 16px",borderRight:"1px solid "+C.border}}>
+                          <div style={{fontSize:10,fontWeight:800,color:C.green,marginBottom:8,
+                            textTransform:"uppercase",letterSpacing:.5}}>
+                            ✅ Pharmacists CAN
+                          </div>
+                          {country.scope.map((s,si)=>(
+                            <div key={si} style={{display:"flex",gap:6,marginBottom:5}}>
+                              <span style={{color:C.green,fontSize:10,flexShrink:0,marginTop:1}}>•</span>
+                              <span style={{fontSize:10,color:C.navy,lineHeight:1.4}}>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Billing */}
+                        <div style={{padding:"14px 16px",borderRight:"1px solid "+C.border,
+                          background:lvl.color+"06"}}>
+                          <div style={{fontSize:10,fontWeight:800,color:C.sky,marginBottom:8,
+                            textTransform:"uppercase",letterSpacing:.5}}>
+                            💰 Billing
+                          </div>
+                          {country.billing.map((b,bi)=>(
+                            <div key={bi} style={{display:"flex",gap:6,marginBottom:5}}>
+                              <span style={{color:C.sky,fontSize:10,flexShrink:0}}>$</span>
+                              <span style={{fontSize:10,color:C.navy,lineHeight:1.4}}>{b}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Not yet + legal */}
+                        <div style={{padding:"14px 16px"}}>
+                          {country.notYet.length>0&&(
+                            <>
+                              <div style={{fontSize:10,fontWeight:800,color:C.orange,marginBottom:8,
+                                textTransform:"uppercase",letterSpacing:.5}}>
+                                ⏳ Not yet / Expanding
+                              </div>
+                              {country.notYet.map((n,ni)=>(
+                                <div key={ni} style={{display:"flex",gap:6,marginBottom:5}}>
+                                  <span style={{color:C.orange,fontSize:10,flexShrink:0}}>→</span>
+                                  <span style={{fontSize:10,color:C.grey,lineHeight:1.4}}>{n}</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                          <div style={{marginTop:10,padding:"8px 10px",background:C.light,borderRadius:8}}>
+                            <div style={{fontSize:9,fontWeight:700,color:C.grey,marginBottom:3}}>LEGAL BASIS</div>
+                            <div style={{fontSize:9,color:C.grey,lineHeight:1.5}}>{country.legalBasis}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{background:C.navy+"08",borderRadius:14,padding:"16px 20px",
+                  border:"1px dashed "+C.navy+"33",fontSize:11,color:C.grey,lineHeight:1.8}}>
+                  💡 <strong>The global trend is clear:</strong> Every advanced healthcare system is expanding pharmacist scope.
+                  Countries that empower pharmacists see better medication adherence, lower emergency room visits, and reduced healthcare costs.
+                  If your country is not yet at the level you think it should be -- use the legal basis shown here to understand the pathway,
+                  and advocate through your national pharmacy association.
+                </div>
+              </div>
+            )}
+
+            {/* -- RAMQ CODES -- */}
+            {billingTab==="ramq"&&(
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>
+                  RAMQ Billing Codes -- Quebec Pharmacists
+                </div>
+                <div style={{fontSize:12,color:C.grey,marginBottom:16}}>
+                  Submitted through RAMQ pharmacist portal. Requires active provider number.
+                  Documentation mandatory in patient's pharmacological dossier (dossier pharmaco).
+                </div>
+                <div style={{background:C.white,borderRadius:14,overflow:"hidden",
+                  boxShadow:"0 2px 12px rgba(0,0,0,.07)",marginBottom:16}}>
+                  <div style={{background:C.navy,display:"grid",
+                    gridTemplateColumns:"1fr 2fr 1fr 2fr",padding:"10px 18px"}}>
+                    {["Code","Description","Fee","Notes"].map(h=>(
+                      <div key={h} style={{color:"rgba(255,255,255,.6)",fontSize:10,fontWeight:700}}>{h}</div>
+                    ))}
+                  </div>
+                  {RAMQ_CODES.map((r,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 2fr",
+                      padding:"12px 18px",borderBottom:"1px solid "+C.border,
+                      background:i%2===0?C.white:"#FAFBFF",gap:12,alignItems:"start"}}>
+                      <div style={{fontWeight:800,fontSize:12,color:C.sky,fontFamily:"monospace"}}>{r.code}</div>
+                      <div style={{fontSize:11,color:C.navy,fontWeight:600}}>{r.desc}</div>
+                      <div style={{fontSize:12,fontWeight:800,color:C.green}}>{r.fee}</div>
+                      <div style={{fontSize:10,color:C.grey,lineHeight:1.5}}>{r.notes}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{background:"#FEF3C7",borderRadius:12,padding:"12px 16px",
+                  fontSize:11,color:"#92400E",lineHeight:1.7,marginBottom:12}}>
+                  ⚠️ <strong>Important:</strong> Minor ailment codes (AF-13/AF-14) require CDSPI attestation training.
+                  Smoking cessation codes require CME credits. Verify your registration covers each code before billing.
+                  Incorrect RAMQ billing = audit risk.
+                </div>
+                <div style={{background:C.green+"10",border:"1px solid "+C.green+"44",
+                  borderRadius:12,padding:"12px 16px",fontSize:11,color:C.greenDark,lineHeight:1.7}}>
+                  💡 <strong>Revenue estimate for active Quebec pharmacist using all codes:</strong>
+                  If you have 500 patients and bill SF-13 for 20% (100 patients × $25.40 × 4 visits) +
+                  CS-13 for 10 smokers ($42 + 6 × $25.40 each) + minor ailments (50 × AF-13 $25.40) --
+                  that is <strong>$13,500+ per year in RAMQ billing on top of your regular dispensing revenue.</strong>
+                </div>
+              </div>
+            )}
+
+            {/* -- TRAVEL FEES -- */}
+            {billingTab==="travel"&&(
+              <div>
+                <div style={{background:"linear-gradient(135deg,#064E3B,#059669)",
+                  borderRadius:14,padding:"18px 22px",marginBottom:20}}>
+                  <div style={{fontWeight:900,fontSize:15,color:C.white,marginBottom:6}}>
+                    ✅ Pharmacists CAN and SHOULD charge travel consultation fees.
+                  </div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,.85)",lineHeight:1.8}}>
+                    A nurse charges $75-120 for the same 30-minute consultation.
+                    A pharmacist who assesses travel risks, recommends vaccines, prescribes prophylaxis, and counsels on
+                    food/water safety and mosquito protection is providing equivalent -- or superior -- service.
+                    Bill it. You earned it.
+                  </div>
+                </div>
+                <div style={{background:C.white,borderRadius:14,overflow:"hidden",
+                  boxShadow:"0 2px 12px rgba(0,0,0,.07)",marginBottom:16}}>
+                  <div style={{background:C.navy,display:"grid",
+                    gridTemplateColumns:"2fr 1fr 1fr 1fr 2fr",padding:"10px 18px"}}>
+                    {["Service","Nurse","Pharmacist","How to bill","Notes"].map(h=>(
+                      <div key={h} style={{color:"rgba(255,255,255,.6)",fontSize:10,fontWeight:700}}>{h}</div>
+                    ))}
+                  </div>
+                  {TRAVEL_FEES.map((r,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 2fr",
+                      gap:10,padding:"12px 18px",borderBottom:"1px solid "+C.border,
+                      background:i%2===0?C.white:"#FAFBFF",alignItems:"start"}}>
+                      <div style={{fontSize:11,fontWeight:600,color:C.navy}}>{r.item}</div>
+                      <div style={{fontSize:11,color:C.grey}}>{r.nurse}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:C.green}}>{r.pharmacist}</div>
+                      <div style={{fontSize:10,color:C.sky,lineHeight:1.4}}>{r.how}</div>
+                      <div style={{fontSize:10,color:C.grey,lineHeight:1.5}}>{r.notes}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{background:C.navy,borderRadius:14,padding:"18px 22px"}}>
+                  <div style={{fontWeight:700,fontSize:13,color:C.white,marginBottom:12}}>
+                    📋 How to bill a travel consultation -- step by step
+                  </div>
+                  {[
+                    ["Create the invoice","Non-RAMQ invoice in your POS. Description: 'Consultation santé-voyage / Travel health consultation -- 30 min'. Fee: $50-100."],
+                    ["Patient pays you directly","Debit/credit/cash. Give a proper receipt with your pharmacy info and provider number."],
+                    ["Patient submits to insurer","Under 'professional health services' or 'pharmacy services'. Code as consultant pharmacist."],
+                    ["Most private plans cover it","Sunlife, Manulife, Great-West Life, SSQ, Desjardins -- typically $50-100 reimbursed per consultation per year."],
+                    ["Add vaccine admin fees","$15-25 per injection, billed separately from the vaccine cost and from the consultation fee. Three separate line items."],
+                    ["Document everything","Keep consultation notes in patient's pharmacological dossier. Destination, vaccines recommended, prophylaxis prescribed, counseling provided."],
+                    ["Never bill RAMQ for travel vaccines","Travel vaccines (Hep A, typhoid, etc.) are NOT covered by RAMQ. Always direct patient billing."],
+                  ].map((step,i)=>(
+                    <div key={i} style={{display:"flex",gap:10,marginBottom:10}}>
+                      <div style={{width:24,height:24,borderRadius:"50%",background:C.sky,
+                        color:C.white,display:"flex",alignItems:"center",justifyContent:"center",
+                        fontSize:10,fontWeight:800,flexShrink:0,marginTop:1}}>{i+1}</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:11,color:C.white,marginBottom:2}}>{step[0]}</div>
+                        <div style={{fontSize:11,color:"rgba(255,255,255,.75)",lineHeight:1.6}}>{step[1]}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
+      </div>
+    </div>
+  </div>
+    </div>
+  );
+}
