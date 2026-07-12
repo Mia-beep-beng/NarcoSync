@@ -214,10 +214,10 @@ export default function App(){
   const [configured,setConfigured]=useState(SB.isConfigured());
   const [session,setSession]=useState(SB.getSession());
   const [profile,setProfile]=useState(null);
-  const [loading,setLoading]=useState(false);
+  const [loading,setLoading]=useState(()=>!!SB.getSession());
 
   React.useEffect(()=>{
-    if(session&&!profile&&!loading){
+    if(session&&!profile){
       setLoading(true);
       const {url,key}=SB.get();
       fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,
@@ -233,6 +233,13 @@ export default function App(){
 
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);}}/>;
-  if(session&&!profile&&!loading) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>setProfile(p)} session={session}/>;
+  if(loading) return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F7FB"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>💊</div>
+        <div style={{fontSize:14,color:"#6B7280",fontWeight:600}}>Loading NarcoSync…</div>
+      </div>
+    </div>
+  );
   return <Dashboard session={session} onLogout={()=>{SB.clearSession();setSession(null);}}/>;
 }
