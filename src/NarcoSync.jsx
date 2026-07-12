@@ -213,7 +213,26 @@ function RecoPage({onBack}){
 export default function App(){
   const [configured,setConfigured]=useState(SB.isConfigured());
   const [session,setSession]=useState(SB.getSession());
+  const [profile,setProfile]=useState(null);
+  const [loading,setLoading]=useState(false);
+
+  React.useEffect(()=>{
+    if(session&&!profile&&!loading){
+      setLoading(true);
+      const {url,key}=SB.get();
+      fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,
+        {headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
+        .then(r=>r.json())
+        .then(data=>{
+          if(data&&data.length>0) setProfile(data[0]);
+          setLoading(false);
+        })
+        .catch(()=>setLoading(false));
+    }
+  },[session]);
+
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);}}/>;
+  if(session&&!profile&&!loading) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>setProfile(p)} session={session}/>;
   return <Dashboard session={session} onLogout={()=>{SB.clearSession();setSession(null);}}/>;
 }
