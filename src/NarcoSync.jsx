@@ -18,6 +18,11 @@ const SB = {
   clearProfile:()=>{try{localStorage.removeItem("ns_profile");}catch{}},
 };
 
+const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani","Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan","Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech","Danish","Dutch","Estonian","Filipino","Finnish","Galician","Georgian","German","Greek","Gujarati","Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic","Igbo","Indonesian","Irish","Italian","Japanese","Javanese","Kannada","Kazakh","Khmer","Korean","Kurdish","Kyrgyz","Lao","Latvian","Lithuanian","Luxembourgish","Macedonian","Malay","Malayalam","Maltese","Maori","Marathi","Mongolian","Nepali","Norwegian","Pashto","Persian","Polish","Portuguese","Punjabi","Romanian","Russian","Serbian","Sinhala","Slovak","Slovenian","Somali","Spanish","Swahili","Swedish","Tajik","Tamil","Telugu","Thai","Turkish","Turkmen","Ukrainian","Urdu","Uzbek","Vietnamese","Welsh","Xhosa","Yoruba","Zulu","Other"];
+const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Chile","China","Colombia","Croatia","Czech Republic","Denmark","Egypt","Finland","Germany","Greece","Hungary","India","Indonesia","Ireland","Israel","Italy","Japan","Jordan","Kenya","Lebanon","Luxembourg","Malaysia","Mexico","Morocco","Netherlands","New Zealand","Nigeria","Norway","Pakistan","Peru","Philippines","Poland","Portugal","Romania","Russia","Saudi Arabia","Senegal","Singapore","South Africa","South Korea","Spain","Sweden","Switzerland","Thailand","Tunisia","Turkey","Ukraine","United Arab Emirates","United Kingdom","Uruguay","Vietnam","Other"];
+const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
+const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
+
 function SetupScreen({onDone}){
   const [url,setUrl]=useState("");
   const [key,setKey]=useState("");
@@ -110,17 +115,13 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [country,setCountry]=useState("Canada");
   const [province,setProvince]=useState("");
   const [pharmacyName,setPharmacyName]=useState("");
-  const [ownerName,setOwnerName]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");
+  const [ownerName,setOwnerName]=useState("");
   const [saving,setSaving]=useState(false);
-
-  const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Chile","China","Colombia","Croatia","Czech Republic","Denmark","Egypt","Finland","Germany","Greece","Hungary","India","Indonesia","Ireland","Israel","Italy","Japan","Jordan","Kenya","Lebanon","Luxembourg","Malaysia","Mexico","Morocco","Netherlands","New Zealand","Nigeria","Norway","Pakistan","Peru","Philippines","Poland","Portugal","Romania","Russia","Saudi Arabia","Senegal","Singapore","South Africa","South Korea","Spain","Sweden","Switzerland","Thailand","Tunisia","Turkey","Ukraine","United Arab Emirates","United Kingdom","Uruguay","Vietnam","Other"];
-  const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
-  const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 
   async function finish(){
     setSaving(true);
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,owner_name:ownerName,pharmacist_owner:pharmacistOwner};
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacist_owner:pharmacistOwner,owner_name:ownerName};
     const {url,key}=SB.get();
     try{
       await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});
@@ -150,20 +151,27 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 Language</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Preferred working language for your pharmacy</div>
-              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
-                {[{v:"Français",icon:"🇫🇷",desc:"Interface et rapports en français"},{v:"English",icon:"🇨🇦",desc:"Interface and reports in English"},{v:"Bilingue / Bilingual",icon:"⚡",desc:"French + English · Bilingual output"}].map(l=>(
-                  <button key={l.v} onClick={()=>setLanguage(l.v)} style={{padding:"14px 16px",borderRadius:12,border:"2px solid "+(language===l.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:language===l.v?"#EFF6FF":"#fff",transition:"all .15s"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10}}>
-                      <span style={{fontSize:22}}>{l.icon}</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:700,fontSize:13,color:language===l.v?C.sky:C.navy}}>{l.v}</div>
-                        <div style={{fontSize:11,color:C.grey,marginTop:2}}>{l.desc}</div>
-                      </div>
-                      {language===l.v&&<span style={{color:C.sky,fontWeight:900,fontSize:16}}>✓</span>}
-                    </div>
-                  </button>
-                ))}
+              <div style={{marginBottom:22}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Select language</label>
+                <select value={language} onChange={e=>setLanguage(e.target.value)} style={{...inputStyle,fontSize:14,padding:"12px 14px"}}>
+                  <option value="">— Choose a language —</option>
+                  <optgroup label="── Common ──">
+                    <option value="Français">🇫🇷 Français</option>
+                    <option value="English">🇨🇦 English</option>
+                    <option value="Bilingue / Bilingual">⚡ Bilingue / Bilingual</option>
+                  </optgroup>
+                  <optgroup label="── All languages ──">
+                    {ALL_LANGUAGES.filter(l=>!["Français","English","Bilingue / Bilingual"].includes(l)).map(l=>(
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
+              {language&&(
+                <div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>
+                  ✓ Selected: {language}
+                </div>
+              )}
               {nextBtn(!language,"Next →",()=>setStep(2))}
             </div>
           )}
@@ -179,7 +187,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
               </div>
               <div style={{marginBottom:22}}>
                 <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{country==="Canada"?"Province":country==="United States"?"State":"Region / City"}</label>
-                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Region / City" style={inputStyle}/>)}
+                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Enter your region or city" style={inputStyle}/>)}
               </div>
               <div style={{display:"flex",gap:10}}>
                 {backBtn(()=>setStep(1))}
@@ -193,15 +201,15 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Tell us about your pharmacy</div>
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacy name</label>
-                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Pharmaprix #66, Pharmacie Centrale…" style={inputStyle}/>
+                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Enter pharmacy name" style={inputStyle}/>
               </div>
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacist-owner</label>
-                <input value={pharmacistOwner} onChange={e=>setPharmacistOwner(e.target.value)} placeholder="Sylvain Goudreault" style={inputStyle}/>
+                <input value={pharmacistOwner} onChange={e=>setPharmacistOwner(e.target.value)} placeholder="Enter pharmacist-owner name" style={inputStyle}/>
               </div>
               <div style={{marginBottom:22}}>
                 <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Your name (team lead / manager)</label>
-                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Mihaela Trofin" style={inputStyle}/>
+                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Enter your name" style={inputStyle}/>
               </div>
               <div style={{display:"flex",gap:10}}>
                 {backBtn(()=>setStep(2))}
