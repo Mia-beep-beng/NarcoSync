@@ -13,6 +13,9 @@ const SB = {
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
   saveSession:(s)=>{try{localStorage.setItem("ns_session",JSON.stringify(s));}catch{}},
   clearSession:()=>{try{localStorage.removeItem("ns_session");}catch{}},
+  getProfile:()=>{try{const p=localStorage.getItem("ns_profile");return p?JSON.parse(p):null;}catch{return null;}},
+  saveProfile:(p)=>{try{localStorage.setItem("ns_profile",JSON.stringify(p));}catch{}},
+  clearProfile:()=>{try{localStorage.removeItem("ns_profile");}catch{}},
 };
 
 function SetupScreen({onDone}){
@@ -97,6 +100,131 @@ function AuthScreen({onAuth}){
           <button onClick={submit} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")"}}>
             {busy?"…":mode==="login"?"Sign in →":"Create my account →"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingWizard({userEmail,onComplete,session}){
+  const [step,setStep]=useState(1);
+  const [pharmacyName,setPharmacyName]=useState("");
+  const [ownerName,setOwnerName]=useState("");
+  const [country,setCountry]=useState("Canada");
+  const [province,setProvince]=useState("");
+  const [language,setLanguage]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const QC_FIRST=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
+  const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
+
+  async function finish(){
+    setSaving(true);
+    const profile={id:session.user.id,email:userEmail,pharmacy_name:pharmacyName,owner_name:ownerName,country,province,language};
+    const {url,key}=SB.get();
+    try{
+      await fetch(url+"/rest/v1/profiles",{
+        method:"POST",
+        headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
+        body:JSON.stringify(profile),
+      });
+    }catch{}
+    onComplete(profile);
+    setSaving(false);
+  }
+
+  const pct=(step/3)*100;
+  const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
+  const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
+  const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>← Back</button>);
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
+      <div style={{width:"100%",maxWidth:480}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:40,marginBottom:8}}>💊</div>
+          <div style={{color:"#fff",fontWeight:900,fontSize:24}}>Welcome to NarcoSync</div>
+          <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>Step {step} of 3 · {userEmail}</div>
+        </div>
+        <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
+          <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
+        </div>
+        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)"}}>
+          {step===1&&(
+            <div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 Your Pharmacy</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Tell us about your pharmacy</div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacy name</label>
+                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Pharmaprix #66, Pharmacie Trofin…" style={inputStyle}/>
+              </div>
+              <div style={{marginBottom:22}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Your name</label>
+                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Sylvain Goudreault" style={inputStyle}/>
+              </div>
+              {nextBtn(!pharmacyName.trim(),"Next →",()=>setStep(2))}
+            </div>
+          )}
+          {step===2&&(
+            <div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 Location</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Where is your pharmacy located?</div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Country</label>
+                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inputStyle}>
+                  <option>Canada</option>
+                  <option>United States</option>
+                  <option>France</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div style={{marginBottom:22}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>
+                  {country==="Canada"?"Province":country==="United States"?"State":"Region"}
+                </label>
+                {(country==="Canada"||country==="United States")?(
+                  <select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}>
+                    <option value="">Select…</option>
+                    {(country==="Canada"?QC_FIRST:US_STATES).map(p=><option key={p}>{p}</option>)}
+                  </select>
+                ):(
+                  <input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Region / City" style={inputStyle}/>
+                )}
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                {backBtn(()=>setStep(1))}
+                {nextBtn(!province,"Next →",()=>setStep(3))}
+              </div>
+            </div>
+          )}
+          {step===3&&(
+            <div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 Language</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Preferred working language for your pharmacy</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
+                {[
+                  {v:"Français",icon:"🇫🇷",desc:"Interface et rapports en français"},
+                  {v:"English",icon:"🇨🇦",desc:"Interface and reports in English"},
+                  {v:"Bilingue / Bilingual",icon:"⚡",desc:"French + English · Bilingual output"},
+                ].map(l=>(
+                  <button key={l.v} onClick={()=>setLanguage(l.v)} style={{padding:"14px 16px",borderRadius:12,border:"2px solid "+(language===l.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:language===l.v?"#EFF6FF":"#fff",transition:"all .15s"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:22}}>{l.icon}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:13,color:language===l.v?C.sky:C.navy}}>{l.v}</div>
+                        <div style={{fontSize:11,color:C.grey,marginTop:2}}>{l.desc}</div>
+                      </div>
+                      {language===l.v&&<span style={{color:C.sky,fontWeight:900,fontSize:16}}>✓</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                {backBtn(()=>setStep(2))}
+                {nextBtn(!language||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -213,8 +341,8 @@ function RecoPage({onBack}){
 export default function App(){
   const [configured,setConfigured]=useState(SB.isConfigured());
   const [session,setSession]=useState(SB.getSession());
-  const [profile,setProfile]=useState(null);
-  const [loading,setLoading]=useState(()=>!!SB.getSession());
+  const [profile,setProfile]=useState(SB.getProfile());
+  const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
 
   React.useEffect(()=>{
     if(session&&!profile){
@@ -224,7 +352,7 @@ export default function App(){
         {headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
         .then(r=>r.json())
         .then(data=>{
-          if(data&&data.length>0) setProfile(data[0]);
+          if(Array.isArray(data)&&data.length>0){SB.saveProfile(data[0]);setProfile(data[0]);}
           setLoading(false);
         })
         .catch(()=>setLoading(false));
@@ -232,14 +360,15 @@ export default function App(){
   },[session]);
 
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
-  if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);}}/>;
+  if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);setLoading(true);}}/>;
   if(loading) return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F7FB"}}>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.light}}>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:36,marginBottom:12}}>💊</div>
-        <div style={{fontSize:14,color:"#6B7280",fontWeight:600}}>Loading NarcoSync…</div>
+        <div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div>
       </div>
     </div>
   );
-  return <Dashboard session={session} onLogout={()=>{SB.clearSession();setSession(null);}}/>;
+  if(!profile) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
+  return <Dashboard session={session} onLogout={()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);}}/>;
 }
