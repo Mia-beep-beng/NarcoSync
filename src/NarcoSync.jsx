@@ -45,9 +45,7 @@ function SetupScreen({onDone}){
             </div>
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:12}}>{err}</div>}
-          <button onClick={connect} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>
-            Connect →
-          </button>
+          <button onClick={connect} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>Connect →</button>
           <div style={{marginTop:14,fontSize:11,color:C.grey,textAlign:"center"}}>Get your credentials at supabase.com → Settings → API Keys → Legacy</div>
         </div>
       </div>
@@ -108,26 +106,24 @@ function AuthScreen({onAuth}){
 
 function OnboardingWizard({userEmail,onComplete,session}){
   const [step,setStep]=useState(1);
-  const [pharmacyName,setPharmacyName]=useState("");
-  const [ownerName,setOwnerName]=useState("");
+  const [language,setLanguage]=useState("");
   const [country,setCountry]=useState("Canada");
   const [province,setProvince]=useState("");
-  const [language,setLanguage]=useState("");
+  const [pharmacyName,setPharmacyName]=useState("");
+  const [ownerName,setOwnerName]=useState("");
+  const [pharmacistOwner,setPharmacistOwner]=useState("");
   const [saving,setSaving]=useState(false);
 
-  const QC_FIRST=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
+  const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Chile","China","Colombia","Croatia","Czech Republic","Denmark","Egypt","Finland","Germany","Greece","Hungary","India","Indonesia","Ireland","Israel","Italy","Japan","Jordan","Kenya","Lebanon","Luxembourg","Malaysia","Mexico","Morocco","Netherlands","New Zealand","Nigeria","Norway","Pakistan","Peru","Philippines","Poland","Portugal","Romania","Russia","Saudi Arabia","Senegal","Singapore","South Africa","South Korea","Spain","Sweden","Switzerland","Thailand","Tunisia","Turkey","Ukraine","United Arab Emirates","United Kingdom","Uruguay","Vietnam","Other"];
+  const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
   const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 
   async function finish(){
     setSaving(true);
-    const profile={id:session.user.id,email:userEmail,pharmacy_name:pharmacyName,owner_name:ownerName,country,province,language};
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,owner_name:ownerName,pharmacist_owner:pharmacistOwner};
     const {url,key}=SB.get();
     try{
-      await fetch(url+"/rest/v1/profiles",{
-        method:"POST",
-        headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
-        body:JSON.stringify(profile),
-      });
+      await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});
     }catch{}
     onComplete(profile);
     setSaving(false);
@@ -152,61 +148,10 @@ function OnboardingWizard({userEmail,onComplete,session}){
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)"}}>
           {step===1&&(
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 Your Pharmacy</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Tell us about your pharmacy</div>
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacy name</label>
-                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Pharmaprix #66, Pharmacie Trofin…" style={inputStyle}/>
-              </div>
-              <div style={{marginBottom:22}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Your name</label>
-                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Sylvain Goudreault" style={inputStyle}/>
-              </div>
-              {nextBtn(!pharmacyName.trim(),"Next →",()=>setStep(2))}
-            </div>
-          )}
-          {step===2&&(
-            <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 Location</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Where is your pharmacy located?</div>
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Country</label>
-                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inputStyle}>
-                  <option>Canada</option>
-                  <option>United States</option>
-                  <option>France</option>
-                  <option>Other</option>
-                </select>
-              </div>
-              <div style={{marginBottom:22}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>
-                  {country==="Canada"?"Province":country==="United States"?"State":"Region"}
-                </label>
-                {(country==="Canada"||country==="United States")?(
-                  <select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {(country==="Canada"?QC_FIRST:US_STATES).map(p=><option key={p}>{p}</option>)}
-                  </select>
-                ):(
-                  <input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Region / City" style={inputStyle}/>
-                )}
-              </div>
-              <div style={{display:"flex",gap:10}}>
-                {backBtn(()=>setStep(1))}
-                {nextBtn(!province,"Next →",()=>setStep(3))}
-              </div>
-            </div>
-          )}
-          {step===3&&(
-            <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 Language</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Preferred working language for your pharmacy</div>
               <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
-                {[
-                  {v:"Français",icon:"🇫🇷",desc:"Interface et rapports en français"},
-                  {v:"English",icon:"🇨🇦",desc:"Interface and reports in English"},
-                  {v:"Bilingue / Bilingual",icon:"⚡",desc:"French + English · Bilingual output"},
-                ].map(l=>(
+                {[{v:"Français",icon:"🇫🇷",desc:"Interface et rapports en français"},{v:"English",icon:"🇨🇦",desc:"Interface and reports in English"},{v:"Bilingue / Bilingual",icon:"⚡",desc:"French + English · Bilingual output"}].map(l=>(
                   <button key={l.v} onClick={()=>setLanguage(l.v)} style={{padding:"14px 16px",borderRadius:12,border:"2px solid "+(language===l.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:language===l.v?"#EFF6FF":"#fff",transition:"all .15s"}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <span style={{fontSize:22}}>{l.icon}</span>
@@ -219,9 +164,48 @@ function OnboardingWizard({userEmail,onComplete,session}){
                   </button>
                 ))}
               </div>
+              {nextBtn(!language,"Next →",()=>setStep(2))}
+            </div>
+          )}
+          {step===2&&(
+            <div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 Location</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Where is your pharmacy located?</div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Country</label>
+                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inputStyle}>
+                  {COUNTRIES.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{marginBottom:22}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{country==="Canada"?"Province":country==="United States"?"State":"Region / City"}</label>
+                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Region / City" style={inputStyle}/>)}
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                {backBtn(()=>setStep(1))}
+                {nextBtn(!province,"Next →",()=>setStep(3))}
+              </div>
+            </div>
+          )}
+          {step===3&&(
+            <div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 Your Pharmacy</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Tell us about your pharmacy</div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacy name</label>
+                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Pharmaprix #66, Pharmacie Centrale…" style={inputStyle}/>
+              </div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacist-owner</label>
+                <input value={pharmacistOwner} onChange={e=>setPharmacistOwner(e.target.value)} placeholder="Sylvain Goudreault" style={inputStyle}/>
+              </div>
+              <div style={{marginBottom:22}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Your name (team lead / manager)</label>
+                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Mihaela Trofin" style={inputStyle}/>
+              </div>
               <div style={{display:"flex",gap:10}}>
                 {backBtn(()=>setStep(2))}
-                {nextBtn(!language||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}
+                {nextBtn(!pharmacyName.trim()||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}
               </div>
             </div>
           )}
