@@ -127,6 +127,26 @@ const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Austra
 const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
 const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 
+// ── Moved OUTSIDE components so they don't remount on every keystroke ──
+const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
+
+function FieldLabel({children}){
+  return <label style={{fontSize:11,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4}}>{children}</label>;
+}
+
+function Field({label,value,onChange,placeholder,type="text"}){
+  return(
+    <div style={{marginBottom:13}}>
+      <FieldLabel>{label}</FieldLabel>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inputStyle}/>
+    </div>
+  );
+}
+
+function SectionLabel({children}){
+  return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
+}
+
 function SearchableSelect({options,value,onChange,placeholder}){
   const [query,setQuery]=useState(value||"");
   const [open,setOpen]=useState(false);
@@ -138,14 +158,13 @@ function SearchableSelect({options,value,onChange,placeholder}){
   },[]);
   useEffect(()=>{setQuery(value||"");},[value]);
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
-  const base={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   return(
     <div ref={ref} style={{position:"relative"}}>
-      <input value={query} onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} placeholder={placeholder} style={base} autoComplete="off"/>
+      <input value={query} onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
       {open&&filtered.length>0&&(
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid "+C.border,borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
           {filtered.map(o=>(
-            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:C.navy,borderBottom:"1px solid "+C.border,background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
+            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
           ))}
         </div>
       )}
@@ -268,12 +287,9 @@ function OnboardingWizard({userEmail,onComplete,session}){
   }
 
   const pct=(step/3)*100;
-  const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
-  const Label=({children})=>(<label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{children}</label>);
-  const Field=({label,value,onChange,placeholder,type="text"})=>(<div style={{marginBottom:13}}><Label>{label}</Label><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/></div>);
+  const sel={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
-  const SectionLabel=({children})=>(<div style={{fontSize:10,fontWeight:800,color:C.sky,letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>);
 
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
@@ -287,41 +303,56 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
+
           {step===1&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
-              <div style={{marginBottom:16}}><Label>{t("searchLanguage")}</Label><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
+              <div style={{marginBottom:16}}>
+                <FieldLabel>{t("searchLanguage")}</FieldLabel>
+                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/>
+              </div>
               {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
           )}
+
           {step===2&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("locationSubtitle")}</div>
-              <div style={{marginBottom:14}}><Label>{t("country")}</Label><select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inp}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
+              <div style={{marginBottom:14}}>
+                <FieldLabel>{t("country")}</FieldLabel>
+                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>
+              </div>
               <div style={{marginBottom:22}}>
-                <Label>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</Label>
-                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inp}/>)}
+                <FieldLabel>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</FieldLabel>
+                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inputStyle}/>)}
               </div>
               <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
             </div>
           )}
+
           {step===3&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
+
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-              <div style={{marginBottom:13}}><Label>{t("pharmacyName")} — {country}</Label><SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/></div>
+              <div style={{marginBottom:13}}>
+                <FieldLabel>{t("pharmacyName")} — {country}</FieldLabel>
+                <SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
+              </div>
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
               <Field label={t("pharmacyAddress")} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")}/>
               <Field label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} placeholder={t("phonePlaceholder")} type="tel"/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
+
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")}/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
+
               <SectionLabel>{t("planSection")}</SectionLabel>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                 {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
