@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const C = {
   navy:"#0F2744",blue:"#1E4D8C",sky:"#2E86DE",
@@ -19,9 +19,40 @@ const SB = {
 };
 
 const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani","Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan","Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech","Danish","Dutch","Estonian","Filipino","Finnish","Galician","Georgian","German","Greek","Gujarati","Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic","Igbo","Indonesian","Irish","Italian","Japanese","Javanese","Kannada","Kazakh","Khmer","Korean","Kurdish","Kyrgyz","Lao","Latvian","Lithuanian","Luxembourgish","Macedonian","Malay","Malayalam","Maltese","Maori","Marathi","Mongolian","Nepali","Norwegian","Pashto","Persian","Polish","Portuguese","Punjabi","Romanian","Russian","Serbian","Sinhala","Slovak","Slovenian","Somali","Spanish","Swahili","Swedish","Tajik","Tamil","Telugu","Thai","Turkish","Turkmen","Ukrainian","Urdu","Uzbek","Vietnamese","Welsh","Xhosa","Yoruba","Zulu","Other"];
+
+const PHARMACY_CHAINS=["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Lawtons","Rexall","Guardian","Medicine Shoppe","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","Loblaw Pharmacy","Sobeys Pharmacy","London Drugs","PharmaChoice","Remedy'sRx","Zehrs Pharmacy","Your Independent Grocer Pharmacy","Safeway Pharmacy","Co-op Pharmacy","Pharmacie Cloutier","Pharmavie","Other / Independent"];
+
 const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Chile","China","Colombia","Croatia","Czech Republic","Denmark","Egypt","Finland","Germany","Greece","Hungary","India","Indonesia","Ireland","Israel","Italy","Japan","Jordan","Kenya","Lebanon","Luxembourg","Malaysia","Mexico","Morocco","Netherlands","New Zealand","Nigeria","Norway","Pakistan","Peru","Philippines","Poland","Portugal","Romania","Russia","Saudi Arabia","Senegal","Singapore","South Africa","South Korea","Spain","Sweden","Switzerland","Thailand","Tunisia","Turkey","Ukraine","United Arab Emirates","United Kingdom","Uruguay","Vietnam","Other"];
 const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
 const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
+
+function SearchableSelect({options,value,onChange,placeholder}){
+  const [query,setQuery]=useState(value||"");
+  const [open,setOpen]=useState(false);
+  const ref=useRef();
+  useEffect(()=>{
+    function outside(e){if(ref.current&&!ref.current.contains(e.target)){setOpen(false);}}
+    document.addEventListener("mousedown",outside);
+    return()=>document.removeEventListener("mousedown",outside);
+  },[]);
+  useEffect(()=>{if(!open&&value!==query)setQuery(value||"");},[value]);
+  const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
+  const base={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <input value={query} onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} placeholder={placeholder} style={base} autoComplete="off"/>
+      {open&&filtered.length>0&&(
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid "+C.border,borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
+          {filtered.map(o=>(
+            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:C.navy,borderBottom:"1px solid "+C.border,background:value===o?"#EFF6FF":"#fff"}}>
+              {o}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SetupScreen({onDone}){
   const [url,setUrl]=useState("");
@@ -29,9 +60,9 @@ function SetupScreen({onDone}){
   const [err,setErr]=useState("");
   function connect(){
     if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}
-    SB.save(url.replace(/\/+$/,""),key);
-    onDone();
+    SB.save(url.replace(/\/+$/,""),key);onDone();
   }
+  const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
       <div style={{width:"100%",maxWidth:440}}>
@@ -46,12 +77,12 @@ function SetupScreen({onDone}){
           {[{l:"Supabase Project URL",v:url,s:setUrl,ph:"https://xxxx.supabase.co"},{l:"Supabase anon key",v:key,s:setKey,ph:"eyJhbGciOiJIUzI1NiIs..."}].map(f=>(
             <div key={f.l} style={{marginBottom:14}}>
               <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{f.l}</label>
-              <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} style={{width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} style={inp}/>
             </div>
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:12}}>{err}</div>}
           <button onClick={connect} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>Connect →</button>
-          <div style={{marginTop:14,fontSize:11,color:C.grey,textAlign:"center"}}>Get your credentials at supabase.com → Settings → API Keys → Legacy</div>
+          <div style={{marginTop:14,fontSize:11,color:C.grey,textAlign:"center"}}>supabase.com → Settings → API Keys → Legacy</div>
         </div>
       </div>
     </div>
@@ -68,15 +99,16 @@ function AuthScreen({onAuth}){
     if(!email||!pwd){setErr("Fill in all fields.");return;}
     setBusy(true);setErr("");
     const {url,key}=SB.get();
-    const endpoint=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
+    const ep=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
     try{
-      const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,password:pwd})});
+      const r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,password:pwd})});
       const d=await r.json();
       if(d.access_token){SB.saveSession(d);onAuth(d);}
       else setErr(d.error_description||d.msg||"Authentication failed.");
     }catch{setErr("Network error.");}
     setBusy(false);
   }
+  const inp={width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C)"}}>
       <div style={{width:"100%",maxWidth:400}}>
@@ -96,7 +128,7 @@ function AuthScreen({onAuth}){
           {[{l:"Email",v:email,s:setEmail,t:"email",ph:"pharmacist@clinic.com"},{l:"Password",v:pwd,s:setPwd,t:"password",ph:"Min. 6 characters"}].map(f=>(
             <div key={f.l} style={{marginBottom:13}}>
               <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
-              <input type={f.t} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              <input type={f.t} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={inp}/>
             </div>
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
@@ -115,29 +147,35 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [country,setCountry]=useState("Canada");
   const [province,setProvince]=useState("");
   const [pharmacyName,setPharmacyName]=useState("");
+  const [pharmacyPhone,setPharmacyPhone]=useState("");
+  const [pharmacyEmail,setPharmacyEmail]=useState("");
+  const [pharmacyAddress,setPharmacyAddress]=useState("");
+  const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");
-  const [ownerName,setOwnerName]=useState("");
+  const [pharmacistEmail,setPharmacistEmail]=useState("");
+  const [managerName,setManagerName]=useState("");
+  const [plan,setPlan]=useState("");
   const [saving,setSaving]=useState(false);
 
   async function finish(){
     setSaving(true);
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacist_owner:pharmacistOwner,owner_name:ownerName};
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:pharmacyPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
-    try{
-      await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});
-    }catch{}
-    onComplete(profile);
-    setSaving(false);
+    try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
+    onComplete(profile);setSaving(false);
   }
 
   const pct=(step/3)*100;
-  const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
+  const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
+  const Label=({children})=>(<label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{children}</label>);
+  const Field=({label,value,onChange,placeholder,type="text"})=>(<div style={{marginBottom:13}}><Label>{label}</Label><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/></div>);
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>← Back</button>);
+  const SectionLabel=({children})=>(<div style={{fontSize:10,fontWeight:800,color:C.sky,letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>);
 
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
-      <div style={{width:"100%",maxWidth:480}}>
+      <div style={{width:"100%",maxWidth:500}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}>💊</div>
           <div style={{color:"#fff",fontWeight:900,fontSize:24}}>Welcome to NarcoSync</div>
@@ -146,75 +184,74 @@ function OnboardingWizard({userEmail,onComplete,session}){
         <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
-        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)"}}>
+        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
+
           {step===1&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 Language</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Preferred working language for your pharmacy</div>
-              <div style={{marginBottom:22}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Select language</label>
-                <select value={language} onChange={e=>setLanguage(e.target.value)} style={{...inputStyle,fontSize:14,padding:"12px 14px"}}>
-                  <option value="">— Choose a language —</option>
-                  <optgroup label="── Common ──">
-                    <option value="Français">🇫🇷 Français</option>
-                    <option value="English">🇨🇦 English</option>
-                    <option value="Bilingue / Bilingual">⚡ Bilingue / Bilingual</option>
-                  </optgroup>
-                  <optgroup label="── All languages ──">
-                    {ALL_LANGUAGES.filter(l=>!["Français","English","Bilingue / Bilingual"].includes(l)).map(l=>(
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </optgroup>
-                </select>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Type to search any language in the world</div>
+              <div style={{marginBottom:16}}>
+                <Label>Search language</Label>
+                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder="Type to search… Français, Arabic, Spanish…"/>
               </div>
-              {language&&(
-                <div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>
-                  ✓ Selected: {language}
-                </div>
-              )}
-              {nextBtn(!language,"Next →",()=>setStep(2))}
+              {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>✓ {language}</div>}
+              {nextBtn(!language.trim(),"Next →",()=>setStep(2))}
             </div>
           )}
+
           {step===2&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 Location</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Where is your pharmacy located?</div>
               <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Country</label>
-                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inputStyle}>
+                <Label>Country</Label>
+                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inp}>
                   {COUNTRIES.map(c=><option key={c}>{c}</option>)}
                 </select>
               </div>
               <div style={{marginBottom:22}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{country==="Canada"?"Province":country==="United States"?"State":"Region / City"}</label>
-                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inputStyle}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Enter your region or city" style={inputStyle}/>)}
+                <Label>{country==="Canada"?"Province":country==="United States"?"State":"Region / City"}</Label>
+                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Enter your region or city" style={inp}/>)}
               </div>
-              <div style={{display:"flex",gap:10}}>
-                {backBtn(()=>setStep(1))}
-                {nextBtn(!province,"Next →",()=>setStep(3))}
-              </div>
+              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,"Next →",()=>setStep(3))}</div>
             </div>
           )}
+
           {step===3&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 Your Pharmacy</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Tell us about your pharmacy</div>
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacy name</label>
-                <input value={pharmacyName} onChange={e=>setPharmacyName(e.target.value)} placeholder="Enter pharmacy name" style={inputStyle}/>
+              <div style={{fontSize:12,color:C.grey,marginBottom:4}}>Complete your pharmacy profile</div>
+
+              <SectionLabel>📋 Pharmacy Info</SectionLabel>
+              <div style={{marginBottom:13}}>
+                <Label>Pharmacy name</Label>
+                <SearchableSelect options={PHARMACY_CHAINS} value={pharmacyName} onChange={setPharmacyName} placeholder="Type to search or enter custom name…"/>
               </div>
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Pharmacist-owner</label>
-                <input value={pharmacistOwner} onChange={e=>setPharmacistOwner(e.target.value)} placeholder="Enter pharmacist-owner name" style={inputStyle}/>
+              <Field label="Permit / License number" value={permitNumber} onChange={setPermitNumber} placeholder="e.g. OPQ-12345"/>
+              <Field label="Pharmacy address" value={pharmacyAddress} onChange={setPharmacyAddress} placeholder="123 Rue Principale, Montréal, QC"/>
+              <Field label="Pharmacy phone" value={pharmacyPhone} onChange={setPharmacyPhone} placeholder="(514) 000-0000" type="tel"/>
+              <Field label="Pharmacy email" value={pharmacyEmail} onChange={setPharmacyEmail} placeholder="info@pharmacie.com" type="email"/>
+
+              <SectionLabel>👤 Team</SectionLabel>
+              <Field label="Pharmacist-owner name" value={pharmacistOwner} onChange={setPharmacistOwner} placeholder="Full name"/>
+              <Field label="Pharmacist-owner email" value={pharmacistEmail} onChange={setPharmacistEmail} placeholder="owner@pharmacie.com" type="email"/>
+              <Field label="Your name (team lead / manager)" value={managerName} onChange={setManagerName} placeholder="Your full name"/>
+
+              <SectionLabel>💳 Subscription Plan</SectionLabel>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                {[{v:"basic",label:"Basic",price:"$49 CAD/mo",desc:"1 pharmacy · Core reconciliation"},{v:"pro",label:"Pro",price:"$99 CAD/mo",desc:"Up to 3 pharmacies · Clinical tools"},{v:"enterprise",label:"Enterprise",price:"$249 CAD/mo",desc:"Unlimited · API · Custom reporting"}].map(p=>(
+                  <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"12px 16px",borderRadius:12,border:"2px solid "+(plan===p.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:plan===p.v?"#EFF6FF":"#fff"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div><span style={{fontWeight:700,fontSize:13,color:plan===p.v?C.sky:C.navy}}>{p.label}</span><span style={{fontSize:11,color:C.grey,marginLeft:8}}>{p.desc}</span></div>
+                      <span style={{fontWeight:800,fontSize:12,color:plan===p.v?C.sky:C.grey}}>{p.price}</span>
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div style={{marginBottom:22}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>Your name (team lead / manager)</label>
-                <input value={ownerName} onChange={e=>setOwnerName(e.target.value)} placeholder="Enter your name" style={inputStyle}/>
+              <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>
+                💳 Payment setup via Stripe after onboarding — no card required now.
               </div>
-              <div style={{display:"flex",gap:10}}>
-                {backBtn(()=>setStep(2))}
-                {nextBtn(!pharmacyName.trim()||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}
-              </div>
+              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!pharmacyName.trim()||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}</div>
             </div>
           )}
         </div>
@@ -233,10 +270,7 @@ function Dashboard({session,onLogout}){
         <div style={{padding:"20px 14px 12px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
             <div style={{fontSize:22}}>💊</div>
-            <div>
-              <div style={{color:"#fff",fontWeight:900,fontSize:15}}>NarcoSync</div>
-              <div style={{color:"rgba(255,255,255,.3)",fontSize:9}}>Universal</div>
-            </div>
+            <div><div style={{color:"#fff",fontWeight:900,fontSize:15}}>NarcoSync</div><div style={{color:"rgba(255,255,255,.3)",fontSize:9}}>Universal</div></div>
           </div>
           <div style={{background:"rgba(255,255,255,.07)",borderRadius:10,padding:"8px 10px"}}>
             <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>LOGGED IN AS</div>
@@ -336,17 +370,13 @@ export default function App(){
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
 
-  React.useEffect(()=>{
+  useEffect(()=>{
     if(session&&!profile){
       setLoading(true);
       const {url,key}=SB.get();
-      fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,
-        {headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
+      fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
         .then(r=>r.json())
-        .then(data=>{
-          if(Array.isArray(data)&&data.length>0){SB.saveProfile(data[0]);setProfile(data[0]);}
-          setLoading(false);
-        })
+        .then(data=>{if(Array.isArray(data)&&data.length>0){SB.saveProfile(data[0]);setProfile(data[0]);}setLoading(false);})
         .catch(()=>setLoading(false));
     }
   },[session]);
@@ -355,10 +385,7 @@ export default function App(){
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);setLoading(true);}}/>;
   if(loading) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.light}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontSize:36,marginBottom:12}}>💊</div>
-        <div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div>
-      </div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>💊</div><div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div></div>
     </div>
   );
   if(!profile) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
