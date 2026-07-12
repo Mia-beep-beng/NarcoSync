@@ -6,6 +6,97 @@ const C = {
   light:"#F4F7FB",white:"#FFFFFF",grey:"#6B7280",border:"#E2E8F0",
 };
 
+const T = {
+  en:{
+    login:"Login",createAccount:"Create account",signIn:"Sign in →",createMyAccount:"Create my account →",
+    restrictedAccess:"Restricted access · Confidential",fillAllFields:"Fill in all fields.",
+    authFailed:"Authentication failed.",networkError:"Network error.",
+    language:"Language",searchLanguage:"Search language",
+    langSubtitle:"Type to search any language in the world",
+    langPlaceholder:"Type to search… Français, Arabic, Spanish…",
+    selected:"✓ Selected",next:"Next →",back:"← Back",launch:"🚀 Launch NarcoSync",saving:"Saving…",
+    location:"Location",locationSubtitle:"Where is your pharmacy located?",
+    country:"Country",province:"Province",state:"State",regionCity:"Region / City",
+    selectProvince:"Select province…",selectState:"Select state…",enterRegion:"Enter your region or city",
+    yourPharmacy:"Your Pharmacy",pharmacySubtitle:"Complete your pharmacy profile",
+    pharmacyInfoSection:"📋 Pharmacy Info",teamSection:"👤 Team",planSection:"💳 Subscription Plan",
+    pharmacyName:"Pharmacy name",permitNumber:"Permit / License number",
+    pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
+    pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
+    managerName:"Your name (team lead / manager)",
+    pharmacyPlaceholder:"Type to search or enter custom name…",
+    permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Street address, City, Province/State",
+    phonePlaceholder:"(000) 000-0000",emailPlaceholder:"info@pharmacy.com",
+    ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
+    stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
+    welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
+    dashboard:"Dashboard",reconciliation:"Reconciliation",history:"History",
+    clinical:"Clinical",plans:"Plans",signOut:"🔒 Sign out",loggedInAs:"LOGGED IN AS",
+    welcomeMsg:"Welcome to NarcoSync 👋",liveMsg:"🎉 NarcoSync is live!",
+    liveSubMsg:"Connected to Supabase · Ready for reconciliation",
+    lastCycle:"Last cycle",molecules:"Molecules",discrepancies:"Discrepancies",
+    newReco:"⚡ + New Reconciliation",newRecoTitle:"⚡ New Reconciliation",
+    newRecoSub:"Upload your inventory and sales files · Any format",
+    inventoryLabel:"📦 Inventory",inventoryDesc:"Matrix/MMS export · Excel · CSV · Scan",
+    salesLabel:"💊 Sales / Dispensing",salesDesc:"AssiStRx CSV · Any dispensing system",
+    reconcileNow:"⚡ Reconcile now →",recoComplete:"Reconciliation complete!",
+    recoCompleteSub:"NarcoSync is live and connected to Supabase.",newRecoBtn:"New reconciliation",
+    historyDesc:"Your past reconciliation cycles will appear here.",
+    clinicalDesc:"Calculators, minor ailments, global billing guide — coming soon.",
+    plansDesc:"Basic $49 · Pro $99 · Enterprise $249 CAD/month.",
+    basicLabel:"Basic",basicDesc:"1 pharmacy · Core reconciliation",basicPrice:"$49 CAD/mo",
+    proLabel:"Pro",proDesc:"Up to 3 pharmacies · Clinical tools",proPrice:"$99 CAD/mo",
+    enterpriseLabel:"Enterprise",enterpriseDesc:"Unlimited · API · Custom reporting",enterprisePrice:"$249 CAD/mo",
+  },
+  fr:{
+    login:"Connexion",createAccount:"Créer un compte",signIn:"Se connecter →",createMyAccount:"Créer mon compte →",
+    restrictedAccess:"Accès restreint · Confidentiel",fillAllFields:"Veuillez remplir tous les champs.",
+    authFailed:"Échec de l'authentification.",networkError:"Erreur réseau.",
+    language:"Langue",searchLanguage:"Rechercher une langue",
+    langSubtitle:"Tapez pour rechercher n'importe quelle langue au monde",
+    langPlaceholder:"Tapez pour chercher… Français, Arabe, Espagnol…",
+    selected:"✓ Sélectionné",next:"Suivant →",back:"← Retour",launch:"🚀 Lancer NarcoSync",saving:"Enregistrement…",
+    location:"Localisation",locationSubtitle:"Où est située votre pharmacie?",
+    country:"Pays",province:"Province",state:"État",regionCity:"Région / Ville",
+    selectProvince:"Sélectionner une province…",selectState:"Sélectionner un état…",enterRegion:"Entrez votre région ou ville",
+    yourPharmacy:"Votre Pharmacie",pharmacySubtitle:"Complétez le profil de votre pharmacie",
+    pharmacyInfoSection:"📋 Informations",teamSection:"👤 Équipe",planSection:"💳 Forfait",
+    pharmacyName:"Nom de la pharmacie",permitNumber:"Numéro de permis / licence",
+    pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
+    pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
+    managerName:"Votre nom (chef d'équipe / gestionnaire)",
+    pharmacyPlaceholder:"Tapez pour chercher ou entrez un nom…",
+    permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Adresse, Ville, Province/État",
+    phonePlaceholder:"(000) 000-0000",emailPlaceholder:"info@pharmacie.com",
+    ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
+    stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
+    welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
+    dashboard:"Tableau de bord",reconciliation:"Réconciliation",history:"Historique",
+    clinical:"Clinique",plans:"Forfaits",signOut:"🔒 Se déconnecter",loggedInAs:"CONNECTÉ EN TANT QUE",
+    welcomeMsg:"Bienvenue sur NarcoSync 👋",liveMsg:"🎉 NarcoSync est en ligne!",
+    liveSubMsg:"Connecté à Supabase · Prêt pour la réconciliation",
+    lastCycle:"Dernier cycle",molecules:"Molécules",discrepancies:"Écarts",
+    newReco:"⚡ + Nouvelle réconciliation",newRecoTitle:"⚡ Nouvelle réconciliation",
+    newRecoSub:"Téléversez vos fichiers d'inventaire et de ventes · Tout format",
+    inventoryLabel:"📦 Inventaire",inventoryDesc:"Export Matrix/MMS · Excel · CSV · Scan",
+    salesLabel:"💊 Ventes / Dispensation",salesDesc:"CSV AssiStRx · Tout système de dispensation",
+    reconcileNow:"⚡ Réconcilier maintenant →",recoComplete:"Réconciliation complète!",
+    recoCompleteSub:"NarcoSync est en ligne et connecté à Supabase.",newRecoBtn:"Nouvelle réconciliation",
+    historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
+    clinicalDesc:"Calculateurs, affections mineures, guide de facturation — à venir.",
+    plansDesc:"Basique 49$ · Pro 99$ · Entreprise 249$ CAD/mois.",
+    basicLabel:"Basique",basicDesc:"1 pharmacie · Réconciliation principale",basicPrice:"49$ CAD/mois",
+    proLabel:"Pro",proDesc:"Jusqu'à 3 pharmacies · Outils cliniques",proPrice:"99$ CAD/mois",
+    enterpriseLabel:"Entreprise",enterpriseDesc:"Illimité · API · Rapports personnalisés",enterprisePrice:"249$ CAD/mois",
+  }
+};
+
+function getLang(language){
+  if(!language) return "en";
+  if(language.startsWith("Français")||language.includes("Bilingual")||language.includes("Bilingue")) return "fr";
+  return "en";
+}
+
 const SB = {
   isConfigured:()=>{try{return !!(localStorage.getItem("ns_url")&&localStorage.getItem("ns_key"));}catch{return false;}},
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
@@ -20,7 +111,17 @@ const SB = {
 
 const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani","Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan","Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech","Danish","Dutch","Estonian","Filipino","Finnish","Galician","Georgian","German","Greek","Gujarati","Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic","Igbo","Indonesian","Irish","Italian","Japanese","Javanese","Kannada","Kazakh","Khmer","Korean","Kurdish","Kyrgyz","Lao","Latvian","Lithuanian","Luxembourgish","Macedonian","Malay","Malayalam","Maltese","Maori","Marathi","Mongolian","Nepali","Norwegian","Pashto","Persian","Polish","Portuguese","Punjabi","Romanian","Russian","Serbian","Sinhala","Slovak","Slovenian","Somali","Spanish","Swahili","Swedish","Tajik","Tamil","Telugu","Thai","Turkish","Turkmen","Ukrainian","Urdu","Uzbek","Vietnamese","Welsh","Xhosa","Yoruba","Zulu","Other"];
 
-const PHARMACY_CHAINS=["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Lawtons","Rexall","Guardian","Medicine Shoppe","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","Loblaw Pharmacy","Sobeys Pharmacy","London Drugs","PharmaChoice","Remedy'sRx","Zehrs Pharmacy","Your Independent Grocer Pharmacy","Safeway Pharmacy","Co-op Pharmacy","Pharmacie Cloutier","Pharmavie","Other / Independent"];
+const PHARMACY_CHAINS_BY_COUNTRY={
+  "Canada":["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Lawtons","Rexall","Guardian","Medicine Shoppe","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","Loblaw Pharmacy","Sobeys Pharmacy","London Drugs","PharmaChoice","Remedy'sRx","Co-op Pharmacy","Other / Independent"],
+  "United States":["CVS Pharmacy","Walgreens","Rite Aid","Walmart Pharmacy","Costco Pharmacy","Kroger Pharmacy","Publix Pharmacy","Albertsons Pharmacy","Safeway Pharmacy","Target Pharmacy","Hy-Vee Pharmacy","Meijer Pharmacy","Giant Pharmacy","Stop & Shop Pharmacy","Wegmans Pharmacy","H-E-B Pharmacy","Harris Teeter Pharmacy","Fred Meyer Pharmacy","Kinney Drugs","Health Mart","Good Neighbor Pharmacy","Medicine Shoppe","Other / Independent"],
+  "France":["Pharmacie Lafayette","Pharmavie","Giropharm","PHR Pharmacies","Pharmodel","Optipharm","Welcoop","Alphega Pharmacie","Other / Independent"],
+  "United Kingdom":["Boots","Lloyds Pharmacy","Well Pharmacy","Superdrug Pharmacy","Day Lewis Pharmacy","Rowlands Pharmacy","Other / Independent"],
+  "Australia":["Chemist Warehouse","Priceline Pharmacy","Terry White Chemmart","Blooms The Chemist","Amcal","Guardian Pharmacy","Other / Independent"],
+  "Belgium":["Multipharma","Newpharma","Other / Independent"],
+  "Germany":["DocMorris","dm Pharmacy","Rossmann Pharmacy","Other / Independent"],
+  "Switzerland":["Amavita","Sun Store","Coop Vitality","Zur Rose","Other / Independent"],
+};
+const DEFAULT_CHAINS=["Other / Independent"];
 
 const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Chile","China","Colombia","Croatia","Czech Republic","Denmark","Egypt","Finland","Germany","Greece","Hungary","India","Indonesia","Ireland","Israel","Italy","Japan","Jordan","Kenya","Lebanon","Luxembourg","Malaysia","Mexico","Morocco","Netherlands","New Zealand","Nigeria","Norway","Pakistan","Peru","Philippines","Poland","Portugal","Romania","Russia","Saudi Arabia","Senegal","Singapore","South Africa","South Korea","Spain","Sweden","Switzerland","Thailand","Tunisia","Turkey","Ukraine","United Arab Emirates","United Kingdom","Uruguay","Vietnam","Other"];
 const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
@@ -31,11 +132,11 @@ function SearchableSelect({options,value,onChange,placeholder}){
   const [open,setOpen]=useState(false);
   const ref=useRef();
   useEffect(()=>{
-    function outside(e){if(ref.current&&!ref.current.contains(e.target)){setOpen(false);}}
+    function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  useEffect(()=>{if(!open&&value!==query)setQuery(value||"");},[value]);
+  useEffect(()=>{setQuery(value||"");},[value]);
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
   const base={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   return(
@@ -44,9 +145,7 @@ function SearchableSelect({options,value,onChange,placeholder}){
       {open&&filtered.length>0&&(
         <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid "+C.border,borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
           {filtered.map(o=>(
-            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:C.navy,borderBottom:"1px solid "+C.border,background:value===o?"#EFF6FF":"#fff"}}>
-              {o}
-            </div>
+            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:C.navy,borderBottom:"1px solid "+C.border,background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
           ))}
         </div>
       )}
@@ -58,10 +157,7 @@ function SetupScreen({onDone}){
   const [url,setUrl]=useState("");
   const [key,setKey]=useState("");
   const [err,setErr]=useState("");
-  function connect(){
-    if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}
-    SB.save(url.replace(/\/+$/,""),key);onDone();
-  }
+  function connect(){if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}SB.save(url.replace(/\/+$/,""),key);onDone();}
   const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
@@ -95,8 +191,9 @@ function AuthScreen({onAuth}){
   const [pwd,setPwd]=useState("");
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
+  const t=(k)=>T.en[k];
   async function submit(){
-    if(!email||!pwd){setErr("Fill in all fields.");return;}
+    if(!email||!pwd){setErr(t("fillAllFields"));return;}
     setBusy(true);setErr("");
     const {url,key}=SB.get();
     const ep=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
@@ -104,8 +201,8 @@ function AuthScreen({onAuth}){
       const r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,password:pwd})});
       const d=await r.json();
       if(d.access_token){SB.saveSession(d);onAuth(d);}
-      else setErr(d.error_description||d.msg||"Authentication failed.");
-    }catch{setErr("Network error.");}
+      else setErr(d.error_description||d.msg||t("authFailed"));
+    }catch{setErr(t("networkError"));}
     setBusy(false);
   }
   const inp={width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
@@ -115,13 +212,13 @@ function AuthScreen({onAuth}){
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:40,marginBottom:10}}>💊</div>
           <div style={{color:"#fff",fontWeight:900,fontSize:26}}>NarcoSync</div>
-          <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>Restricted access · Confidential</div>
+          <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>{t("restrictedAccess")}</div>
         </div>
         <div style={{background:"#fff",borderRadius:18,padding:26,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
           <div style={{display:"flex",marginBottom:20,borderRadius:10,overflow:"hidden",border:"1px solid "+C.border}}>
             {["login","signup"].map(m=>(
               <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,background:mode===m?C.navy:"#fff",color:mode===m?"#fff":C.grey}}>
-                {m==="login"?"Login":"Create account"}
+                {m==="login"?t("login"):t("createAccount")}
               </button>
             ))}
           </div>
@@ -133,7 +230,7 @@ function AuthScreen({onAuth}){
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
           <button onClick={submit} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")"}}>
-            {busy?"…":mode==="login"?"Sign in →":"Create my account →"}
+            {busy?"…":mode==="login"?t("signIn"):t("createMyAccount")}
           </button>
         </div>
       </div>
@@ -157,6 +254,11 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [plan,setPlan]=useState("");
   const [saving,setSaving]=useState(false);
 
+  const lang=getLang(language);
+  const t=(k)=>T[lang][k]||T.en[k]||k;
+  const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
+  useEffect(()=>{setPharmacyName("");},[country]);
+
   async function finish(){
     setSaving(true);
     const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:pharmacyPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
@@ -170,7 +272,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const Label=({children})=>(<label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{children}</label>);
   const Field=({label,value,onChange,placeholder,type="text"})=>(<div style={{marginBottom:13}}><Label>{label}</Label><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/></div>);
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
-  const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>← Back</button>);
+  const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
   const SectionLabel=({children})=>(<div style={{fontSize:10,fontWeight:800,color:C.sky,letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>);
 
   return(
@@ -178,80 +280,61 @@ function OnboardingWizard({userEmail,onComplete,session}){
       <div style={{width:"100%",maxWidth:500}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}>💊</div>
-          <div style={{color:"#fff",fontWeight:900,fontSize:24}}>Welcome to NarcoSync</div>
-          <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>Step {step} of 3 · {userEmail}</div>
+          <div style={{color:"#fff",fontWeight:900,fontSize:24}}>{t("welcomeToNarco")}</div>
+          <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>{t("stepOf")} {step} {t("ofTotal")} 3 · {userEmail}</div>
         </div>
         <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
-
           {step===1&&(
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 Language</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Type to search any language in the world</div>
-              <div style={{marginBottom:16}}>
-                <Label>Search language</Label>
-                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder="Type to search… Français, Arabic, Spanish…"/>
-              </div>
-              {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>✓ {language}</div>}
-              {nextBtn(!language.trim(),"Next →",()=>setStep(2))}
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
+              <div style={{marginBottom:16}}><Label>{t("searchLanguage")}</Label><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
+              {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
+              {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
           )}
-
           {step===2&&(
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 Location</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>Where is your pharmacy located?</div>
-              <div style={{marginBottom:14}}>
-                <Label>Country</Label>
-                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inp}>
-                  {COUNTRIES.map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("locationSubtitle")}</div>
+              <div style={{marginBottom:14}}><Label>{t("country")}</Label><select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={inp}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
               <div style={{marginBottom:22}}>
-                <Label>{country==="Canada"?"Province":country==="United States"?"State":"Region / City"}</Label>
-                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">Select province…</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">Select state…</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder="Enter your region or city" style={inp}/>)}
+                <Label>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</Label>
+                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={inp}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inp}/>)}
               </div>
-              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,"Next →",()=>setStep(3))}</div>
+              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
             </div>
           )}
-
           {step===3&&(
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 Your Pharmacy</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:4}}>Complete your pharmacy profile</div>
-
-              <SectionLabel>📋 Pharmacy Info</SectionLabel>
-              <div style={{marginBottom:13}}>
-                <Label>Pharmacy name</Label>
-                <SearchableSelect options={PHARMACY_CHAINS} value={pharmacyName} onChange={setPharmacyName} placeholder="Type to search or enter custom name…"/>
-              </div>
-              <Field label="Permit / License number" value={permitNumber} onChange={setPermitNumber} placeholder="e.g. OPQ-12345"/>
-              <Field label="Pharmacy address" value={pharmacyAddress} onChange={setPharmacyAddress} placeholder="123 Rue Principale, Montréal, QC"/>
-              <Field label="Pharmacy phone" value={pharmacyPhone} onChange={setPharmacyPhone} placeholder="(514) 000-0000" type="tel"/>
-              <Field label="Pharmacy email" value={pharmacyEmail} onChange={setPharmacyEmail} placeholder="info@pharmacie.com" type="email"/>
-
-              <SectionLabel>👤 Team</SectionLabel>
-              <Field label="Pharmacist-owner name" value={pharmacistOwner} onChange={setPharmacistOwner} placeholder="Full name"/>
-              <Field label="Pharmacist-owner email" value={pharmacistEmail} onChange={setPharmacistEmail} placeholder="owner@pharmacie.com" type="email"/>
-              <Field label="Your name (team lead / manager)" value={managerName} onChange={setManagerName} placeholder="Your full name"/>
-
-              <SectionLabel>💳 Subscription Plan</SectionLabel>
+              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
+              <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
+              <div style={{marginBottom:13}}><Label>{t("pharmacyName")} — {country}</Label><SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/></div>
+              <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
+              <Field label={t("pharmacyAddress")} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")}/>
+              <Field label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} placeholder={t("phonePlaceholder")} type="tel"/>
+              <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
+              <SectionLabel>{t("teamSection")}</SectionLabel>
+              <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")}/>
+              <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
+              <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
+              <SectionLabel>{t("planSection")}</SectionLabel>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-                {[{v:"basic",label:"Basic",price:"$49 CAD/mo",desc:"1 pharmacy · Core reconciliation"},{v:"pro",label:"Pro",price:"$99 CAD/mo",desc:"Up to 3 pharmacies · Clinical tools"},{v:"enterprise",label:"Enterprise",price:"$249 CAD/mo",desc:"Unlimited · API · Custom reporting"}].map(p=>(
+                {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
                   <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"12px 16px",borderRadius:12,border:"2px solid "+(plan===p.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:plan===p.v?"#EFF6FF":"#fff"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div><span style={{fontWeight:700,fontSize:13,color:plan===p.v?C.sky:C.navy}}>{p.label}</span><span style={{fontSize:11,color:C.grey,marginLeft:8}}>{p.desc}</span></div>
-                      <span style={{fontWeight:800,fontSize:12,color:plan===p.v?C.sky:C.grey}}>{p.price}</span>
+                      <div><span style={{fontWeight:700,fontSize:13,color:plan===p.v?C.sky:C.navy}}>{t(p.lk)}</span><span style={{fontSize:11,color:C.grey,marginLeft:8}}>{t(p.dk)}</span></div>
+                      <span style={{fontWeight:800,fontSize:12,color:plan===p.v?C.sky:C.grey}}>{t(p.pk)}</span>
                     </div>
                   </button>
                 ))}
               </div>
-              <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>
-                💳 Payment setup via Stripe after onboarding — no card required now.
-              </div>
-              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!pharmacyName.trim()||saving,saving?"Saving…":"🚀 Launch NarcoSync",finish,true)}</div>
+              <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>{t("stripeNote")}</div>
+              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!pharmacyName.trim()||saving,saving?t("saving"):t("launch"),finish,true)}</div>
             </div>
           )}
         </div>
@@ -260,10 +343,12 @@ function OnboardingWizard({userEmail,onComplete,session}){
   );
 }
 
-function Dashboard({session,onLogout}){
+function Dashboard({session,profile,onLogout}){
   const [page,setPage]=useState("home");
   const email=session?.user?.email||"pharmacist@clinic.com";
-  const nav=[{id:"home",icon:"🏠",label:"Dashboard"},{id:"reco",icon:"⚡",label:"Reconciliation"},{id:"history",icon:"📝",label:"History"},{id:"clinical",icon:"🏥",label:"Clinical"},{id:"pricing",icon:"💳",label:"Plans"}];
+  const lang=getLang(profile?.language);
+  const t=(k)=>T[lang][k]||T.en[k]||k;
+  const nav=[{id:"home",icon:"🏠",label:t("dashboard")},{id:"reco",icon:"⚡",label:t("reconciliation")},{id:"history",icon:"📝",label:t("history")},{id:"clinical",icon:"🏥",label:t("clinical")},{id:"pricing",icon:"💳",label:t("plans")}];
   return(
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
       <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
@@ -273,7 +358,7 @@ function Dashboard({session,onLogout}){
             <div><div style={{color:"#fff",fontWeight:900,fontSize:15}}>NarcoSync</div><div style={{color:"rgba(255,255,255,.3)",fontSize:9}}>Universal</div></div>
           </div>
           <div style={{background:"rgba(255,255,255,.07)",borderRadius:10,padding:"8px 10px"}}>
-            <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>LOGGED IN AS</div>
+            <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>{t("loggedInAs")}</div>
             <div style={{color:"#fff",fontSize:10,fontWeight:600,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</div>
           </div>
         </div>
@@ -285,15 +370,15 @@ function Dashboard({session,onLogout}){
           ))}
         </div>
         <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
-          <button onClick={onLogout} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.35)",fontSize:11,fontFamily:"inherit",textAlign:"left"}}>🔒 Sign out</button>
+          <button onClick={onLogout} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.35)",fontSize:11,fontFamily:"inherit",textAlign:"left"}}>{t("signOut")}</button>
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
-        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email}/>}
-        {page==="reco"&&<RecoPage onBack={()=>setPage("home")}/>}
-        {page==="history"&&<PlaceholderPage icon="📝" title="History" desc="Your past reconciliation cycles will appear here."/>}
-        {page==="clinical"&&<PlaceholderPage icon="🏥" title="Clinical Tools" desc="Calculators, minor ailments, global billing guide — coming soon."/>}
-        {page==="pricing"&&<PlaceholderPage icon="💳" title="Plans" desc="Basic $49 · Pro $99 · Enterprise $249 CAD/month."/>}
+        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t}/>}
+        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t}/>}
+        {page==="history"&&<PlaceholderPage icon="📝" title={t("history")} desc={t("historyDesc")}/>}
+        {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
+        {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
       </div>
     </div>
   );
@@ -303,19 +388,19 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-function HomePage({onNewReco,email}){
+function HomePage({onNewReco,email,t}){
   return(
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
-        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>Welcome to NarcoSync 👋</div>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>{t("welcomeMsg")}</div>
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{email}</div>
       </div>
       <div style={{background:"linear-gradient(135deg,#FFFBEB,#FEF3C7)",border:"1.5px solid #FCD34D",borderRadius:14,padding:"16px 20px",marginBottom:24}}>
-        <div style={{fontWeight:800,fontSize:14,color:C.navy}}>🎉 NarcoSync is live!</div>
-        <div style={{fontSize:12,color:C.grey,marginTop:2}}>Connected to Supabase · Ready for reconciliation</div>
+        <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{t("liveMsg")}</div>
+        <div style={{fontSize:12,color:C.grey,marginTop:2}}>{t("liveSubMsg")}</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
-        {[{icon:"⚡",label:"Last cycle",val:"V75",col:C.sky},{icon:"💊",label:"Molecules",val:"250",col:"#7C3AED"},{icon:"⚠️",label:"Discrepancies",val:"18",col:C.red}].map(s=>(
+        {[{icon:"⚡",label:t("lastCycle"),val:"V75",col:C.sky},{icon:"💊",label:t("molecules"),val:"250",col:"#7C3AED"},{icon:"⚠️",label:t("discrepancies"),val:"18",col:C.red}].map(s=>(
           <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
             <div style={{fontSize:22,marginBottom:8}}>{s.icon}</div>
             <div style={{fontSize:26,fontWeight:900,color:s.col}}>{s.val}</div>
@@ -324,23 +409,23 @@ function HomePage({onNewReco,email}){
         ))}
       </div>
       <button onClick={onNewReco} style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:900,fontSize:15,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)",boxShadow:"0 6px 20px rgba(46,134,222,.35)"}}>
-        ⚡ + New Reconciliation
+        {t("newReco")}
       </button>
     </div>
   );
 }
 
-function RecoPage({onBack}){
+function RecoPage({onBack,t}){
   const [files,setFiles]=useState({inv:null,sales:null});
   const [done,setDone]=useState(false);
   return(
     <div style={{padding:"28px 32px"}}>
-      <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← Dashboard</button>
-      <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>⚡ New Reconciliation</div>
-      <div style={{color:C.grey,fontSize:12,marginBottom:20}}>Upload your inventory and sales files · Any format</div>
+      <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
+      <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>{t("newRecoTitle")}</div>
+      <div style={{color:C.grey,fontSize:12,marginBottom:20}}>{t("newRecoSub")}</div>
       {!done?(
         <div>
-          {[{k:"inv",label:"📦 Inventory",desc:"Matrix/MMS export · Excel · CSV · Scan"},{k:"sales",label:"💊 Sales / Dispensing",desc:"AssiStRx CSV · Any dispensing system"}].map(f=>(
+          {[{k:"inv",label:t("inventoryLabel"),desc:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:t("salesDesc")}].map(f=>(
             <div key={f.k} style={{background:"#fff",borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:C.border)}}>
               <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
@@ -348,16 +433,14 @@ function RecoPage({onBack}){
               {files[f.k]&&<div style={{color:C.green,fontWeight:700,fontSize:12,marginTop:8}}>✓ {files[f.k].name}</div>}
             </div>
           ))}
-          <button onClick={()=>setDone(true)} disabled={!files.inv&&!files.sales} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:C.sky,opacity:(!files.inv&&!files.sales)?.5:1}}>
-            ⚡ Reconcile now →
-          </button>
+          <button onClick={()=>setDone(true)} disabled={!files.inv&&!files.sales} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:C.sky,opacity:(!files.inv&&!files.sales)?.5:1}}>{t("reconcileNow")}</button>
         </div>
       ):(
         <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
           <div style={{fontSize:40,marginBottom:12}}>✅</div>
-          <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>Reconciliation complete!</div>
-          <div style={{fontSize:13,color:C.grey,marginBottom:20}}>NarcoSync is live and connected to Supabase.</div>
-          <button onClick={()=>{setDone(false);setFiles({inv:null,sales:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>New reconciliation</button>
+          <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
+          <div style={{fontSize:13,color:C.grey,marginBottom:20}}>{t("recoCompleteSub")}</div>
+          <button onClick={()=>{setDone(false);setFiles({inv:null,sales:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>{t("newRecoBtn")}</button>
         </div>
       )}
     </div>
@@ -389,5 +472,5 @@ export default function App(){
     </div>
   );
   if(!profile) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
-  return <Dashboard session={session} onLogout={()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);}}/>;
+  return <Dashboard session={session} profile={profile} onLogout={()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);}}/>;
 }
