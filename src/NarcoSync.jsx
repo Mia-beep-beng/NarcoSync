@@ -27,7 +27,7 @@ const T = {
     pharmacyPlaceholder:"Search chain or type custom name…",
     pharmacyNameHint:"e.g. Pharmaprix, Jean Coutu, Independent…",
     permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Start typing your address…",
-    addressHint:"Type street number + name — city added automatically",
+    addressHint:"Type street number + name to search",
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
@@ -70,7 +70,7 @@ const T = {
     pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
     pharmacyNameHint:"ex. Pharmaprix, Jean Coutu, Indépendant…",
     permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Commencez à taper votre adresse…",
-    addressHint:"Tapez numéro + rue — la ville est ajoutée automatiquement",
+    addressHint:"Tapez numéro + rue pour chercher",
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
@@ -106,6 +106,15 @@ const COUNTRY_ISO={
 };
 const COUNTRY_CODES={
   "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44","Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41","Algeria":"+213","Morocco":"+212","Tunisia":"+216","Senegal":"+221","Lebanon":"+961","Israel":"+972","Jordan":"+962","Egypt":"+20","Nigeria":"+234","Kenya":"+254","South Africa":"+27","Mexico":"+52","Brazil":"+55","Argentina":"+54","Chile":"+56","Colombia":"+57","Peru":"+51","China":"+86","Japan":"+81","South Korea":"+82","India":"+91","Pakistan":"+92","Indonesia":"+62","Malaysia":"+60","Philippines":"+63","Thailand":"+66","Vietnam":"+84","Singapore":"+65","Netherlands":"+31","Spain":"+34","Italy":"+39","Portugal":"+351","Poland":"+48","Romania":"+40","Czech Republic":"+420","Hungary":"+36","Sweden":"+46","Norway":"+47","Denmark":"+45","Finland":"+358","Ireland":"+353","Austria":"+43","Luxembourg":"+352","Croatia":"+385","Ukraine":"+380","Russia":"+7","Turkey":"+90","Saudi Arabia":"+966","United Arab Emirates":"+971","Other":"+",
+};
+
+// Province center coordinates for location bias
+const PROVINCE_COORDS={
+  "Québec":{lat:46.8,lon:-71.2},"Ontario":{lat:51.2,lon:-85.3},"British Columbia":{lat:53.7,lon:-127.6},
+  "Alberta":{lat:53.9,lon:-116.6},"Manitoba":{lat:56.4,lon:-98.7},"Saskatchewan":{lat:55.0,lon:-106.0},
+  "Nova Scotia":{lat:44.7,lon:-63.7},"New Brunswick":{lat:46.5,lon:-66.5},"Newfoundland & Labrador":{lat:53.1,lon:-57.7},
+  "Prince Edward Island":{lat:46.5,lon:-63.4},"Northwest Territories":{lat:64.8,lon:-124.8},
+  "Yukon":{lat:64.2,lon:-135.0},"Nunavut":{lat:70.0,lon:-86.0},
 };
 
 const SB={
@@ -176,19 +185,100 @@ function PhoneField({label,value,onChange,countryCode}){
   );
 }
 
-function formatNominatimAddr(item){
-  const a=item.address||{};
-  const parts=[];
-  if(a.house_number) parts.push(a.house_number);
-  if(a.road||a.pedestrian||a.path) parts.push(a.road||a.pedestrian||a.path);
-  const city=a.city||a.town||a.village||a.hamlet||a.municipality;
-  if(city) parts.push(city);
-  if(a.state||a.province) parts.push(a.state||a.province);
-  if(a.postcode) parts.push(a.postcode);
-  return parts.join(", ")||item.display_name;
+// ── ADDRESS AUTOCOMPLETE — Photon (Komoot) API — much better Canadian coverage ──
+function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,province}){
+  const [query,setQuery]=useState(value||"");
+  const [results,setResults]=useState([]);
+  const [open,setOpen]=useState(false);
+  const [searching,setSearching]=useState(false);
+  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
+  const inputRef=useRef();
+  const dropRef=useRef();
+  const timer=useRef();
+
+  useEffect(()=>{
+    function outside(e){
+      const inI=inputRef.current&&inputRef.current.contains(e.target);
+      const inD=dropRef.current&&dropRef.current.contains(e.target);
+      if(!inI&&!inD) setOpen(false);
+    }
+    document.addEventListener("mousedown",outside);
+    return()=>document.removeEventListener("mousedown",outside);
+  },[]);
+
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
+    }
+  }
+
+  function handleInput(val){
+    setQuery(val);onChange(val);
+    clearTimeout(timer.current);
+    if(val.length<3){setResults([]);setOpen(false);return;}
+    updatePos();
+    timer.current=setTimeout(async()=>{
+      setSearching(true);
+      try{
+        // ✅ Photon API — far better Canadian address coverage than Nominatim
+        const params=new URLSearchParams({q:val,limit:7,lang:"fr"});
+        if(countryIso) params.set("countrycode",countryIso);
+        // Bias toward province center for better local results
+        const coords=PROVINCE_COORDS[province];
+        if(coords){params.set("lat",coords.lat);params.set("lon",coords.lon);}
+        const r=await fetch("https://photon.komoot.io/api/?"+params);
+        const data=await r.json();
+        const features=(data.features||[]).filter(f=>f.properties&&(f.properties.street||f.properties.name));
+        setResults(features);
+        if(features.length>0){updatePos();setOpen(true);}
+      }catch{}
+      setSearching(false);
+    },400);
+  }
+
+  function select(feature){
+    const p=feature.properties;
+    const parts=[];
+    if(p.housenumber) parts.push(p.housenumber);
+    if(p.street||p.name) parts.push(p.street||p.name);
+    if(p.city||p.locality) parts.push(p.city||p.locality);
+    if(p.state) parts.push(p.state);
+    if(p.postcode) parts.push(p.postcode);
+    const addr=parts.join(", ")||p.name||"";
+    setQuery(addr);onChange(addr);setOpen(false);setResults([]);
+  }
+
+  return(
+    <div style={{marginBottom:13}}>
+      <FieldLabel>📍 {placeholder}</FieldLabel>
+      <div style={{position:"relative"}}>
+        <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)}
+          onFocus={()=>{if(results.length>0){updatePos();setOpen(true);}}}
+          placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
+      </div>
+      {open&&results.length>0&&(
+        <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
+          {results.map((f,i)=>{
+            const p=f.properties;
+            const main=(p.housenumber?p.housenumber+" ":"")+(p.street||p.name||"");
+            const sub=[p.city||p.locality,p.state,p.postcode].filter(Boolean).join(", ");
+            return(
+              <div key={i} onClick={()=>select(f)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
+                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
+              </div>
+            );
+          })}
+          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap</div>
+        </div>
+      )}
+      {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
+    </div>
+  );
 }
 
-// ✅ KEY FIX: dropRef added so outside-click handler won't close dropdown when clicking an option
 function SearchableSelect({options,value,onChange,placeholder}){
   const [query,setQuery]=useState(value||"");
   const [open,setOpen]=useState(false);
@@ -198,9 +288,9 @@ function SearchableSelect({options,value,onChange,placeholder}){
 
   useEffect(()=>{
     function outside(e){
-      const inInput=inputRef.current&&inputRef.current.contains(e.target);
-      const inDrop=dropRef.current&&dropRef.current.contains(e.target);
-      if(!inInput&&!inDrop) setOpen(false);
+      const inI=inputRef.current&&inputRef.current.contains(e.target);
+      const inD=dropRef.current&&dropRef.current.contains(e.target);
+      if(!inI&&!inD) setOpen(false);
     }
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
@@ -230,85 +320,6 @@ function SearchableSelect({options,value,onChange,placeholder}){
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,province}){
-  const [query,setQuery]=useState(value||"");
-  const [results,setResults]=useState([]);
-  const [open,setOpen]=useState(false);
-  const [searching,setSearching]=useState(false);
-  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
-  const inputRef=useRef();
-  const dropRef=useRef();
-  const timer=useRef();
-
-  useEffect(()=>{
-    function outside(e){
-      const inInput=inputRef.current&&inputRef.current.contains(e.target);
-      const inDrop=dropRef.current&&dropRef.current.contains(e.target);
-      if(!inInput&&!inDrop) setOpen(false);
-    }
-    document.addEventListener("mousedown",outside);
-    return()=>document.removeEventListener("mousedown",outside);
-  },[]);
-
-  function updatePos(){
-    if(inputRef.current){
-      const r=inputRef.current.getBoundingClientRect();
-      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
-    }
-  }
-
-  function handleInput(val){
-    setQuery(val);onChange(val);
-    clearTimeout(timer.current);
-    if(val.length<3){setResults([]);setOpen(false);return;}
-    updatePos();
-    const searchQ=province?val+", "+province:val;
-    timer.current=setTimeout(async()=>{
-      setSearching(true);
-      try{
-        const params={q:searchQ,format:"json",addressdetails:1,limit:6};
-        if(countryIso) params.countrycodes=countryIso;
-        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams(params),{headers:{"Accept-Language":"fr,en"}});
-        const data=await r.json();
-        setResults(data);
-        if(data.length>0){updatePos();setOpen(true);}
-      }catch{}
-      setSearching(false);
-    },400);
-  }
-
-  function select(item){
-    const addr=formatNominatimAddr(item);
-    setQuery(addr);onChange(addr);setOpen(false);setResults([]);
-  }
-
-  return(
-    <div style={{marginBottom:13}}>
-      <FieldLabel>📍 {placeholder}</FieldLabel>
-      <div style={{position:"relative"}}>
-        <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)} onFocus={()=>{if(results.length>0){updatePos();setOpen(true);}}} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
-        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
-      </div>
-      {open&&results.length>0&&(
-        <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
-          {results.map((r,i)=>{
-            const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
-            const sub=r.display_name.split(",").slice(1,4).join(",").trim();
-            return(
-              <div key={i} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
-                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
-                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
-              </div>
-            );
-          })}
-          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap · {countryIso?.toUpperCase()||"Global"}</div>
-        </div>
-      )}
-      {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
     </div>
   );
 }
