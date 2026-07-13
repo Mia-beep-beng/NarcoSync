@@ -192,7 +192,6 @@ function PlanBadge({plan}){
   return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
 }
 
-// ── ADMIN DASHBOARD ──────────────────────────────────────────
 function AdminDashboard({session,onLogout}){
   const [page,setPage]=useState("overview");
   const [profiles,setProfiles]=useState([]);
@@ -250,7 +249,6 @@ function AdminDashboard({session,onLogout}){
           <button onClick={onLogout} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.35)",fontSize:11,fontFamily:"inherit",textAlign:"left"}}>🔒 Sign out</button>
         </div>
       </div>
-
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
         {selected?(
           <PharmacyDetail profile={selected} onBack={()=>setSelected(null)}/>
@@ -274,9 +272,7 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
         <div style={{fontWeight:900,fontSize:22,color:C.navy}}>Admin Overview</div>
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>NarcoSync · All pharmacies</div>
       </div>
-      {loading?(
-        <div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>
-      ):(
+      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:(
         <>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
             {[
@@ -292,16 +288,12 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
               </div>
             ))}
           </div>
-
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
             <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
               <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>📋 Plans breakdown</div>
               {[{k:"basic",label:"Basic",price:49},{k:"pro",label:"Pro",price:99},{k:"enterprise",label:"Enterprise",price:249}].map(p=>(
                 <div key={p.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <PlanBadge plan={p.k}/>
-                    <span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies</span>
-                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies</span></div>
                   <span style={{fontSize:12,fontWeight:700,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
                 </div>
               ))}
@@ -316,7 +308,6 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
               ))}
             </div>
           </div>
-
           <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div style={{fontWeight:800,fontSize:14,color:C.navy}}>🕐 Recent signups</div>
@@ -363,7 +354,7 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
        profiles.length===0?<div style={{background:"#fff",borderRadius:14,padding:40,textAlign:"center",color:C.grey}}>No pharmacies found.</div>:(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {profiles.map((p,i)=>(
-            <div key={i} onClick={()=>onSelect(p)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent",transition:"border .15s"}}
+            <div key={i} onClick={()=>onSelect(p)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent"}}
               onMouseEnter={e=>e.currentTarget.style.border="1.5px solid "+C.sky}
               onMouseLeave={e=>e.currentTarget.style.border="1.5px solid transparent"}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
@@ -426,7 +417,7 @@ function PharmacyDetail({profile:p,onBack}){
         {rows.map(([label,key],i)=>(
           <div key={key} style={{display:"flex",padding:"10px 0",borderBottom:i<rows.length-1?"1px solid #F3F4F6":"none"}}>
             <div style={{width:180,fontSize:11,fontWeight:700,color:C.grey,flexShrink:0}}>{label}</div>
-            <div style={{fontSize:13,color:C.navy,fontWeight:p[key]?500:400}}>{key==="plan"?<PlanBadge plan={p[key]}/>:(p[key]||<span style={{color:"#D1D5DB"}}>—</span>)}</div>
+            <div style={{fontSize:13,color:C.navy}}>{key==="plan"?<PlanBadge plan={p[key]}/>:(p[key]||<span style={{color:"#D1D5DB"}}>—</span>)}</div>
           </div>
         ))}
       </div>
@@ -460,13 +451,13 @@ function AdminRevenue({profiles,mrr,planCounts,loading}){
                   <span style={{fontWeight:800,fontSize:13,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
                 </div>
                 <div style={{height:8,background:"#F3F4F6",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:mrr?((planCounts[p.k]*p.price)/mrr*100)+"%":"0%",background:p.col,borderRadius:4,transition:"width .5s"}}/>
+                  <div style={{height:"100%",width:mrr?((planCounts[p.k]*p.price)/mrr*100)+"%":"0%",background:p.col,borderRadius:4}}/>
                 </div>
               </div>
             ))}
           </div>
           <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:12,padding:"14px 18px",marginTop:20,fontSize:12,color:"#92400E"}}>
-            💳 These are estimates based on onboarding plan selection. Actual revenue depends on Stripe billing setup.
+            💳 Estimates based on onboarding plan selection. Actual revenue depends on Stripe billing setup.
           </div>
         </>
       )}
@@ -474,7 +465,6 @@ function AdminRevenue({profiles,mrr,planCounts,loading}){
   );
 }
 
-// ── SHARED UI ────────────────────────────────────────────────
 function FieldLabel({children,required}){
   return <label style={{fontSize:11,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4}}>{children}{required&&<span style={{color:"#D63031",marginLeft:2}}>*</span>}</label>;
 }
@@ -692,7 +682,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
   const [managerName,setManagerName]=useState("");const [plan,setPlan]=useState("");const [saving,setSaving]=useState(false);
-
   const lang=getLang(language);
   const t=(k)=>T[lang][k]||T.en[k]||k;
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
@@ -941,10 +930,7 @@ export default function App(){
 
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
-
-  // ✅ Admin bypass — mtrofin@icloud.com goes straight to admin panel
   if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
-
   if(loading) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.light}}>
       <div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>💊</div><div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div></div>
