@@ -250,9 +250,7 @@ function AdminDashboard({session,onLogout}){
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
-        {selected?(
-          <PharmacyDetail profile={selected} onBack={()=>setSelected(null)}/>
-        ):(
+        {selected?<PharmacyDetail profile={selected} onBack={()=>setSelected(null)}/>:(
           <>
             {page==="overview"&&<AdminOverview profiles={profiles} mrr={mrr} planCounts={planCounts} countries={countries} loading={loading} onViewAll={()=>setPage("pharmacies")}/>}
             {page==="pharmacies"&&<AdminPharmacies profiles={filtered} total={profiles.length} search={search} setSearch={setSearch} filterPlan={filterPlan} setFilterPlan={setFilterPlan} filterCountry={filterCountry} setFilterCountry={setFilterCountry} countries={countries} loading={loading} onSelect={setSelected}/>}
@@ -365,11 +363,7 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
                 <PlanBadge plan={p.plan}/>
               </div>
               <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                {[
-                  {icon:"📍",val:[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"},
-                  {icon:"👤",val:p.pharmacist_owner||"—"},
-                  {icon:"📞",val:p.pharmacy_phone||"—"},
-                ].map((item,j)=>(
+                {[{icon:"📍",val:[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"},{icon:"👤",val:p.pharmacist_owner||"—"},{icon:"📞",val:p.pharmacy_phone||"—"}].map((item,j)=>(
                   <div key={j} style={{fontSize:11,color:C.grey}}><span style={{marginRight:4}}>{item.icon}</span>{item.val}</div>
                 ))}
               </div>
@@ -388,15 +382,7 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
 }
 
 function PharmacyDetail({profile:p,onBack}){
-  const rows=[
-    ["Pharmacy","pharmacy_name"],["Email","email"],["Plan","plan"],
-    ["Country","country"],["Province","province"],["Address","pharmacy_address"],
-    ["Phone","pharmacy_phone"],["Pharmacy email","pharmacy_email"],
-    ["Permit #","permit_number"],["Pharmacist-owner","pharmacist_owner"],
-    ["Owner email","pharmacist_email"],["Manager","owner_name"],
-    ["Dispensing system","dispensing_system"],["Inventory system","inventory_system"],
-    ["Language","language"],
-  ];
+  const rows=[["Pharmacy","pharmacy_name"],["Email","email"],["Plan","plan"],["Country","country"],["Province","province"],["Address","pharmacy_address"],["Phone","pharmacy_phone"],["Pharmacy email","pharmacy_email"],["Permit #","permit_number"],["Pharmacist-owner","pharmacist_owner"],["Owner email","pharmacist_email"],["Manager","owner_name"],["Dispensing system","dispensing_system"],["Inventory system","inventory_system"],["Language","language"]];
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← Back</button>
@@ -426,7 +412,7 @@ function PharmacyDetail({profile:p,onBack}){
 }
 
 function AdminRevenue({profiles,mrr,planCounts,loading}){
-  const arr=[{k:"basic",label:"Basic",price:49,col:C.sky},{k:"pro",label:"Pro",price:99,col:C.green},{k:"enterprise",label:"Enterprise",price:249,col:C.orange}];
+  const arr=[{k:"basic",price:49,col:C.sky},{k:"pro",price:99,col:C.green},{k:"enterprise",price:249,col:C.orange}];
   const arr2=[{label:"Monthly (MRR)",val:"$"+mrr},{label:"Annual (ARR)",val:"$"+(mrr*12)},{label:"Avg per pharmacy",val:profiles.length?"$"+(mrr/profiles.length).toFixed(0):"—"}];
   return(
     <div style={{padding:"28px 32px"}}>
@@ -675,9 +661,7 @@ function AuthScreen({onAuth}){
 function OnboardingWizard({userEmail,onComplete,session}){
   const [step,setStep]=useState(1);
   const [language,setLanguage]=useState("");const [country,setCountry]=useState("Canada");const [province,setProvince]=useState("");
-  const [pharmacyName,setPharmacyName]=useState("");
-  const [dispensingSystem,setDispensingSystem]=useState("");
-  const [inventorySystem,setInventorySystem]=useState("");
+  const [pharmacyName,setPharmacyName]=useState("");const [dispensingSystem,setDispensingSystem]=useState("");const [inventorySystem,setInventorySystem]=useState("");
   const [pharmacyPhone,setPharmacyPhone]=useState("");const [pharmacyEmail,setPharmacyEmail]=useState("");
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
@@ -716,73 +700,67 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",marginBottom:32}}>
-          {step===1&&(
-            <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
-              <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
-              {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
-              {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
+          {step===1&&(<div>
+            <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
+            <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
+            {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
+            {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
+          </div>)}
+          {step===2&&(<div>
+            <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("locationSubtitle")}</div>
+            <div style={{marginBottom:14}}><FieldLabel>{t("country")}</FieldLabel><select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div style={{marginBottom:22}}>
+              <FieldLabel>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</FieldLabel>
+              {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inputStyle}/>)}
             </div>
-          )}
-          {step===2&&(
-            <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("locationSubtitle")}</div>
-              <div style={{marginBottom:14}}><FieldLabel>{t("country")}</FieldLabel><select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
-              <div style={{marginBottom:22}}>
-                <FieldLabel>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</FieldLabel>
-                {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inputStyle}/>)}
-              </div>
-              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
+            <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
+          </div>)}
+          {step===3&&(<div>
+            <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:2}}>{t("pharmacySubtitle")}</div>
+            <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
+            <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
+            <div style={{marginBottom:13}}>
+              <FieldLabel required>{t("pharmacyName")}</FieldLabel>
+              <SearchableSelect key={"chain-"+country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
+              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
             </div>
-          )}
-          {step===3&&(
-            <div>
-              <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:2}}>{t("pharmacySubtitle")}</div>
-              <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
-              <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-              <div style={{marginBottom:13}}>
-                <FieldLabel required>{t("pharmacyName")}</FieldLabel>
-                <SearchableSelect key={"chain-"+country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
-                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
-              </div>
-              <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-              <AddressAutocomplete key={"addr-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
-              <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode} required/>
-              <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
-              <SectionLabel>{t("softwareSection")}</SectionLabel>
-              <div style={{marginBottom:13}}>
-                <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
-                <SearchableSelect key={"disp-"+country} options={dispensingOptions} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("dispensingSystemPlaceholder")} required/>
-                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("dispensingSystemHint")}</div>
-              </div>
-              <div style={{marginBottom:13}}>
-                <FieldLabel required>{t("inventorySystem")}</FieldLabel>
-                <SearchableSelect key={"inv-"+country} options={inventoryOptions} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
-                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("inventorySystemHint")}</div>
-              </div>
-              <SectionLabel>{t("teamSection")}</SectionLabel>
-              <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
-              <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
-              <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
-              <SectionLabel>{t("planSection")} <span style={{color:C.red}}>*</span></SectionLabel>
-              {!plan&&<div style={{fontSize:11,color:C.red,marginBottom:8,fontWeight:600}}>{t("planRequired")}</div>}
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-                {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
-                  <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"12px 16px",borderRadius:12,border:"2px solid "+(plan===p.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:plan===p.v?"#EFF6FF":"#fff"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div><span style={{fontWeight:700,fontSize:13,color:plan===p.v?C.sky:C.navy}}>{t(p.lk)}</span><span style={{fontSize:11,color:C.grey,marginLeft:8}}>{t(p.dk)}</span></div>
-                      <span style={{fontWeight:800,fontSize:12,color:plan===p.v?C.sky:C.grey}}>{t(p.pk)}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>{t("stripeNote")}</div>
-              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!canLaunch||saving,saving?t("saving"):t("launch"),finish,true)}</div>
+            <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
+            <AddressAutocomplete key={"addr-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
+            <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode} required/>
+            <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
+            <SectionLabel>{t("softwareSection")}</SectionLabel>
+            <div style={{marginBottom:13}}>
+              <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
+              <SearchableSelect key={"disp-"+country} options={dispensingOptions} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("dispensingSystemPlaceholder")} required/>
+              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("dispensingSystemHint")}</div>
             </div>
-          )}
+            <div style={{marginBottom:13}}>
+              <FieldLabel required>{t("inventorySystem")}</FieldLabel>
+              <SearchableSelect key={"inv-"+country} options={inventoryOptions} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
+              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("inventorySystemHint")}</div>
+            </div>
+            <SectionLabel>{t("teamSection")}</SectionLabel>
+            <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
+            <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
+            <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
+            <SectionLabel>{t("planSection")} <span style={{color:C.red}}>*</span></SectionLabel>
+            {!plan&&<div style={{fontSize:11,color:C.red,marginBottom:8,fontWeight:600}}>{t("planRequired")}</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+              {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
+                <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"12px 16px",borderRadius:12,border:"2px solid "+(plan===p.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:plan===p.v?"#EFF6FF":"#fff"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div><span style={{fontWeight:700,fontSize:13,color:plan===p.v?C.sky:C.navy}}>{t(p.lk)}</span><span style={{fontSize:11,color:C.grey,marginLeft:8}}>{t(p.dk)}</span></div>
+                    <span style={{fontWeight:800,fontSize:12,color:plan===p.v?C.sky:C.grey}}>{t(p.pk)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>{t("stripeNote")}</div>
+            <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!canLaunch||saving,saving?t("saving"):t("launch"),finish,true)}</div>
+          </div>)}
         </div>
       </div>
     </div>
@@ -884,10 +862,7 @@ function RecoPage({onBack,t,profile}){
       )}
       {!done?(
         <div>
-          {[
-            {k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc")},
-            {k:"sales",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc")},
-          ].map(f=>(
+          {[{k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc")}].map(f=>(
             <div key={f.k} style={{background:"#fff",borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:C.border)}}>
               <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
@@ -914,7 +889,6 @@ export default function App(){
   const [session,setSession]=useState(SB.getSession());
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
-
   useEffect(()=>{
     if(session&&!profile&&session.user.email!==ADMIN_EMAIL){
       setLoading(true);
@@ -925,9 +899,7 @@ export default function App(){
         .catch(()=>setLoading(false));
     }
   },[session]);
-
   const logout=()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);};
-
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
   if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
