@@ -27,7 +27,7 @@ const T = {
     pharmacyPlaceholder:"Search chain or type custom name…",
     pharmacyNameHint:"e.g. Pharmaprix, Jean Coutu, Independent…",
     permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Start typing your address…",
-    addressHint:"Type 3+ characters — results filtered to your country",
+    addressHint:"Type street number + name — city added automatically",
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
@@ -70,7 +70,7 @@ const T = {
     pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
     pharmacyNameHint:"ex. Pharmaprix, Jean Coutu, Indépendant…",
     permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Commencez à taper votre adresse…",
-    addressHint:"Tapez 3+ caractères — résultats filtrés à votre pays",
+    addressHint:"Tapez numéro + rue — la ville est ajoutée automatiquement",
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
@@ -101,42 +101,12 @@ function getLang(language){
   return "en";
 }
 
-// ISO 3166-1 alpha-2 codes for Nominatim country filtering
 const COUNTRY_ISO={
-  "Canada":"ca","United States":"us","France":"fr","Algeria":"dz",
-  "Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be",
-  "Brazil":"br","Chile":"cl","China":"cn","Colombia":"co",
-  "Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg",
-  "Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu",
-  "India":"in","Indonesia":"id","Ireland":"ie","Israel":"il",
-  "Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke",
-  "Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx",
-  "Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng",
-  "Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph",
-  "Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru",
-  "Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg",
-  "South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se",
-  "Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr",
-  "Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb",
-  "Uruguay":"uy","Vietnam":"vn",
+  "Canada":"ca","United States":"us","France":"fr","Algeria":"dz","Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be","Brazil":"br","Chile":"cl","China":"cn","Colombia":"co","Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg","Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu","India":"in","Indonesia":"id","Ireland":"ie","Israel":"il","Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke","Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx","Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng","Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru","Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg","South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se","Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","Uruguay":"uy","Vietnam":"vn",
 };
 
 const COUNTRY_CODES={
-  "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44",
-  "Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41",
-  "Algeria":"+213","Morocco":"+212","Tunisia":"+216","Senegal":"+221",
-  "Lebanon":"+961","Israel":"+972","Jordan":"+962","Egypt":"+20",
-  "Nigeria":"+234","Kenya":"+254","South Africa":"+27","Mexico":"+52",
-  "Brazil":"+55","Argentina":"+54","Chile":"+56","Colombia":"+57","Peru":"+51",
-  "China":"+86","Japan":"+81","South Korea":"+82","India":"+91",
-  "Pakistan":"+92","Indonesia":"+62","Malaysia":"+60","Philippines":"+63",
-  "Thailand":"+66","Vietnam":"+84","Singapore":"+65","Netherlands":"+31",
-  "Spain":"+34","Italy":"+39","Portugal":"+351","Poland":"+48",
-  "Romania":"+40","Czech Republic":"+420","Hungary":"+36","Sweden":"+46",
-  "Norway":"+47","Denmark":"+45","Finland":"+358","Ireland":"+353",
-  "Austria":"+43","Luxembourg":"+352","Croatia":"+385","Ukraine":"+380",
-  "Russia":"+7","Turkey":"+90","Saudi Arabia":"+966","United Arab Emirates":"+971",
-  "Other":"+",
+  "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44","Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41","Algeria":"+213","Morocco":"+212","Tunisia":"+216","Senegal":"+221","Lebanon":"+961","Israel":"+972","Jordan":"+962","Egypt":"+20","Nigeria":"+234","Kenya":"+254","South Africa":"+27","Mexico":"+52","Brazil":"+55","Argentina":"+54","Chile":"+56","Colombia":"+57","Peru":"+51","China":"+86","Japan":"+81","South Korea":"+82","India":"+91","Pakistan":"+92","Indonesia":"+62","Malaysia":"+60","Philippines":"+63","Thailand":"+66","Vietnam":"+84","Singapore":"+65","Netherlands":"+31","Spain":"+34","Italy":"+39","Portugal":"+351","Poland":"+48","Romania":"+40","Czech Republic":"+420","Hungary":"+36","Sweden":"+46","Norway":"+47","Denmark":"+45","Finland":"+358","Ireland":"+353","Austria":"+43","Luxembourg":"+352","Croatia":"+385","Ukraine":"+380","Russia":"+7","Turkey":"+90","Saudi Arabia":"+966","United Arab Emirates":"+971","Other":"+",
 };
 
 const SB={
@@ -174,7 +144,6 @@ const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px 
 function FieldLabel({children}){
   return <label style={{fontSize:11,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4}}>{children}</label>;
 }
-
 function Field({label,value,onChange,placeholder,type="text",hint}){
   return(
     <div style={{marginBottom:13}}>
@@ -184,7 +153,6 @@ function Field({label,value,onChange,placeholder,type="text",hint}){
     </div>
   );
 }
-
 function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
 }
@@ -198,17 +166,12 @@ function formatLocalPhone(digits){
 
 function PhoneField({label,value,onChange,countryCode}){
   const code=countryCode||"+1";
-  function handle(val){
-    const digits=val.replace(/\D/g,"").slice(0,10);
-    onChange(formatLocalPhone(digits));
-  }
+  function handle(val){const digits=val.replace(/\D/g,"").slice(0,10);onChange(formatLocalPhone(digits));}
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel>{label}</FieldLabel>
       <div style={{display:"flex",gap:8}}>
-        <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>
-          {code}
-        </div>
+        <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>{code}</div>
         <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000" style={{...inputStyle,flex:1}}/>
       </div>
       <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Indicatif / Country code: {code}</div>
@@ -216,7 +179,6 @@ function PhoneField({label,value,onChange,countryCode}){
   );
 }
 
-// ── ADDRESS AUTOCOMPLETE — filtered by country ISO code ──
 function formatNominatimAddr(item){
   const a=item.address||{};
   const parts=[];
@@ -229,35 +191,47 @@ function formatNominatimAddr(item){
   return parts.join(", ")||item.display_name;
 }
 
-function AddressAutocomplete({value,onChange,placeholder,hint,countryIso}){
+// ── ADDRESS AUTOCOMPLETE with fixed-position dropdown (avoids overflow clipping) ──
+function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,province}){
   const [query,setQuery]=useState(value||"");
   const [results,setResults]=useState([]);
   const [open,setOpen]=useState(false);
   const [searching,setSearching]=useState(false);
-  const ref=useRef();
+  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
+  const inputRef=useRef();
   const timer=useRef();
 
   useEffect(()=>{
-    function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    function outside(e){
+      if(inputRef.current&&!inputRef.current.contains(e.target)) setOpen(false);
+    }
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
   },[]);
 
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
+    }
+  }
+
   function handleInput(val){
-    setQuery(val);
-    onChange(val);
+    setQuery(val);onChange(val);
     clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
+    updatePos();
+    // ✅ Append province to query for better local results
+    const searchQ=province?val+", "+province:val;
     timer.current=setTimeout(async()=>{
       setSearching(true);
       try{
-        const params={q:val,format:"json",addressdetails:1,limit:6};
-        // ✅ Filter by country ISO code so only local results appear
+        const params={q:searchQ,format:"json",addressdetails:1,limit:6};
         if(countryIso) params.countrycodes=countryIso;
-        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams(params),
-          {headers:{"Accept-Language":"fr,en"}});
+        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams(params),{headers:{"Accept-Language":"fr,en"}});
         const data=await r.json();
-        setResults(data);setOpen(data.length>0);
+        setResults(data);
+        if(data.length>0){updatePos();setOpen(true);}
       }catch{}
       setSearching(false);
     },400);
@@ -271,61 +245,59 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso}){
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel>📍 {placeholder}</FieldLabel>
-      <div ref={ref} style={{position:"relative"}}>
-        <div style={{position:"relative"}}>
-          <input value={query} onChange={e=>handleInput(e.target.value)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
-          {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
-        </div>
-        {open&&results.length>0&&(
-          <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:240,overflowY:"auto"}}>
-            {results.map((r,i)=>{
-              const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
-              const sub=r.display_name.split(",").slice(1,4).join(",").trim();
-              return(
-                <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
-                  <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
-                </div>
-              );
-            })}
-            <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap · {countryIso?.toUpperCase()||"Global"}</div>
-          </div>
-        )}
+      <div style={{position:"relative"}}>
+        <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)} onFocus={()=>{if(results.length>0){updatePos();setOpen(true);}}} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
       </div>
+      {/* ✅ Fixed position so it's never clipped by overflow:auto parents */}
+      {open&&results.length>0&&(
+        <div style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
+          {results.map((r,i)=>{
+            const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
+            const sub=r.display_name.split(",").slice(1,4).join(",").trim();
+            return(
+              <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
+                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
+              </div>
+            );
+          })}
+          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap · {countryIso?.toUpperCase()||"Global"}</div>
+        </div>
+      )}
       {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
     </div>
   );
 }
 
-// ── SEARCHABLE SELECT — cursor bug fixed by removing the useEffect ──
 function SearchableSelect({options,value,onChange,placeholder}){
   const [query,setQuery]=useState(value||"");
   const [open,setOpen]=useState(false);
-  const ref=useRef();
+  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
+  const inputRef=useRef();
 
   useEffect(()=>{
-    function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    function outside(e){if(inputRef.current&&!inputRef.current.contains(e.target))setOpen(false);}
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
   },[]);
 
-  // ✅ Removed the useEffect that was syncing query←value on every keystroke
-  // That was causing the cursor to jump to position 0 on every delete.
-  // query is now self-contained; parent resets via key prop when needed.
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
+    }
+  }
 
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
   return(
-    <div ref={ref} style={{position:"relative"}}>
-      <input
-        value={query}
-        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}}
-        onFocus={()=>setOpen(true)}
-        placeholder={placeholder}
-        style={inputStyle}
-        autoComplete="off"
-      />
+    <div>
+      <input ref={inputRef} value={query}
+        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);updatePos();setOpen(true);}}
+        onFocus={()=>{updatePos();setOpen(true);}}
+        placeholder={placeholder} style={inputStyle} autoComplete="off"/>
       {open&&filtered.length>0&&(
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
+        <div style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:200,overflowY:"auto"}}>
           {filtered.map(o=>(
             <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
           ))}
@@ -427,8 +399,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
 
-  // Reset pharmacy name when country changes (key prop handles SearchableSelect remount)
-  useEffect(()=>{setPharmacyName(""); setPharmacyAddress("");},[country]);
+  useEffect(()=>{setPharmacyName("");setPharmacyAddress("");},[country]);
 
   async function finish(){
     setSaving(true);
@@ -445,8 +416,8 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
 
   return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
-      <div style={{width:"100%",maxWidth:500}}>
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)",padding:"24px 16px",overflowY:"auto"}}>
+      <div style={{maxWidth:500,margin:"0 auto"}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}>💊</div>
           <div style={{color:"#fff",fontWeight:900,fontSize:24}}>{t("welcomeToNarco")}</div>
@@ -455,7 +426,8 @@ function OnboardingWizard({userEmail,onComplete,session}){
         <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
-        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
+        {/* ✅ No more maxHeight/overflowY on card — page scrolls naturally, dropdowns never clipped */}
+        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",marginBottom:32}}>
 
           {step===1&&(
             <div>
@@ -487,36 +459,21 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
-
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-
-              {/* key={country} forces remount when country changes, resetting the query */}
               <div style={{marginBottom:13}}>
                 <FieldLabel>{t("pharmacyName")}</FieldLabel>
                 <SearchableSelect key={country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
               </div>
-
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-
-              {/* countryIso passed so results are filtered to selected country */}
-              <AddressAutocomplete
-                key={country}
-                value={pharmacyAddress}
-                onChange={setPharmacyAddress}
-                placeholder={t("addressPlaceholder")}
-                hint={t("addressHint")}
-                countryIso={countryIso}
-              />
-
+              {/* ✅ Province passed so search auto-appends it for better Canadian results */}
+              <AddressAutocomplete key={country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province}/>
               <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode}/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
-
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")}/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
-
               <SectionLabel>{t("planSection")}</SectionLabel>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                 {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
