@@ -113,76 +113,24 @@ function getLang(l){
   return "en";
 }
 
-// ── DISPENSING SYSTEMS (generates Rx/sales records) ──────────
 const DISPENSING_SYSTEMS={
-  "Canada":[
-    "AssiStRx","RxPro","Gespar","Ubik","Reflex",
-    "Kroll","Datascan","Logibec","Purkinje","WinRx",
-    "Fillware","Nexxsys","Prodigy RX","Propel Rx",
-    "HealthWatch","Pharmaserv","Axys Pharmacy","MedAccess",
-    "Cerner Pharmacy","BD Pyxis (hospital)","Omnicell (hospital)",
-    "Other / Custom",
-  ],
-  "United States":[
-    "QS/1 (NRx)","PioneerRx","Liberty Software","Rx30","ScriptPro",
-    "PDX (Pharmacy Data Exchange)","Computer-Rx","BestRx",
-    "McKesson EnterpriseRx","Intercom Plus (Walgreens)",
-    "Epic Willow","Cerner Pharmacy","SuiteRx","FrameworkLTC",
-    "Winpharm","ARxIUM","Other / Custom",
-  ],
-  "France":[
-    "Winpharma","Lgpi (Pharmagest)","Pharmagest Smart Rx",
-    "Isipharm","Pharmonet","Caducée","Ordoclic","Cegi",
-    "Propharm","Delta Informatique","BPCO Pharma","Other / Custom",
-  ],
-  "United Kingdom":[
-    "Rx Web (Cegedim)","Pharmacy Manager (EMIS Health)",
-    "SystmOne Pharmacy","Vision Pharmacy","Titan Pharmacy System",
-    "Positive Solutions","IPS Dispense","Other / Custom",
-  ],
-  "Australia":[
-    "Fred Dispense (Fred IT)","Minfos","Corum Clear Dispense",
-    "Z Dispense","Simple Pharmacy System","Toniq","Other / Custom",
-  ],
+  "Canada":["AssiStRx","RxPro","Gespar","Ubik","Reflex","Kroll","Datascan","Logibec","Purkinje","WinRx","Fillware","Nexxsys","Prodigy RX","Propel Rx","HealthWatch","Pharmaserv","Axys Pharmacy","MedAccess","Cerner Pharmacy","BD Pyxis (hospital)","Omnicell (hospital)","Other / Custom"],
+  "United States":["QS/1 (NRx)","PioneerRx","Liberty Software","Rx30","ScriptPro","PDX","Computer-Rx","BestRx","McKesson EnterpriseRx","Intercom Plus","Epic Willow","Cerner Pharmacy","SuiteRx","FrameworkLTC","Winpharm","ARxIUM","Other / Custom"],
+  "France":["Winpharma","Lgpi (Pharmagest)","Pharmagest Smart Rx","Isipharm","Pharmonet","Caducée","Ordoclic","Cegi","Propharm","Delta Informatique","BPCO Pharma","Other / Custom"],
+  "United Kingdom":["Rx Web (Cegedim)","Pharmacy Manager (EMIS Health)","SystmOne Pharmacy","Vision Pharmacy","Titan Pharmacy System","Positive Solutions","IPS Dispense","Other / Custom"],
+  "Australia":["Fred Dispense (Fred IT)","Minfos","Corum Clear Dispense","Z Dispense","Simple Pharmacy System","Toniq","Other / Custom"],
   "Germany":["LAUER-FISCHER","IXOS","Pharmatechnik","ADG Apothekensoftware","Other / Custom"],
   "Switzerland":["Aeskulap","Other / Custom"],
   "Belgium":["Officine","Medimix","Other / Custom"],
 };
 const DEFAULT_DISPENSING=["Other / Custom"];
 
-// ── ORDERING / INVENTORY SYSTEMS (stock management) ──────────
 const INVENTORY_SYSTEMS={
-  "Canada":[
-    "Matrix (Pharmaprix / Shoppers)",
-    "PharmaClik (McKesson / Proxim / IDA)",
-    "Gespar",
-    "MMS (Medication Management Systems)",
-    "Logibec",
-    "Kroll Inventory",
-    "WinRx Inventory",
-    "Datascan",
-    "McKesson Connect",
-    "Cardinal Health",
-    "SAP (chains / hospital)",
-    "Other / Custom",
-  ],
-  "United States":[
-    "McKesson Connect","Cardinal Health","AmerisourceBergen",
-    "PioneerRx Inventory","QS/1 Inventory","ScriptPro Inventory",
-    "SAP","Other / Custom",
-  ],
-  "France":[
-    "Pharmagest Inventory","Winpharma Stock","CERP",
-    "OCP (Ophrys)","Alliance Healthcare","Other / Custom",
-  ],
-  "United Kingdom":[
-    "AAH Pharmaceuticals","Phoenix Medical","Accord Healthcare",
-    "EMIS Inventory","Rx Web Inventory","Other / Custom",
-  ],
-  "Australia":[
-    "Fred Office (Fred IT)","Minfos Inventory","LOTS",
-    "Pharmacy Alliance","API (Australian Pharmaceutical Industries)","Other / Custom",
-  ],
+  "Canada":["Matrix (Pharmaprix / Shoppers)","PharmaClik (McKesson / Proxim / IDA)","Gespar","MMS (Medication Management Systems)","Logibec","Kroll Inventory","WinRx Inventory","Datascan","McKesson Connect","Cardinal Health","SAP (chains / hospital)","Other / Custom"],
+  "United States":["McKesson Connect","Cardinal Health","AmerisourceBergen","PioneerRx Inventory","QS/1 Inventory","ScriptPro Inventory","SAP","Other / Custom"],
+  "France":["Pharmagest Inventory","Winpharma Stock","CERP","OCP (Ophrys)","Alliance Healthcare","Other / Custom"],
+  "United Kingdom":["AAH Pharmaceuticals","Phoenix Medical","Accord Healthcare","EMIS Inventory","Rx Web Inventory","Other / Custom"],
+  "Australia":["Fred Office (Fred IT)","Minfos Inventory","LOTS","Pharmacy Alliance","API (Australian Pharmaceutical Industries)","Other / Custom"],
   "Germany":["LAUER-FISCHER Warenwirtschaft","Noventi","Other / Custom"],
   "Switzerland":["Galexis","Voigt AG","Other / Custom"],
   "Belgium":["Multipharma Inventory","Alliance Healthcare Belgium","Other / Custom"],
@@ -282,7 +230,12 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}}
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+4,left:r.left,width:r.width});
+    }
+  }
   function handleInput(val){
     setQuery(val);onChange(val);clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
@@ -342,7 +295,12 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
     function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}}
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+4,left:r.left,width:r.width});
+    }
+  }
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,20);
   return(
     <div>
@@ -459,10 +417,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
 
-  useEffect(()=>{
-    setPharmacyName("");setPharmacyAddress("");
-    setDispensingSystem("");setInventorySystem("");
-  },[country]);
+  useEffect(()=>{setPharmacyName("");setPharmacyAddress("");setDispensingSystem("");setInventorySystem("");},[country]);
 
   const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&dispensingSystem.trim()&&inventorySystem.trim()&&plan;
 
@@ -493,7 +448,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",marginBottom:32}}>
-
           {step===1&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
@@ -506,7 +460,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
           )}
-
           {step===2&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
@@ -519,13 +472,11 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
             </div>
           )}
-
           {step===3&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:2}}>{t("pharmacySubtitle")}</div>
               <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
-
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
               <div style={{marginBottom:13}}>
                 <FieldLabel required>{t("pharmacyName")}</FieldLabel>
@@ -536,7 +487,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <AddressAutocomplete key={"addr-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
               <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode} required/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
-
               <SectionLabel>{t("softwareSection")}</SectionLabel>
               <div style={{marginBottom:13}}>
                 <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
@@ -548,12 +498,10 @@ function OnboardingWizard({userEmail,onComplete,session}){
                 <SearchableSelect key={"inv-"+country} options={inventoryOptions} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("inventorySystemHint")}</div>
               </div>
-
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
-
               <SectionLabel>{t("planSection")} <span style={{color:C.red}}>*</span></SectionLabel>
               {!plan&&<div style={{fontSize:11,color:C.red,marginBottom:8,fontWeight:600}}>{t("planRequired")}</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
