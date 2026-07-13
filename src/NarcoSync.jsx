@@ -20,13 +20,15 @@ const T = {
     selectProvince:"Select province…",selectState:"Select state…",enterRegion:"Enter your region or city",
     yourPharmacy:"Your Pharmacy",pharmacySubtitle:"Complete your pharmacy profile",
     pharmacyInfoSection:"📋 Pharmacy Info",teamSection:"👤 Team",planSection:"💳 Subscription Plan",
-    pharmacyName:"Pharmacy name",permitNumber:"Permit / License number",
+    pharmacyName:"Pharmacy chain name",permitNumber:"Permit / License number",
     pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
     pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
-    pharmacyPlaceholder:"Type to search or enter custom name…",
+    pharmacyPlaceholder:"Search chain or type custom name…",
+    pharmacyNameHint:"e.g. Pharmaprix, Jean Coutu, Independent…",
     permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Start typing your address…",
-    phonePlaceholder:"(514) 000-0000",emailPlaceholder:"info@pharmacy.com",
+    addressHint:"Type 3+ characters to search real addresses",
+    phonePlaceholder:"000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
@@ -61,13 +63,15 @@ const T = {
     selectProvince:"Sélectionner une province…",selectState:"Sélectionner un état…",enterRegion:"Entrez votre région ou ville",
     yourPharmacy:"Votre Pharmacie",pharmacySubtitle:"Complétez le profil de votre pharmacie",
     pharmacyInfoSection:"📋 Informations",teamSection:"👤 Équipe",planSection:"💳 Forfait",
-    pharmacyName:"Nom de la pharmacie",permitNumber:"Numéro de permis / licence",
+    pharmacyName:"Nom de la bannière / chaîne",permitNumber:"Numéro de permis / licence",
     pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
     pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
-    pharmacyPlaceholder:"Tapez pour chercher ou entrez un nom…",
+    pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
+    pharmacyNameHint:"ex. Pharmaprix, Jean Coutu, Indépendant…",
     permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Commencez à taper votre adresse…",
-    phonePlaceholder:"(514) 000-0000",emailPlaceholder:"info@pharmacie.com",
+    addressHint:"Tapez 3+ caractères pour chercher une vraie adresse",
+    phonePlaceholder:"000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
@@ -96,6 +100,25 @@ function getLang(language){
   if(language.startsWith("Français")||language.includes("Bilingual")||language.includes("Bilingue")) return "fr";
   return "en";
 }
+
+// Country phone codes
+const COUNTRY_CODES={
+  "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44",
+  "Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41",
+  "Algeria":"+213","Morocco":"+212","Tunisia":"+216","Senegal":"+221",
+  "Lebanon":"+961","Israel":"+972","Jordan":"+962","Egypt":"+20",
+  "Nigeria":"+234","Kenya":"+254","South Africa":"+27","Mexico":"+52",
+  "Brazil":"+55","Argentina":"+54","Chile":"+56","Colombia":"+57","Peru":"+51",
+  "China":"+86","Japan":"+81","South Korea":"+82","India":"+91",
+  "Pakistan":"+92","Indonesia":"+62","Malaysia":"+60","Philippines":"+63",
+  "Thailand":"+66","Vietnam":"+84","Singapore":"+65","Netherlands":"+31",
+  "Spain":"+34","Italy":"+39","Portugal":"+351","Poland":"+48",
+  "Romania":"+40","Czech Republic":"+420","Hungary":"+36","Sweden":"+46",
+  "Norway":"+47","Denmark":"+45","Finland":"+358","Ireland":"+353",
+  "Austria":"+43","Luxembourg":"+352","Croatia":"+385","Ukraine":"+380",
+  "Russia":"+7","Turkey":"+90","Saudi Arabia":"+966","United Arab Emirates":"+971",
+  "Other":"+",
+};
 
 const SB = {
   isConfigured:()=>{try{return !!(localStorage.getItem("ns_url")&&localStorage.getItem("ns_key"));}catch{return false;}},
@@ -133,11 +156,12 @@ function FieldLabel({children}){
   return <label style={{fontSize:11,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4}}>{children}</label>;
 }
 
-function Field({label,value,onChange,placeholder,type="text"}){
+function Field({label,value,onChange,placeholder,type="text",hint}){
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel>{label}</FieldLabel>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inputStyle}/>
+      {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
     </div>
   );
 }
@@ -146,27 +170,36 @@ function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
 }
 
-function formatPhone(digits){
+// Phone field with country code prefix
+function formatLocalPhone(digits){
   if(!digits) return "";
-  if(digits.length<=3) return "("+digits;
-  if(digits.length<=6) return "("+digits.slice(0,3)+") "+digits.slice(3);
-  if(digits.length<=10) return "("+digits.slice(0,3)+") "+digits.slice(3,6)+"-"+digits.slice(6);
-  return "+"+digits.slice(0,1)+" ("+digits.slice(1,4)+") "+digits.slice(4,7)+"-"+digits.slice(7,11);
+  if(digits.length<=3) return digits;
+  if(digits.length<=6) return digits.slice(0,3)+"-"+digits.slice(3);
+  return digits.slice(0,3)+"-"+digits.slice(3,6)+"-"+digits.slice(6,10);
 }
 
-function PhoneField({label,value,onChange,placeholder}){
+function PhoneField({label,value,onChange,countryCode}){
+  const code=countryCode||"+1";
+  // value stored as just local digits formatted
   function handle(val){
-    const digits=val.replace(/\D/g,"").slice(0,11);
-    onChange(formatPhone(digits));
+    const digits=val.replace(/\D/g,"").slice(0,10);
+    onChange(formatLocalPhone(digits));
   }
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel>{label}</FieldLabel>
-      <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder={placeholder} style={inputStyle}/>
+      <div style={{display:"flex",gap:8}}>
+        <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>
+          {code}
+        </div>
+        <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000" style={{...inputStyle,flex:1}}/>
+      </div>
+      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Country code: {code}</div>
     </div>
   );
 }
 
+// Address autocomplete with OpenStreetMap
 function formatNominatimAddr(item){
   const a=item.address||{};
   const parts=[];
@@ -179,7 +212,7 @@ function formatNominatimAddr(item){
   return parts.join(", ")||item.display_name;
 }
 
-function AddressAutocomplete({value,onChange,placeholder}){
+function AddressAutocomplete({value,onChange,placeholder,hint}){
   const [query,setQuery]=useState(value||"");
   const [results,setResults]=useState([]);
   const [open,setOpen]=useState(false);
@@ -194,7 +227,7 @@ function AddressAutocomplete({value,onChange,placeholder}){
   function handleInput(val){
     setQuery(val);onChange(val);
     clearTimeout(timer.current);
-    if(val.length<4){setResults([]);setOpen(false);return;}
+    if(val.length<3){setResults([]);setOpen(false);return;}
     timer.current=setTimeout(async()=>{
       setSearching(true);
       try{
@@ -203,33 +236,37 @@ function AddressAutocomplete({value,onChange,placeholder}){
         setResults(data);setOpen(data.length>0);
       }catch{}
       setSearching(false);
-    },450);
+    },400);
   }
   function select(item){
     const addr=formatNominatimAddr(item);
     setQuery(addr);onChange(addr);setOpen(false);setResults([]);
   }
   return(
-    <div ref={ref} style={{position:"relative"}}>
-      <div style={{position:"relative"}}>
-        <input value={query} onChange={e=>handleInput(e.target.value)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
-        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
-      </div>
-      {open&&results.length>0&&(
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:240,overflowY:"auto"}}>
-          {results.map((r,i)=>{
-            const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
-            const sub=r.display_name.split(",").slice(1,4).join(",").trim();
-            return(
-              <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
-                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
-                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
-              </div>
-            );
-          })}
-          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 Powered by OpenStreetMap</div>
+    <div style={{marginBottom:13}}>
+      <FieldLabel>📍 {placeholder.includes("adresse")||placeholder.includes("address")?"":""}{placeholder.replace("Commencez","Commencez").replace("Start","Start")}</FieldLabel>
+      <div ref={ref} style={{position:"relative"}}>
+        <div style={{position:"relative"}}>
+          <input value={query} onChange={e=>handleInput(e.target.value)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+          {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
         </div>
-      )}
+        {open&&results.length>0&&(
+          <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:240,overflowY:"auto"}}>
+            {results.map((r,i)=>{
+              const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
+              const sub=r.display_name.split(",").slice(1,4).join(",").trim();
+              return(
+                <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
+                  <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
+                </div>
+              );
+            })}
+            <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap</div>
+          </div>
+        )}
+      </div>
+      {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
     </div>
   );
 }
@@ -293,8 +330,7 @@ function AuthScreen({onAuth}){
   const [mode,setMode]=useState("login");const [email,setEmail]=useState("");const [pwd,setPwd]=useState("");const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
   const t=(k)=>T.en[k];
   async function submit(){
-    if(!email||!pwd){setErr(t("fillAllFields"));return;}
-    setBusy(true);setErr("");
+    if(!email||!pwd){setErr(t("fillAllFields"));return;}setBusy(true);setErr("");
     const {url,key}=SB.get();
     const ep=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
     try{
@@ -345,21 +381,27 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
   const [managerName,setManagerName]=useState("");const [plan,setPlan]=useState("");const [saving,setSaving]=useState(false);
+
   const lang=getLang(language);
   const t=(k)=>T[lang][k]||T.en[k]||k;
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
+  const countryCode=COUNTRY_CODES[country]||"+1";
   useEffect(()=>{setPharmacyName("");},[country]);
+
   async function finish(){
     setSaving(true);
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:pharmacyPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
+    const fullPhone=pharmacyPhone?countryCode+" "+pharmacyPhone:""
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     onComplete(profile);setSaving(false);
   }
+
   const pct=(step/3)*100;
   const sel={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
+
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
       <div style={{width:"100%",maxWidth:500}}>
@@ -372,6 +414,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
+
           {step===1&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
@@ -381,6 +424,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
           )}
+
           {step===2&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
@@ -393,20 +437,42 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
             </div>
           )}
+
           {step===3&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
+
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-              <div style={{marginBottom:13}}><FieldLabel>{t("pharmacyName")} — {country}</FieldLabel><SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/></div>
+              <div style={{marginBottom:13}}>
+                <FieldLabel>{t("pharmacyName")}</FieldLabel>
+                <SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
+                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
+              </div>
+
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-              <div style={{marginBottom:13}}><FieldLabel>{t("pharmacyAddress")}</FieldLabel><AddressAutocomplete value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")}/></div>
-              <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} placeholder={t("phonePlaceholder")}/>
+
+              <AddressAutocomplete
+                value={pharmacyAddress}
+                onChange={setPharmacyAddress}
+                placeholder={t("addressPlaceholder")}
+                hint={t("addressHint")}
+              />
+
+              <PhoneField
+                label={t("pharmacyPhone")}
+                value={pharmacyPhone}
+                onChange={setPharmacyPhone}
+                countryCode={countryCode}
+              />
+
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
+
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")}/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
+
               <SectionLabel>{t("planSection")}</SectionLabel>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                 {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
