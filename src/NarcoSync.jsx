@@ -95,16 +95,15 @@ const T = {
   }
 };
 
-function getLang(language){
-  if(!language) return "en";
-  if(language.startsWith("Français")||language.includes("Bilingual")||language.includes("Bilingue")) return "fr";
+function getLang(l){
+  if(!l) return "en";
+  if(l.startsWith("Français")||l.includes("Bilingual")||l.includes("Bilingue")) return "fr";
   return "en";
 }
 
 const COUNTRY_ISO={
   "Canada":"ca","United States":"us","France":"fr","Algeria":"dz","Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be","Brazil":"br","Chile":"cl","China":"cn","Colombia":"co","Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg","Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu","India":"in","Indonesia":"id","Ireland":"ie","Israel":"il","Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke","Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx","Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng","Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru","Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg","South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se","Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","Uruguay":"uy","Vietnam":"vn",
 };
-
 const COUNTRY_CODES={
   "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44","Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41","Algeria":"+213","Morocco":"+212","Tunisia":"+216","Senegal":"+221","Lebanon":"+961","Israel":"+972","Jordan":"+962","Egypt":"+20","Nigeria":"+234","Kenya":"+254","South Africa":"+27","Mexico":"+52","Brazil":"+55","Argentina":"+54","Chile":"+56","Colombia":"+57","Peru":"+51","China":"+86","Japan":"+81","South Korea":"+82","India":"+91","Pakistan":"+92","Indonesia":"+62","Malaysia":"+60","Philippines":"+63","Thailand":"+66","Vietnam":"+84","Singapore":"+65","Netherlands":"+31","Spain":"+34","Italy":"+39","Portugal":"+351","Poland":"+48","Romania":"+40","Czech Republic":"+420","Hungary":"+36","Sweden":"+46","Norway":"+47","Denmark":"+45","Finland":"+358","Ireland":"+353","Austria":"+43","Luxembourg":"+352","Croatia":"+385","Ukraine":"+380","Russia":"+7","Turkey":"+90","Saudi Arabia":"+966","United Arab Emirates":"+971","Other":"+",
 };
@@ -156,14 +155,12 @@ function Field({label,value,onChange,placeholder,type="text",hint}){
 function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
 }
-
 function formatLocalPhone(digits){
   if(!digits) return "";
   if(digits.length<=3) return digits;
   if(digits.length<=6) return digits.slice(0,3)+"-"+digits.slice(3);
   return digits.slice(0,3)+"-"+digits.slice(3,6)+"-"+digits.slice(6,10);
 }
-
 function PhoneField({label,value,onChange,countryCode}){
   const code=countryCode||"+1";
   function handle(val){const digits=val.replace(/\D/g,"").slice(0,10);onChange(formatLocalPhone(digits));}
@@ -191,7 +188,52 @@ function formatNominatimAddr(item){
   return parts.join(", ")||item.display_name;
 }
 
-// ── ADDRESS AUTOCOMPLETE with fixed-position dropdown (avoids overflow clipping) ──
+// ✅ KEY FIX: dropRef added so outside-click handler won't close dropdown when clicking an option
+function SearchableSelect({options,value,onChange,placeholder}){
+  const [query,setQuery]=useState(value||"");
+  const [open,setOpen]=useState(false);
+  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
+  const inputRef=useRef();
+  const dropRef=useRef();
+
+  useEffect(()=>{
+    function outside(e){
+      const inInput=inputRef.current&&inputRef.current.contains(e.target);
+      const inDrop=dropRef.current&&dropRef.current.contains(e.target);
+      if(!inInput&&!inDrop) setOpen(false);
+    }
+    document.addEventListener("mousedown",outside);
+    return()=>document.removeEventListener("mousedown",outside);
+  },[]);
+
+  function updatePos(){
+    if(inputRef.current){
+      const r=inputRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
+    }
+  }
+
+  const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
+  return(
+    <div>
+      <input ref={inputRef} value={query}
+        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);updatePos();setOpen(true);}}
+        onFocus={()=>{updatePos();setOpen(true);}}
+        placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+      {open&&filtered.length>0&&(
+        <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:220,overflowY:"auto"}}>
+          {filtered.map(o=>(
+            <div key={o} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}}
+              style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>
+              {o}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,province}){
   const [query,setQuery]=useState(value||"");
   const [results,setResults]=useState([]);
@@ -199,11 +241,14 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
   const [searching,setSearching]=useState(false);
   const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
   const inputRef=useRef();
+  const dropRef=useRef();
   const timer=useRef();
 
   useEffect(()=>{
     function outside(e){
-      if(inputRef.current&&!inputRef.current.contains(e.target)) setOpen(false);
+      const inInput=inputRef.current&&inputRef.current.contains(e.target);
+      const inDrop=dropRef.current&&dropRef.current.contains(e.target);
+      if(!inInput&&!inDrop) setOpen(false);
     }
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
@@ -221,7 +266,6 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
     updatePos();
-    // ✅ Append province to query for better local results
     const searchQ=province?val+", "+province:val;
     timer.current=setTimeout(async()=>{
       setSearching(true);
@@ -249,14 +293,13 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
         <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)} onFocus={()=>{if(results.length>0){updatePos();setOpen(true);}}} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
         {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
       </div>
-      {/* ✅ Fixed position so it's never clipped by overflow:auto parents */}
       {open&&results.length>0&&(
-        <div style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
+        <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
           {results.map((r,i)=>{
             const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
             const sub=r.display_name.split(",").slice(1,4).join(",").trim();
             return(
-              <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+              <div key={i} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
                 <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
                 <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
               </div>
@@ -266,43 +309,6 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
         </div>
       )}
       {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
-    </div>
-  );
-}
-
-function SearchableSelect({options,value,onChange,placeholder}){
-  const [query,setQuery]=useState(value||"");
-  const [open,setOpen]=useState(false);
-  const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
-  const inputRef=useRef();
-
-  useEffect(()=>{
-    function outside(e){if(inputRef.current&&!inputRef.current.contains(e.target))setOpen(false);}
-    document.addEventListener("mousedown",outside);
-    return()=>document.removeEventListener("mousedown",outside);
-  },[]);
-
-  function updatePos(){
-    if(inputRef.current){
-      const r=inputRef.current.getBoundingClientRect();
-      setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});
-    }
-  }
-
-  const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
-  return(
-    <div>
-      <input ref={inputRef} value={query}
-        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);updatePos();setOpen(true);}}
-        onFocus={()=>{updatePos();setOpen(true);}}
-        placeholder={placeholder} style={inputStyle} autoComplete="off"/>
-      {open&&filtered.length>0&&(
-        <div style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:200,overflowY:"auto"}}>
-          {filtered.map(o=>(
-            <div key={o} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -398,7 +404,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
-
   useEffect(()=>{setPharmacyName("");setPharmacyAddress("");},[country]);
 
   async function finish(){
@@ -426,7 +431,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
         <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
-        {/* ✅ No more maxHeight/overflowY on card — page scrolls naturally, dropdowns never clipped */}
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",marginBottom:32}}>
 
           {step===1&&(
@@ -466,7 +470,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
               </div>
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-              {/* ✅ Province passed so search auto-appends it for better Canadian results */}
               <AddressAutocomplete key={country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province}/>
               <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode}/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
