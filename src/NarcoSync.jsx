@@ -20,15 +20,15 @@ const T = {
     selectProvince:"Select province…",selectState:"Select state…",enterRegion:"Enter your region or city",
     yourPharmacy:"Your Pharmacy",pharmacySubtitle:"Complete your pharmacy profile",
     pharmacyInfoSection:"📋 Pharmacy Info",teamSection:"👤 Team",planSection:"💳 Subscription Plan",
-    pharmacyName:"Pharmacy chain name",permitNumber:"Permit / License number",
+    pharmacyName:"Pharmacy chain / banner",permitNumber:"Permit / License number",
     pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
     pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
     pharmacyPlaceholder:"Search chain or type custom name…",
     pharmacyNameHint:"e.g. Pharmaprix, Jean Coutu, Independent…",
     permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Start typing your address…",
-    addressHint:"Type 3+ characters to search real addresses",
-    phonePlaceholder:"000-0000",emailPlaceholder:"info@pharmacy.com",
+    addressHint:"Type 3+ characters — results filtered to your country",
+    phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
@@ -63,15 +63,15 @@ const T = {
     selectProvince:"Sélectionner une province…",selectState:"Sélectionner un état…",enterRegion:"Entrez votre région ou ville",
     yourPharmacy:"Votre Pharmacie",pharmacySubtitle:"Complétez le profil de votre pharmacie",
     pharmacyInfoSection:"📋 Informations",teamSection:"👤 Équipe",planSection:"💳 Forfait",
-    pharmacyName:"Nom de la bannière / chaîne",permitNumber:"Numéro de permis / licence",
+    pharmacyName:"Bannière / chaîne pharmacie",permitNumber:"Numéro de permis / licence",
     pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
     pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
     pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
     pharmacyNameHint:"ex. Pharmaprix, Jean Coutu, Indépendant…",
     permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Commencez à taper votre adresse…",
-    addressHint:"Tapez 3+ caractères pour chercher une vraie adresse",
-    phonePlaceholder:"000-0000",emailPlaceholder:"info@pharmacie.com",
+    addressHint:"Tapez 3+ caractères — résultats filtrés à votre pays",
+    phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
@@ -101,7 +101,26 @@ function getLang(language){
   return "en";
 }
 
-// Country phone codes
+// ISO 3166-1 alpha-2 codes for Nominatim country filtering
+const COUNTRY_ISO={
+  "Canada":"ca","United States":"us","France":"fr","Algeria":"dz",
+  "Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be",
+  "Brazil":"br","Chile":"cl","China":"cn","Colombia":"co",
+  "Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg",
+  "Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu",
+  "India":"in","Indonesia":"id","Ireland":"ie","Israel":"il",
+  "Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke",
+  "Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx",
+  "Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng",
+  "Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph",
+  "Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru",
+  "Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg",
+  "South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se",
+  "Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr",
+  "Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb",
+  "Uruguay":"uy","Vietnam":"vn",
+};
+
 const COUNTRY_CODES={
   "Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44",
   "Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41",
@@ -120,7 +139,7 @@ const COUNTRY_CODES={
   "Other":"+",
 };
 
-const SB = {
+const SB={
   isConfigured:()=>{try{return !!(localStorage.getItem("ns_url")&&localStorage.getItem("ns_key"));}catch{return false;}},
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
   get:()=>{try{return{url:localStorage.getItem("ns_url")||"",key:localStorage.getItem("ns_key")||""};}catch{return{url:"",key:""};}},
@@ -170,7 +189,6 @@ function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
 }
 
-// Phone field with country code prefix
 function formatLocalPhone(digits){
   if(!digits) return "";
   if(digits.length<=3) return digits;
@@ -180,7 +198,6 @@ function formatLocalPhone(digits){
 
 function PhoneField({label,value,onChange,countryCode}){
   const code=countryCode||"+1";
-  // value stored as just local digits formatted
   function handle(val){
     const digits=val.replace(/\D/g,"").slice(0,10);
     onChange(formatLocalPhone(digits));
@@ -194,12 +211,12 @@ function PhoneField({label,value,onChange,countryCode}){
         </div>
         <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000" style={{...inputStyle,flex:1}}/>
       </div>
-      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Country code: {code}</div>
+      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Indicatif / Country code: {code}</div>
     </div>
   );
 }
 
-// Address autocomplete with OpenStreetMap
+// ── ADDRESS AUTOCOMPLETE — filtered by country ISO code ──
 function formatNominatimAddr(item){
   const a=item.address||{};
   const parts=[];
@@ -212,39 +229,48 @@ function formatNominatimAddr(item){
   return parts.join(", ")||item.display_name;
 }
 
-function AddressAutocomplete({value,onChange,placeholder,hint}){
+function AddressAutocomplete({value,onChange,placeholder,hint,countryIso}){
   const [query,setQuery]=useState(value||"");
   const [results,setResults]=useState([]);
   const [open,setOpen]=useState(false);
   const [searching,setSearching]=useState(false);
   const ref=useRef();
   const timer=useRef();
+
   useEffect(()=>{
     function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
   },[]);
+
   function handleInput(val){
-    setQuery(val);onChange(val);
+    setQuery(val);
+    onChange(val);
     clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
     timer.current=setTimeout(async()=>{
       setSearching(true);
       try{
-        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams({q:val,format:"json",addressdetails:1,limit:6}),{headers:{"Accept-Language":"fr,en"}});
+        const params={q:val,format:"json",addressdetails:1,limit:6};
+        // ✅ Filter by country ISO code so only local results appear
+        if(countryIso) params.countrycodes=countryIso;
+        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams(params),
+          {headers:{"Accept-Language":"fr,en"}});
         const data=await r.json();
         setResults(data);setOpen(data.length>0);
       }catch{}
       setSearching(false);
     },400);
   }
+
   function select(item){
     const addr=formatNominatimAddr(item);
     setQuery(addr);onChange(addr);setOpen(false);setResults([]);
   }
+
   return(
     <div style={{marginBottom:13}}>
-      <FieldLabel>📍 {placeholder.includes("adresse")||placeholder.includes("address")?"":""}{placeholder.replace("Commencez","Commencez").replace("Start","Start")}</FieldLabel>
+      <FieldLabel>📍 {placeholder}</FieldLabel>
       <div ref={ref} style={{position:"relative"}}>
         <div style={{position:"relative"}}>
           <input value={query} onChange={e=>handleInput(e.target.value)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
@@ -262,7 +288,7 @@ function AddressAutocomplete({value,onChange,placeholder,hint}){
                 </div>
               );
             })}
-            <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap</div>
+            <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap · {countryIso?.toUpperCase()||"Global"}</div>
           </div>
         )}
       </div>
@@ -271,20 +297,33 @@ function AddressAutocomplete({value,onChange,placeholder,hint}){
   );
 }
 
+// ── SEARCHABLE SELECT — cursor bug fixed by removing the useEffect ──
 function SearchableSelect({options,value,onChange,placeholder}){
   const [query,setQuery]=useState(value||"");
   const [open,setOpen]=useState(false);
   const ref=useRef();
+
   useEffect(()=>{
     function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
     document.addEventListener("mousedown",outside);
     return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  useEffect(()=>{setQuery(value||"");},[value]);
+
+  // ✅ Removed the useEffect that was syncing query←value on every keystroke
+  // That was causing the cursor to jump to position 0 on every delete.
+  // query is now self-contained; parent resets via key prop when needed.
+
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
   return(
     <div ref={ref} style={{position:"relative"}}>
-      <input value={query} onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+      <input
+        value={query}
+        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);setOpen(true);}}
+        onFocus={()=>setOpen(true)}
+        placeholder={placeholder}
+        style={inputStyle}
+        autoComplete="off"
+      />
       {open&&filtered.length>0&&(
         <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:200,overflowY:"auto"}}>
           {filtered.map(o=>(
@@ -386,11 +425,14 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const t=(k)=>T[lang][k]||T.en[k]||k;
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
   const countryCode=COUNTRY_CODES[country]||"+1";
-  useEffect(()=>{setPharmacyName("");},[country]);
+  const countryIso=COUNTRY_ISO[country]||"";
+
+  // Reset pharmacy name when country changes (key prop handles SearchableSelect remount)
+  useEffect(()=>{setPharmacyName(""); setPharmacyAddress("");},[country]);
 
   async function finish(){
     setSaving(true);
-    const fullPhone=pharmacyPhone?countryCode+" "+pharmacyPhone:""
+    const fullPhone=pharmacyPhone?countryCode+" "+pharmacyPhone:"";
     const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
@@ -419,7 +461,10 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
-              <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
+              <div style={{marginBottom:16}}>
+                <FieldLabel>{t("searchLanguage")}</FieldLabel>
+                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/>
+              </div>
               {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
@@ -444,28 +489,27 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
 
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
+
+              {/* key={country} forces remount when country changes, resetting the query */}
               <div style={{marginBottom:13}}>
                 <FieldLabel>{t("pharmacyName")}</FieldLabel>
-                <SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
+                <SearchableSelect key={country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
               </div>
 
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
 
+              {/* countryIso passed so results are filtered to selected country */}
               <AddressAutocomplete
+                key={country}
                 value={pharmacyAddress}
                 onChange={setPharmacyAddress}
                 placeholder={t("addressPlaceholder")}
                 hint={t("addressHint")}
+                countryIso={countryIso}
               />
 
-              <PhoneField
-                label={t("pharmacyPhone")}
-                value={pharmacyPhone}
-                onChange={setPharmacyPhone}
-                countryCode={countryCode}
-              />
-
+              <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode}/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
 
               <SectionLabel>{t("teamSection")}</SectionLabel>
