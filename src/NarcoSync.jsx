@@ -20,9 +20,11 @@ const T = {
     selectProvince:"Select province…",selectState:"Select state…",enterRegion:"Enter your region or city",
     yourPharmacy:"Your Pharmacy",pharmacySubtitle:"Complete your pharmacy profile",
     pharmacyInfoSection:"📋 Pharmacy Info",teamSection:"👤 Team",planSection:"💳 Subscription Plan",
-    pharmacyName:"Pharmacy chain / banner *",permitNumber:"Permit / License number",
-    pharmacyAddress:"Pharmacy address *",pharmacyPhone:"Pharmacy phone *",pharmacyEmail:"Pharmacy email",
-    pharmacistOwner:"Pharmacist-owner name *",pharmacistEmail:"Pharmacist-owner email",
+    pharmacyName:"Pharmacy chain / banner",permitNumber:"Permit / License number",
+    pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
+    pharmacySystem:"Dispensing software system",pharmacySystemHint:"Your pharmacy management system — used to parse reconciliation files",
+    pharmacySystemPlaceholder:"Search your software…",
+    pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
     pharmacyPlaceholder:"Search chain or type custom name…",
     pharmacyNameHint:"e.g. Pharmaprix, Jean Coutu, Independent…",
@@ -31,18 +33,17 @@ const T = {
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
-    requiredNote:"* Required fields — must be completed before launching.",
-    planRequired:"⚠️ Please select a plan to continue.",
+    requiredNote:"* Required fields",planRequired:"⚠️ Please select a plan to continue.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
     dashboard:"Dashboard",reconciliation:"Reconciliation",history:"History",
     clinical:"Clinical",plans:"Plans",signOut:"🔒 Sign out",loggedInAs:"LOGGED IN AS",
     welcomeMsg:"Welcome to NarcoSync 👋",liveMsg:"🎉 NarcoSync is live!",
-    liveSubMsg:"Connected to Supabase · Ready for reconciliation",
-    lastCycle:"Last cycle",molecules:"Molecules",discrepancies:"Discrepancies",
+    liveSubMsg:"Connected to Supabase · Ready for your first reconciliation",
+    emptyState:"No cycles yet",emptyStateSub:"Complete your first reconciliation to see stats here.",
     newReco:"⚡ + New Reconciliation",newRecoTitle:"⚡ New Reconciliation",
     newRecoSub:"Upload your inventory and sales files · Any format",
     inventoryLabel:"📦 Inventory",inventoryDesc:"Matrix/MMS export · Excel · CSV · Scan",
-    salesLabel:"💊 Sales / Dispensing",salesDesc:"AssiStRx CSV · Any dispensing system",
+    salesLabel:"💊 Sales / Dispensing",salesDesc:"AssiStRx CSV · RxPro · Kroll · Any system",
     reconcileNow:"⚡ Reconcile now →",recoComplete:"Reconciliation complete!",
     recoCompleteSub:"NarcoSync is live and connected to Supabase.",newRecoBtn:"New reconciliation",
     historyDesc:"Your past reconciliation cycles will appear here.",
@@ -65,9 +66,11 @@ const T = {
     selectProvince:"Sélectionner une province…",selectState:"Sélectionner un état…",enterRegion:"Entrez votre région ou ville",
     yourPharmacy:"Votre Pharmacie",pharmacySubtitle:"Complétez le profil de votre pharmacie",
     pharmacyInfoSection:"📋 Informations",teamSection:"👤 Équipe",planSection:"💳 Forfait",
-    pharmacyName:"Bannière / chaîne pharmacie *",permitNumber:"Numéro de permis / licence",
-    pharmacyAddress:"Adresse de la pharmacie *",pharmacyPhone:"Téléphone *",pharmacyEmail:"Courriel de la pharmacie",
-    pharmacistOwner:"Nom du pharmacien-propriétaire *",pharmacistEmail:"Courriel du pharmacien-propriétaire",
+    pharmacyName:"Bannière / chaîne pharmacie",permitNumber:"Numéro de permis / licence",
+    pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
+    pharmacySystem:"Logiciel de dispensation",pharmacySystemHint:"Votre système de gestion — utilisé pour analyser les fichiers de réconciliation",
+    pharmacySystemPlaceholder:"Chercher votre logiciel…",
+    pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
     pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
     pharmacyNameHint:"ex. Pharmaprix, Jean Coutu, Indépendant…",
@@ -76,18 +79,17 @@ const T = {
     phonePlaceholder:"514-000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
-    requiredNote:"* Champs obligatoires — à compléter avant de lancer.",
-    planRequired:"⚠️ Veuillez sélectionner un forfait pour continuer.",
+    requiredNote:"* Champs obligatoires",planRequired:"⚠️ Veuillez sélectionner un forfait pour continuer.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
     dashboard:"Tableau de bord",reconciliation:"Réconciliation",history:"Historique",
     clinical:"Clinique",plans:"Forfaits",signOut:"🔒 Se déconnecter",loggedInAs:"CONNECTÉ EN TANT QUE",
     welcomeMsg:"Bienvenue sur NarcoSync 👋",liveMsg:"🎉 NarcoSync est en ligne!",
-    liveSubMsg:"Connecté à Supabase · Prêt pour la réconciliation",
-    lastCycle:"Dernier cycle",molecules:"Molécules",discrepancies:"Écarts",
+    liveSubMsg:"Connecté à Supabase · Prêt pour votre première réconciliation",
+    emptyState:"Aucun cycle pour l'instant",emptyStateSub:"Complétez votre première réconciliation pour voir les statistiques ici.",
     newReco:"⚡ + Nouvelle réconciliation",newRecoTitle:"⚡ Nouvelle réconciliation",
     newRecoSub:"Téléversez vos fichiers d'inventaire et de ventes · Tout format",
     inventoryLabel:"📦 Inventaire",inventoryDesc:"Export Matrix/MMS · Excel · CSV · Scan",
-    salesLabel:"💊 Ventes / Dispensation",salesDesc:"CSV AssiStRx · Tout système de dispensation",
+    salesLabel:"💊 Ventes / Dispensation",salesDesc:"CSV AssiStRx · RxPro · Kroll · Tout système",
     reconcileNow:"⚡ Réconcilier maintenant →",recoComplete:"Réconciliation complète!",
     recoCompleteSub:"NarcoSync est en ligne et connecté à Supabase.",newRecoBtn:"Nouvelle réconciliation",
     historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
@@ -104,6 +106,28 @@ function getLang(l){
   if(l.startsWith("Français")||l.includes("Bilingual")||l.includes("Bilingue")) return "fr";
   return "en";
 }
+
+const PHARMACY_SYSTEMS=[
+  "AssiStRx (Pharmaprix / Shoppers)",
+  "RxPro (Jean Coutu)",
+  "Kroll",
+  "PharmaClik",
+  "WinRx",
+  "Fillware",
+  "Logibec",
+  "HealthWatch",
+  "Propel Rx",
+  "McKesson Pharmacy Systems",
+  "Rx30",
+  "QS/1 (NRx)",
+  "PioneerRx",
+  "Liberty Software",
+  "Datascan",
+  "ScriptPro",
+  "Pharmaserv",
+  "Nexus Pharmacy Systems",
+  "Other / Custom",
+];
 
 const COUNTRY_ISO={
   "Canada":"ca","United States":"us","France":"fr","Algeria":"dz","Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be","Brazil":"br","Chile":"cl","China":"cn","Colombia":"co","Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg","Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu","India":"in","Indonesia":"id","Ireland":"ie","Israel":"il","Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke","Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx","Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng","Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru","Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg","South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se","Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","Uruguay":"uy","Vietnam":"vn",
@@ -156,7 +180,8 @@ function Field({label,value,onChange,placeholder,type="text",hint,required}){
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
       {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
     </div>
   );
@@ -178,7 +203,8 @@ function PhoneField({label,value,onChange,countryCode,required}){
       <FieldLabel required={required}>{label}</FieldLabel>
       <div style={{display:"flex",gap:8}}>
         <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>{code}</div>
-        <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000" style={{...inputStyle,flex:1,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
+        <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000"
+          style={{...inputStyle,flex:1,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
       </div>
       <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Indicatif / Country code: {code}</div>
     </div>
@@ -191,21 +217,12 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
   const [open,setOpen]=useState(false);
   const [searching,setSearching]=useState(false);
   const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
-  const inputRef=useRef();
-  const dropRef=useRef();
-  const timer=useRef();
+  const inputRef=useRef();const dropRef=useRef();const timer=useRef();
   useEffect(()=>{
-    function outside(e){
-      const inI=inputRef.current&&inputRef.current.contains(e.target);
-      const inD=dropRef.current&&dropRef.current.contains(e.target);
-      if(!inI&&!inD) setOpen(false);
-    }
-    document.addEventListener("mousedown",outside);
-    return()=>document.removeEventListener("mousedown",outside);
+    function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
+    document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){
-    if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}
-  }
+  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}}
   function handleInput(val){
     setQuery(val);onChange(val);clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
@@ -220,22 +237,16 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
         const r=await fetch("https://photon.komoot.io/api/?"+params);
         const data=await r.json();
         const features=(data.features||[]).filter(f=>f.properties&&(f.properties.street||f.properties.name));
-        setResults(features);
-        if(features.length>0){updatePos();setOpen(true);}
+        setResults(features);if(features.length>0){updatePos();setOpen(true);}
       }catch{}
       setSearching(false);
     },400);
   }
   function select(feature){
-    const p=feature.properties;
-    const parts=[];
-    if(p.housenumber) parts.push(p.housenumber);
-    if(p.street||p.name) parts.push(p.street||p.name);
-    if(p.city||p.locality) parts.push(p.city||p.locality);
-    if(p.state) parts.push(p.state);
-    if(p.postcode) parts.push(p.postcode);
-    const addr=parts.join(", ")||p.name||"";
-    setQuery(addr);onChange(addr);setOpen(false);setResults([]);
+    const p=feature.properties;const parts=[];
+    if(p.housenumber) parts.push(p.housenumber);if(p.street||p.name) parts.push(p.street||p.name);
+    if(p.city||p.locality) parts.push(p.city||p.locality);if(p.state) parts.push(p.state);if(p.postcode) parts.push(p.postcode);
+    const addr=parts.join(", ")||p.name||"";setQuery(addr);onChange(addr);setOpen(false);setResults([]);
   }
   return(
     <div style={{marginBottom:13}}>
@@ -248,16 +259,11 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
       </div>
       {open&&results.length>0&&(
         <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
-          {results.map((f,i)=>{
-            const p=f.properties;
-            const main=(p.housenumber?p.housenumber+" ":"")+(p.street||p.name||"");
-            const sub=[p.city||p.locality,p.state,p.postcode].filter(Boolean).join(", ");
-            return(
-              <div key={i} onClick={()=>select(f)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
-                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
-                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
-              </div>
-            );
+          {results.map((f,i)=>{const p=f.properties;const main=(p.housenumber?p.housenumber+" ":"")+(p.street||p.name||"");const sub=[p.city||p.locality,p.state,p.postcode].filter(Boolean).join(", ");
+            return(<div key={i} onClick={()=>select(f)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
+              <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
+            </div>);
           })}
           <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap</div>
         </div>
@@ -271,20 +277,12 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
   const [query,setQuery]=useState(value||"");
   const [open,setOpen]=useState(false);
   const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
-  const inputRef=useRef();
-  const dropRef=useRef();
+  const inputRef=useRef();const dropRef=useRef();
   useEffect(()=>{
-    function outside(e){
-      const inI=inputRef.current&&inputRef.current.contains(e.target);
-      const inD=dropRef.current&&dropRef.current.contains(e.target);
-      if(!inI&&!inD) setOpen(false);
-    }
-    document.addEventListener("mousedown",outside);
-    return()=>document.removeEventListener("mousedown",outside);
+    function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
+    document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){
-    if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}
-  }
+  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+window.scrollY+4,left:r.left+window.scrollX,width:r.width});}}
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,18);
   return(
     <div>
@@ -296,9 +294,7 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
         <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:220,overflowY:"auto"}}>
           {filtered.map(o=>(
             <div key={o} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}}
-              style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>
-              {o}
-            </div>
+              style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
           ))}
         </div>
       )}
@@ -387,7 +383,8 @@ function AuthScreen({onAuth}){
 function OnboardingWizard({userEmail,onComplete,session}){
   const [step,setStep]=useState(1);
   const [language,setLanguage]=useState("");const [country,setCountry]=useState("Canada");const [province,setProvince]=useState("");
-  const [pharmacyName,setPharmacyName]=useState("");const [pharmacyPhone,setPharmacyPhone]=useState("");const [pharmacyEmail,setPharmacyEmail]=useState("");
+  const [pharmacyName,setPharmacyName]=useState("");const [pharmacySystem,setPharmacySystem]=useState("");
+  const [pharmacyPhone,setPharmacyPhone]=useState("");const [pharmacyEmail,setPharmacyEmail]=useState("");
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
   const [managerName,setManagerName]=useState("");const [plan,setPlan]=useState("");const [saving,setSaving]=useState(false);
@@ -397,16 +394,15 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
-  useEffect(()=>{setPharmacyName("");setPharmacyAddress("");},[country]);
+  useEffect(()=>{setPharmacyName("");setPharmacyAddress("");setPharmacySystem("");},[country]);
 
-  // ✅ All required fields must be filled before Launch activates
-  const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&plan;
+  const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&pharmacySystem.trim()&&plan;
 
   async function finish(){
     if(!canLaunch) return;
     setSaving(true);
     const fullPhone=pharmacyPhone?countryCode+" "+pharmacyPhone:"";
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_system:pharmacySystem,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     onComplete(profile);setSaving(false);
@@ -460,35 +456,33 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:2}}>{t("pharmacySubtitle")}</div>
-              {/* Required fields note */}
               <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
 
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
               <div style={{marginBottom:13}}>
-                <FieldLabel required>{t("pharmacyName").replace(" *","")}</FieldLabel>
+                <FieldLabel required>{t("pharmacyName")}</FieldLabel>
                 <SearchableSelect key={country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
               </div>
 
+              {/* ✅ NEW: Dispensing software system */}
+              <div style={{marginBottom:13}}>
+                <FieldLabel required>{t("pharmacySystem")}</FieldLabel>
+                <SearchableSelect options={PHARMACY_SYSTEMS} value={pharmacySystem} onChange={setPharmacySystem} placeholder={t("pharmacySystemPlaceholder")} required/>
+                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacySystemHint")}</div>
+              </div>
+
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-
-              <AddressAutocomplete key={country} value={pharmacyAddress} onChange={setPharmacyAddress}
-                placeholder={t("addressPlaceholder")} hint={t("addressHint")}
-                countryIso={countryIso} province={province} required/>
-
-              <PhoneField label={t("pharmacyPhone").replace(" *","")} value={pharmacyPhone}
-                onChange={setPharmacyPhone} countryCode={countryCode} required/>
-
+              <AddressAutocomplete key={country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
+              <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode} required/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
 
               <SectionLabel>{t("teamSection")}</SectionLabel>
-              <Field label={t("pharmacistOwner").replace(" *","")} value={pharmacistOwner}
-                onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
+              <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
 
               <SectionLabel>{t("planSection")} <span style={{color:C.red}}>*</span></SectionLabel>
-              {/* Plan required warning */}
               {!plan&&<div style={{fontSize:11,color:C.red,marginBottom:8,fontWeight:600}}>{t("planRequired")}</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                 {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
@@ -500,12 +494,8 @@ function OnboardingWizard({userEmail,onComplete,session}){
                   </button>
                 ))}
               </div>
-
               <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>{t("stripeNote")}</div>
-              <div style={{display:"flex",gap:10}}>
-                {backBtn(()=>setStep(2))}
-                {nextBtn(!canLaunch||saving,saving?t("saving"):t("launch"),finish,true)}
-              </div>
+              <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!canLaunch||saving,saving?t("saving"):t("launch"),finish,true)}</div>
             </div>
           )}
         </div>
@@ -545,8 +535,8 @@ function Dashboard({session,profile,onLogout}){
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
-        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t}/>}
-        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t}/>}
+        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile}/>}
+        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile}/>}
         {page==="history"&&<PlaceholderPage icon="📝" title={t("history")} desc={t("historyDesc")}/>}
         {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
@@ -559,26 +549,29 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-function HomePage({onNewReco,email,t}){
+function HomePage({onNewReco,email,t,profile}){
+  const pharmacyName=profile?.pharmacy_name||"";
+  const systemName=profile?.pharmacy_system||"";
   return(
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
         <div style={{fontWeight:900,fontSize:22,color:C.navy}}>{t("welcomeMsg")}</div>
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{email}</div>
+        {pharmacyName&&<div style={{color:C.sky,fontSize:12,fontWeight:600,marginTop:2}}>🏥 {pharmacyName}{systemName?" · "+systemName:""}</div>}
       </div>
+
       <div style={{background:"linear-gradient(135deg,#FFFBEB,#FEF3C7)",border:"1.5px solid #FCD34D",borderRadius:14,padding:"16px 20px",marginBottom:24}}>
         <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{t("liveMsg")}</div>
         <div style={{fontSize:12,color:C.grey,marginTop:2}}>{t("liveSubMsg")}</div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
-        {[{icon:"⚡",label:t("lastCycle"),val:"V75",col:C.sky},{icon:"💊",label:t("molecules"),val:"250",col:"#7C3AED"},{icon:"⚠️",label:t("discrepancies"),val:"18",col:C.red}].map(s=>(
-          <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
-            <div style={{fontSize:22,marginBottom:8}}>{s.icon}</div>
-            <div style={{fontSize:26,fontWeight:900,color:s.col}}>{s.val}</div>
-            <div style={{fontSize:11,color:C.grey,marginTop:4}}>{s.label}</div>
-          </div>
-        ))}
+
+      {/* ✅ Empty state instead of fake stats */}
+      <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:40,marginBottom:12}}>📊</div>
+        <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:6}}>{t("emptyState")}</div>
+        <div style={{fontSize:13,color:C.grey,maxWidth:300,margin:"0 auto"}}>{t("emptyStateSub")}</div>
       </div>
+
       <button onClick={onNewReco} style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:900,fontSize:15,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)",boxShadow:"0 6px 20px rgba(46,134,222,.35)"}}>
         {t("newReco")}
       </button>
@@ -586,16 +579,19 @@ function HomePage({onNewReco,email,t}){
   );
 }
 
-function RecoPage({onBack,t}){
+function RecoPage({onBack,t,profile}){
   const [files,setFiles]=useState({inv:null,sales:null});const [done,setDone]=useState(false);
+  const system=profile?.pharmacy_system||"";
+  const salesDesc=system?`${system} · CSV · Excel · Any format`:t("salesDesc");
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
       <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>{t("newRecoTitle")}</div>
       <div style={{color:C.grey,fontSize:12,marginBottom:20}}>{t("newRecoSub")}</div>
+      {system&&<div style={{background:"#EFF6FF",border:"1px solid "+C.sky,borderRadius:10,padding:"8px 14px",fontSize:12,color:C.sky,fontWeight:600,marginBottom:16}}>💊 {system}</div>}
       {!done?(
         <div>
-          {[{k:"inv",label:t("inventoryLabel"),desc:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:t("salesDesc")}].map(f=>(
+          {[{k:"inv",label:t("inventoryLabel"),desc:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:salesDesc}].map(f=>(
             <div key={f.k} style={{background:"#fff",borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:C.border)}}>
               <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
