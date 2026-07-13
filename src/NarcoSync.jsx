@@ -6,6 +6,8 @@ const C = {
   light:"#F4F7FB",white:"#FFFFFF",grey:"#6B7280",border:"#E2E8F0",
 };
 
+const ADMIN_EMAIL = "mtrofin@icloud.com";
+
 const T = {
   en:{
     login:"Login",createAccount:"Create account",signIn:"Sign in →",createMyAccount:"Create my account →",
@@ -181,6 +183,298 @@ const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado"
 
 const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
 
+const PLAN_COLORS={basic:{bg:"#EFF6FF",color:"#1E4D8C"},pro:{bg:"#F0FDF4",color:"#1A9E5F"},enterprise:{bg:"#FFF7ED",color:"#C2410C"}};
+const PLAN_PRICE={basic:49,pro:99,enterprise:249};
+
+function PlanBadge({plan}){
+  if(!plan) return null;
+  const s=PLAN_COLORS[plan]||{bg:"#F3F4F6",color:"#6B7280"};
+  return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
+}
+
+// ── ADMIN DASHBOARD ──────────────────────────────────────────
+function AdminDashboard({session,onLogout}){
+  const [page,setPage]=useState("overview");
+  const [profiles,setProfiles]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [search,setSearch]=useState("");
+  const [filterPlan,setFilterPlan]=useState("all");
+  const [filterCountry,setFilterCountry]=useState("all");
+  const [selected,setSelected]=useState(null);
+
+  useEffect(()=>{
+    const {url,key}=SB.get();
+    fetch(url+"/rest/v1/profiles?select=*&order=created_at.desc",{
+      headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
+    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setProfiles(data);setLoading(false);}).catch(()=>setLoading(false));
+  },[]);
+
+  const mrr=profiles.reduce((s,p)=>s+(PLAN_PRICE[p.plan]||0),0);
+  const planCounts={basic:profiles.filter(p=>p.plan==="basic").length,pro:profiles.filter(p=>p.plan==="pro").length,enterprise:profiles.filter(p=>p.plan==="enterprise").length};
+  const countries=[...new Set(profiles.map(p=>p.country).filter(Boolean))].sort();
+
+  const filtered=profiles.filter(p=>{
+    const q=search.toLowerCase();
+    const matchS=!search||[p.pharmacy_name,p.email,p.pharmacist_owner,p.pharmacy_address].some(v=>v?.toLowerCase().includes(q));
+    const matchP=filterPlan==="all"||p.plan===filterPlan;
+    const matchC=filterCountry==="all"||p.country===filterCountry;
+    return matchS&&matchP&&matchC;
+  });
+
+  const nav=[{id:"overview",icon:"📊",label:"Overview"},{id:"pharmacies",icon:"🏥",label:"Pharmacies"},{id:"revenue",icon:"💰",label:"Revenue"}];
+
+  return(
+    <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+      <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{padding:"20px 14px 12px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <div style={{fontSize:22}}>💊</div>
+            <div>
+              <div style={{color:"#fff",fontWeight:900,fontSize:15}}>NarcoSync</div>
+              <div style={{background:C.red,color:"#fff",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:4,marginTop:2,display:"inline-block"}}>ADMIN</div>
+            </div>
+          </div>
+          <div style={{background:"rgba(255,255,255,.07)",borderRadius:10,padding:"8px 10px"}}>
+            <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>CONNECTED AS</div>
+            <div style={{color:"#fff",fontSize:10,fontWeight:600,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.user.email}</div>
+          </div>
+        </div>
+        <div style={{flex:1,padding:"0 8px"}}>
+          {nav.map(item=>(
+            <button key={item.id} onClick={()=>{setPage(item.id);setSelected(null);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",textAlign:"left",fontSize:11,marginBottom:2,background:page===item.id?"rgba(46,134,222,.3)":"transparent",color:page===item.id?"#fff":"rgba(255,255,255,.45)",fontWeight:page===item.id?700:400}}>
+              <span>{item.icon}</span>{item.label}
+            </button>
+          ))}
+        </div>
+        <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
+          <button onClick={onLogout} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.35)",fontSize:11,fontFamily:"inherit",textAlign:"left"}}>🔒 Sign out</button>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",background:C.light}}>
+        {selected?(
+          <PharmacyDetail profile={selected} onBack={()=>setSelected(null)}/>
+        ):(
+          <>
+            {page==="overview"&&<AdminOverview profiles={profiles} mrr={mrr} planCounts={planCounts} countries={countries} loading={loading} onViewAll={()=>setPage("pharmacies")}/>}
+            {page==="pharmacies"&&<AdminPharmacies profiles={filtered} total={profiles.length} search={search} setSearch={setSearch} filterPlan={filterPlan} setFilterPlan={setFilterPlan} filterCountry={filterCountry} setFilterCountry={setFilterCountry} countries={countries} loading={loading} onSelect={setSelected}/>}
+            {page==="revenue"&&<AdminRevenue profiles={profiles} mrr={mrr} planCounts={planCounts} loading={loading}/>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
+  const recent=profiles.slice(0,5);
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{marginBottom:24}}>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>Admin Overview</div>
+        <div style={{color:C.grey,fontSize:13,marginTop:4}}>NarcoSync · All pharmacies</div>
+      </div>
+      {loading?(
+        <div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>
+      ):(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
+            {[
+              {icon:"🏥",label:"Total pharmacies",val:profiles.length,col:C.sky},
+              {icon:"💰",label:"Est. MRR",val:"$"+mrr+" CAD",col:C.green},
+              {icon:"🌍",label:"Countries",val:countries.length,col:"#7C3AED"},
+              {icon:"⭐",label:"Pro + Enterprise",val:planCounts.pro+planCounts.enterprise,col:C.orange},
+            ].map(s=>(
+              <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
+                <div style={{fontSize:24,marginBottom:8}}>{s.icon}</div>
+                <div style={{fontSize:26,fontWeight:900,color:s.col}}>{s.val}</div>
+                <div style={{fontSize:11,color:C.grey,marginTop:4}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
+            <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>📋 Plans breakdown</div>
+              {[{k:"basic",label:"Basic",price:49},{k:"pro",label:"Pro",price:99},{k:"enterprise",label:"Enterprise",price:249}].map(p=>(
+                <div key={p.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <PlanBadge plan={p.k}/>
+                    <span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies</span>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
+                </div>
+              ))}
+            </div>
+            <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>🌍 Countries</div>
+              {countries.length===0?<div style={{color:C.grey,fontSize:12}}>No data yet</div>:countries.map(c=>(
+                <div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <span style={{fontSize:12,color:C.navy,fontWeight:600}}>{c}</span>
+                  <span style={{fontSize:11,color:C.grey}}>{profiles.filter(p=>p.country===c).length} pharmacy</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy}}>🕐 Recent signups</div>
+              <button onClick={onViewAll} style={{fontSize:12,color:C.sky,fontWeight:700,background:"none",border:"none",cursor:"pointer"}}>View all →</button>
+            </div>
+            {recent.length===0?<div style={{color:C.grey,fontSize:12}}>No pharmacies registered yet.</div>:recent.map((p,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<recent.length-1?"1px solid #F3F4F6":"none"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{p.pharmacy_name||"—"}</div>
+                  <div style={{fontSize:11,color:C.grey,marginTop:2}}>{p.email} · {p.country}</div>
+                </div>
+                <PlanBadge plan={p.plan}/>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPlan,filterCountry,setFilterCountry,countries,loading,onSelect}){
+  const sel={padding:"8px 12px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontFamily:"inherit",background:"#fff",cursor:"pointer"};
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{marginBottom:20}}>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>🏥 All Pharmacies</div>
+        <div style={{color:C.grey,fontSize:13,marginTop:4}}>{total} registered · {profiles.length} shown</div>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pharmacy, email, owner…" style={{...inputStyle,maxWidth:280,border:"1.5px solid #E2E8F0"}}/>
+        <select value={filterPlan} onChange={e=>setFilterPlan(e.target.value)} style={sel}>
+          <option value="all">All plans</option>
+          <option value="basic">Basic</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+        <select value={filterCountry} onChange={e=>setFilterCountry(e.target.value)} style={sel}>
+          <option value="all">All countries</option>
+          {countries.map(c=><option key={c}>{c}</option>)}
+        </select>
+      </div>
+      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:
+       profiles.length===0?<div style={{background:"#fff",borderRadius:14,padding:40,textAlign:"center",color:C.grey}}>No pharmacies found.</div>:(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {profiles.map((p,i)=>(
+            <div key={i} onClick={()=>onSelect(p)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent",transition:"border .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.border="1.5px solid "+C.sky}
+              onMouseLeave={e=>e.currentTarget.style.border="1.5px solid transparent"}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:15,color:C.navy}}>{p.pharmacy_name||"—"}</div>
+                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{p.email}</div>
+                </div>
+                <PlanBadge plan={p.plan}/>
+              </div>
+              <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                {[
+                  {icon:"📍",val:[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"},
+                  {icon:"👤",val:p.pharmacist_owner||"—"},
+                  {icon:"📞",val:p.pharmacy_phone||"—"},
+                ].map((item,j)=>(
+                  <div key={j} style={{fontSize:11,color:C.grey}}><span style={{marginRight:4}}>{item.icon}</span>{item.val}</div>
+                ))}
+              </div>
+              {(p.dispensing_system||p.inventory_system)&&(
+                <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+                  {p.dispensing_system&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6}}>💊 {p.dispensing_system}</span>}
+                  {p.inventory_system&&<span style={{background:"#F0FDF4",color:C.green,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6}}>📦 {p.inventory_system}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PharmacyDetail({profile:p,onBack}){
+  const rows=[
+    ["Pharmacy","pharmacy_name"],["Email","email"],["Plan","plan"],
+    ["Country","country"],["Province","province"],["Address","pharmacy_address"],
+    ["Phone","pharmacy_phone"],["Pharmacy email","pharmacy_email"],
+    ["Permit #","permit_number"],["Pharmacist-owner","pharmacist_owner"],
+    ["Owner email","pharmacist_email"],["Manager","owner_name"],
+    ["Dispensing system","dispensing_system"],["Inventory system","inventory_system"],
+    ["Language","language"],
+  ];
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← Back</button>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:20,color:C.navy}}>{p.pharmacy_name||"—"}</div>
+          <div style={{fontSize:13,color:C.grey,marginTop:2}}>{p.email}</div>
+        </div>
+        <PlanBadge plan={p.plan}/>
+      </div>
+      {(p.dispensing_system||p.inventory_system)&&(
+        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+          {p.dispensing_system&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>💊 {p.dispensing_system}</span>}
+          {p.inventory_system&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {p.inventory_system}</span>}
+        </div>
+      )}
+      <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+        {rows.map(([label,key],i)=>(
+          <div key={key} style={{display:"flex",padding:"10px 0",borderBottom:i<rows.length-1?"1px solid #F3F4F6":"none"}}>
+            <div style={{width:180,fontSize:11,fontWeight:700,color:C.grey,flexShrink:0}}>{label}</div>
+            <div style={{fontSize:13,color:C.navy,fontWeight:p[key]?500:400}}>{key==="plan"?<PlanBadge plan={p[key]}/>:(p[key]||<span style={{color:"#D1D5DB"}}>—</span>)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminRevenue({profiles,mrr,planCounts,loading}){
+  const arr=[{k:"basic",label:"Basic",price:49,col:C.sky},{k:"pro",label:"Pro",price:99,col:C.green},{k:"enterprise",label:"Enterprise",price:249,col:C.orange}];
+  const arr2=[{label:"Monthly (MRR)",val:"$"+mrr},{label:"Annual (ARR)",val:"$"+(mrr*12)},{label:"Avg per pharmacy",val:profiles.length?"$"+(mrr/profiles.length).toFixed(0):"—"}];
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{fontWeight:900,fontSize:22,color:C.navy,marginBottom:4}}>💰 Revenue</div>
+      <div style={{color:C.grey,fontSize:13,marginBottom:24}}>Estimated based on plan subscriptions</div>
+      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:28}}>
+            {arr2.map(s=>(
+              <div key={s.label} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+C.green}}>
+                <div style={{fontSize:28,fontWeight:900,color:C.green}}>{s.val}</div>
+                <div style={{fontSize:12,color:C.grey,marginTop:6}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:20}}>Breakdown by plan</div>
+            {arr.map(p=>(
+              <div key={p.k} style={{marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies × ${p.price}/mo</span></div>
+                  <span style={{fontWeight:800,fontSize:13,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
+                </div>
+                <div style={{height:8,background:"#F3F4F6",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:mrr?((planCounts[p.k]*p.price)/mrr*100)+"%":"0%",background:p.col,borderRadius:4,transition:"width .5s"}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:12,padding:"14px 18px",marginTop:20,fontSize:12,color:"#92400E"}}>
+            💳 These are estimates based on onboarding plan selection. Actual revenue depends on Stripe billing setup.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── SHARED UI ────────────────────────────────────────────────
 function FieldLabel({children,required}){
   return <label style={{fontSize:11,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4}}>{children}{required&&<span style={{color:"#D63031",marginLeft:2}}>*</span>}</label>;
 }
@@ -230,12 +524,7 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){
-    if(inputRef.current){
-      const r=inputRef.current.getBoundingClientRect();
-      setDropPos({top:r.bottom+4,left:r.left,width:r.width});
-    }
-  }
+  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+4,left:r.left,width:r.width});}}
   function handleInput(val){
     setQuery(val);onChange(val);clearTimeout(timer.current);
     if(val.length<3){setResults([]);setOpen(false);return;}
@@ -295,12 +584,7 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
     function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
-  function updatePos(){
-    if(inputRef.current){
-      const r=inputRef.current.getBoundingClientRect();
-      setDropPos({top:r.bottom+4,left:r.left,width:r.width});
-    }
-  }
+  function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+4,left:r.left,width:r.width});}}
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,20);
   return(
     <div>
@@ -416,11 +700,8 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const inventoryOptions=INVENTORY_SYSTEMS[country]||DEFAULT_INVENTORY;
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
-
   useEffect(()=>{setPharmacyName("");setPharmacyAddress("");setDispensingSystem("");setInventorySystem("");},[country]);
-
   const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&dispensingSystem.trim()&&inventorySystem.trim()&&plan;
-
   async function finish(){
     if(!canLaunch) return;
     setSaving(true);
@@ -430,12 +711,10 @@ function OnboardingWizard({userEmail,onComplete,session}){
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     onComplete(profile);setSaving(false);
   }
-
   const pct=(step/3)*100;
   const sel={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
-
   return(
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)",padding:"24px 16px",overflowY:"auto"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
@@ -452,10 +731,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
-              <div style={{marginBottom:16}}>
-                <FieldLabel>{t("searchLanguage")}</FieldLabel>
-                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/>
-              </div>
+              <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
               {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
@@ -649,8 +925,9 @@ export default function App(){
   const [session,setSession]=useState(SB.getSession());
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
+
   useEffect(()=>{
-    if(session&&!profile){
+    if(session&&!profile&&session.user.email!==ADMIN_EMAIL){
       setLoading(true);
       const {url,key}=SB.get();
       fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
@@ -659,13 +936,20 @@ export default function App(){
         .catch(()=>setLoading(false));
     }
   },[session]);
+
+  const logout=()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);};
+
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
-  if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);setLoading(true);}}/>;
+  if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
+
+  // ✅ Admin bypass — mtrofin@icloud.com goes straight to admin panel
+  if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
+
   if(loading) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.light}}>
       <div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>💊</div><div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div></div>
     </div>
   );
   if(!profile) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
-  return <Dashboard session={session} profile={profile} onLogout={()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);}}/>;
+  return <Dashboard session={session} profile={profile} onLogout={logout}/>;
 }
