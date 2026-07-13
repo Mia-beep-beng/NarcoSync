@@ -20,11 +20,13 @@ const T = {
     selectProvince:"Select province…",selectState:"Select state…",enterRegion:"Enter your region or city",
     yourPharmacy:"Your Pharmacy",pharmacySubtitle:"Complete your pharmacy profile",
     pharmacyInfoSection:"📋 Pharmacy Info",teamSection:"👤 Team",planSection:"💳 Subscription Plan",
+    softwareSection:"💻 Software Systems",
     pharmacyName:"Pharmacy chain / banner",permitNumber:"Permit / License number",
     pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
-    pharmacySystem:"Dispensing software system",
-    pharmacySystemHint:"Your pharmacy management system — used to parse reconciliation files",
-    pharmacySystemPlaceholder:"Search your software…",
+    dispensingSystem:"Dispensing software",dispensingSystemHint:"Software that generates your dispensing records (sales/Rx history)",
+    dispensingSystemPlaceholder:"Search dispensing software…",
+    inventorySystem:"Ordering / inventory system",inventorySystemHint:"Software used for stock ordering and inventory management",
+    inventorySystemPlaceholder:"Search inventory system…",
     pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
     pharmacyPlaceholder:"Search chain or type custom name…",
@@ -43,8 +45,8 @@ const T = {
     emptyState:"No cycles yet",emptyStateSub:"Complete your first reconciliation to see stats here.",
     newReco:"⚡ + New Reconciliation",newRecoTitle:"⚡ New Reconciliation",
     newRecoSub:"Upload your inventory and sales files · Any format",
-    inventoryLabel:"📦 Inventory",inventoryDesc:"Matrix/MMS export · Excel · CSV · Scan",
-    salesLabel:"💊 Sales / Dispensing",salesDesc:"Export from your dispensing system · Any format",
+    inventoryLabel:"📦 Inventory",inventoryDesc:"Export from your ordering/inventory system",
+    salesLabel:"💊 Sales / Dispensing",salesDesc:"Export from your dispensing software",
     reconcileNow:"⚡ Reconcile now →",recoComplete:"Reconciliation complete!",
     recoCompleteSub:"NarcoSync is live and connected to Supabase.",newRecoBtn:"New reconciliation",
     historyDesc:"Your past reconciliation cycles will appear here.",
@@ -67,11 +69,13 @@ const T = {
     selectProvince:"Sélectionner une province…",selectState:"Sélectionner un état…",enterRegion:"Entrez votre région ou ville",
     yourPharmacy:"Votre Pharmacie",pharmacySubtitle:"Complétez le profil de votre pharmacie",
     pharmacyInfoSection:"📋 Informations",teamSection:"👤 Équipe",planSection:"💳 Forfait",
+    softwareSection:"💻 Logiciels",
     pharmacyName:"Bannière / chaîne pharmacie",permitNumber:"Numéro de permis / licence",
     pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
-    pharmacySystem:"Logiciel de dispensation",
-    pharmacySystemHint:"Votre système de gestion — utilisé pour analyser les fichiers de réconciliation",
-    pharmacySystemPlaceholder:"Chercher votre logiciel…",
+    dispensingSystem:"Logiciel de dispensation",dispensingSystemHint:"Logiciel qui génère vos dossiers de dispensation (ventes / historique Rx)",
+    dispensingSystemPlaceholder:"Chercher le logiciel de dispensation…",
+    inventorySystem:"Système de commande / inventaire",inventorySystemHint:"Logiciel utilisé pour les commandes et la gestion des stocks",
+    inventorySystemPlaceholder:"Chercher le système d'inventaire…",
     pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
     pharmacyPlaceholder:"Chercher une bannière ou entrer un nom…",
@@ -90,8 +94,8 @@ const T = {
     emptyState:"Aucun cycle pour l'instant",emptyStateSub:"Complétez votre première réconciliation pour voir les statistiques ici.",
     newReco:"⚡ + Nouvelle réconciliation",newRecoTitle:"⚡ Nouvelle réconciliation",
     newRecoSub:"Téléversez vos fichiers d'inventaire et de ventes · Tout format",
-    inventoryLabel:"📦 Inventaire",inventoryDesc:"Export Matrix/MMS · Excel · CSV · Scan",
-    salesLabel:"💊 Ventes / Dispensation",salesDesc:"Export de votre logiciel · Tout format",
+    inventoryLabel:"📦 Inventaire",inventoryDesc:"Export de votre système de commande / inventaire",
+    salesLabel:"💊 Ventes / Dispensation",salesDesc:"Export de votre logiciel de dispensation",
     reconcileNow:"⚡ Réconcilier maintenant →",recoComplete:"Réconciliation complète!",
     recoCompleteSub:"NarcoSync est en ligne et connecté à Supabase.",newRecoBtn:"Nouvelle réconciliation",
     historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
@@ -109,107 +113,81 @@ function getLang(l){
   return "en";
 }
 
-// ── PHARMACY SYSTEMS BY COUNTRY ──────────────────────────────
-const PHARMACY_SYSTEMS_BY_COUNTRY = {
+// ── DISPENSING SYSTEMS (generates Rx/sales records) ──────────
+const DISPENSING_SYSTEMS={
   "Canada":[
-    // Quebec-primary
-    "AssiStRx (Pharmaprix / Shoppers)",
-    "RxPro (Jean Coutu)",
-    "Datascan",
-    "Logibec",
-    "Purkinje",
-    // National
-    "Kroll",
-    "PharmaClik (McKesson)",
-    "WinRx",
-    "Fillware",
-    "Nexxsys",
-    "Prodigy RX",
-    "Propel Rx",
-    "HealthWatch",
-    "Pharmaserv",
-    "Axys Pharmacy",
-    "MedAccess",
-    "Cerner Pharmacy",
-    "BD Pyxis (hospital)",
-    "Omnicell (hospital)",
+    "AssiStRx","RxPro","Gespar","Ubik","Reflex",
+    "Kroll","Datascan","Logibec","Purkinje","WinRx",
+    "Fillware","Nexxsys","Prodigy RX","Propel Rx",
+    "HealthWatch","Pharmaserv","Axys Pharmacy","MedAccess",
+    "Cerner Pharmacy","BD Pyxis (hospital)","Omnicell (hospital)",
     "Other / Custom",
   ],
   "United States":[
-    "QS/1 (NRx)",
-    "PioneerRx",
-    "Liberty Software",
-    "Rx30",
-    "ScriptPro",
-    "PDX (Pharmacy Data Exchange)",
-    "Computer-Rx",
-    "BestRx",
-    "McKesson EnterpriseRx",
-    "Intercom Plus (Walgreens)",
-    "Epic Willow",
-    "Cerner Pharmacy",
-    "SuiteRx",
-    "FrameworkLTC",
-    "Winpharm",
-    "Digital Pharmacist",
-    "ARxIUM",
-    "Parata",
-    "Other / Custom",
+    "QS/1 (NRx)","PioneerRx","Liberty Software","Rx30","ScriptPro",
+    "PDX (Pharmacy Data Exchange)","Computer-Rx","BestRx",
+    "McKesson EnterpriseRx","Intercom Plus (Walgreens)",
+    "Epic Willow","Cerner Pharmacy","SuiteRx","FrameworkLTC",
+    "Winpharm","ARxIUM","Other / Custom",
   ],
   "France":[
-    "Winpharma",
-    "Lgpi (Pharmagest)",
-    "Pharmagest Smart Rx",
-    "Isipharm",
-    "Pharmonet",
-    "Caducée",
-    "Ordoclic",
-    "Cegi",
-    "Propharm",
-    "Delta Informatique",
-    "BPCO Pharma",
-    "Other / Custom",
+    "Winpharma","Lgpi (Pharmagest)","Pharmagest Smart Rx",
+    "Isipharm","Pharmonet","Caducée","Ordoclic","Cegi",
+    "Propharm","Delta Informatique","BPCO Pharma","Other / Custom",
   ],
   "United Kingdom":[
-    "Rx Web (Cegedim)",
-    "Pharmacy Manager (EMIS Health)",
-    "SystmOne Pharmacy",
-    "Vision Pharmacy",
-    "Titan Pharmacy System",
-    "Positive Solutions Pharmacy",
-    "IPS Dispense",
-    "Other / Custom",
+    "Rx Web (Cegedim)","Pharmacy Manager (EMIS Health)",
+    "SystmOne Pharmacy","Vision Pharmacy","Titan Pharmacy System",
+    "Positive Solutions","IPS Dispense","Other / Custom",
   ],
   "Australia":[
-    "Fred Dispense (Fred IT)",
-    "Minfos",
-    "Corum Clear Dispense",
-    "Z Dispense",
-    "Simple Pharmacy System",
-    "Toniq",
-    "MPS (Medication Packaging)",
-    "Other / Custom",
+    "Fred Dispense (Fred IT)","Minfos","Corum Clear Dispense",
+    "Z Dispense","Simple Pharmacy System","Toniq","Other / Custom",
   ],
-  "Belgium":[
-    "Pharmacies.be",
-    "Officine",
-    "Medimix",
-    "Other / Custom",
-  ],
-  "Germany":[
-    "LAUER-FISCHER",
-    "IXOS",
-    "Pharmatechnik",
-    "ADG Apothekensoftware",
-    "Other / Custom",
-  ],
-  "Switzerland":[
-    "Aeskulap",
-    "Pharmacies.ch",
-    "Other / Custom",
-  ],
+  "Germany":["LAUER-FISCHER","IXOS","Pharmatechnik","ADG Apothekensoftware","Other / Custom"],
+  "Switzerland":["Aeskulap","Other / Custom"],
+  "Belgium":["Officine","Medimix","Other / Custom"],
 };
-const DEFAULT_SYSTEMS=["Other / Custom"];
+const DEFAULT_DISPENSING=["Other / Custom"];
+
+// ── ORDERING / INVENTORY SYSTEMS (stock management) ──────────
+const INVENTORY_SYSTEMS={
+  "Canada":[
+    "Matrix (Pharmaprix / Shoppers)",
+    "PharmaClik (McKesson / Proxim / IDA)",
+    "Gespar",
+    "MMS (Medication Management Systems)",
+    "Logibec",
+    "Kroll Inventory",
+    "WinRx Inventory",
+    "Datascan",
+    "McKesson Connect",
+    "Cardinal Health",
+    "SAP (chains / hospital)",
+    "Other / Custom",
+  ],
+  "United States":[
+    "McKesson Connect","Cardinal Health","AmerisourceBergen",
+    "PioneerRx Inventory","QS/1 Inventory","ScriptPro Inventory",
+    "SAP","Other / Custom",
+  ],
+  "France":[
+    "Pharmagest Inventory","Winpharma Stock","CERP",
+    "OCP (Ophrys)","Alliance Healthcare","Other / Custom",
+  ],
+  "United Kingdom":[
+    "AAH Pharmaceuticals","Phoenix Medical","Accord Healthcare",
+    "EMIS Inventory","Rx Web Inventory","Other / Custom",
+  ],
+  "Australia":[
+    "Fred Office (Fred IT)","Minfos Inventory","LOTS",
+    "Pharmacy Alliance","API (Australian Pharmaceutical Industries)","Other / Custom",
+  ],
+  "Germany":["LAUER-FISCHER Warenwirtschaft","Noventi","Other / Custom"],
+  "Switzerland":["Galexis","Voigt AG","Other / Custom"],
+  "Belgium":["Multipharma Inventory","Alliance Healthcare Belgium","Other / Custom"],
+};
+const DEFAULT_INVENTORY=["Other / Custom"];
 
 const COUNTRY_ISO={
   "Canada":"ca","United States":"us","France":"fr","Algeria":"dz","Argentina":"ar","Australia":"au","Austria":"at","Belgium":"be","Brazil":"br","Chile":"cl","China":"cn","Colombia":"co","Croatia":"hr","Czech Republic":"cz","Denmark":"dk","Egypt":"eg","Finland":"fi","Germany":"de","Greece":"gr","Hungary":"hu","India":"in","Indonesia":"id","Ireland":"ie","Israel":"il","Italy":"it","Japan":"jp","Jordan":"jo","Kenya":"ke","Lebanon":"lb","Luxembourg":"lu","Malaysia":"my","Mexico":"mx","Morocco":"ma","Netherlands":"nl","New Zealand":"nz","Nigeria":"ng","Norway":"no","Pakistan":"pk","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Romania":"ro","Russia":"ru","Saudi Arabia":"sa","Senegal":"sn","Singapore":"sg","South Africa":"za","South Korea":"kr","Spain":"es","Sweden":"se","Switzerland":"ch","Thailand":"th","Tunisia":"tn","Turkey":"tr","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","Uruguay":"uy","Vietnam":"vn",
@@ -220,8 +198,8 @@ const COUNTRY_CODES={
 const PROVINCE_COORDS={
   "Québec":{lat:46.8,lon:-71.2},"Ontario":{lat:51.2,lon:-85.3},"British Columbia":{lat:53.7,lon:-127.6},
   "Alberta":{lat:53.9,lon:-116.6},"Manitoba":{lat:56.4,lon:-98.7},"Saskatchewan":{lat:55.0,lon:-106.0},
-  "Nova Scotia":{lat:44.7,lon:-63.7},"New Brunswick":{lat:46.5,lon:-66.5},"Newfoundland & Labrador":{lat:53.1,lon:-57.7},
-  "Prince Edward Island":{lat:46.5,lon:-63.4},
+  "Nova Scotia":{lat:44.7,lon:-63.7},"New Brunswick":{lat:46.5,lon:-66.5},
+  "Newfoundland & Labrador":{lat:53.1,lon:-57.7},"Prince Edward Island":{lat:46.5,lon:-63.4},
 };
 
 const SB={
@@ -465,7 +443,9 @@ function AuthScreen({onAuth}){
 function OnboardingWizard({userEmail,onComplete,session}){
   const [step,setStep]=useState(1);
   const [language,setLanguage]=useState("");const [country,setCountry]=useState("Canada");const [province,setProvince]=useState("");
-  const [pharmacyName,setPharmacyName]=useState("");const [pharmacySystem,setPharmacySystem]=useState("");
+  const [pharmacyName,setPharmacyName]=useState("");
+  const [dispensingSystem,setDispensingSystem]=useState("");
+  const [inventorySystem,setInventorySystem]=useState("");
   const [pharmacyPhone,setPharmacyPhone]=useState("");const [pharmacyEmail,setPharmacyEmail]=useState("");
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
@@ -474,19 +454,23 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const lang=getLang(language);
   const t=(k)=>T[lang][k]||T.en[k]||k;
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
-  const systemOptions=PHARMACY_SYSTEMS_BY_COUNTRY[country]||DEFAULT_SYSTEMS;
+  const dispensingOptions=DISPENSING_SYSTEMS[country]||DEFAULT_DISPENSING;
+  const inventoryOptions=INVENTORY_SYSTEMS[country]||DEFAULT_INVENTORY;
   const countryCode=COUNTRY_CODES[country]||"+1";
   const countryIso=COUNTRY_ISO[country]||"";
 
-  useEffect(()=>{setPharmacyName("");setPharmacyAddress("");setPharmacySystem("");},[country]);
+  useEffect(()=>{
+    setPharmacyName("");setPharmacyAddress("");
+    setDispensingSystem("");setInventorySystem("");
+  },[country]);
 
-  const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&pharmacySystem.trim()&&plan;
+  const canLaunch=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&dispensingSystem.trim()&&inventorySystem.trim()&&plan;
 
   async function finish(){
     if(!canLaunch) return;
     setSaving(true);
     const fullPhone=pharmacyPhone?countryCode+" "+pharmacyPhone:"";
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_system:pharmacySystem,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
+    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,dispensing_system:dispensingSystem,inventory_system:inventorySystem,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     onComplete(profile);setSaving(false);
@@ -543,23 +527,27 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
 
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-
               <div style={{marginBottom:13}}>
                 <FieldLabel required>{t("pharmacyName")}</FieldLabel>
                 <SearchableSelect key={"chain-"+country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
                 <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
               </div>
-
-              <div style={{marginBottom:13}}>
-                <FieldLabel required>{t("pharmacySystem")} — {country}</FieldLabel>
-                <SearchableSelect key={"sys-"+country} options={systemOptions} value={pharmacySystem} onChange={setPharmacySystem} placeholder={t("pharmacySystemPlaceholder")} required/>
-                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacySystemHint")}</div>
-              </div>
-
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
               <AddressAutocomplete key={"addr-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
               <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={countryCode} required/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
+
+              <SectionLabel>{t("softwareSection")}</SectionLabel>
+              <div style={{marginBottom:13}}>
+                <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
+                <SearchableSelect key={"disp-"+country} options={dispensingOptions} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("dispensingSystemPlaceholder")} required/>
+                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("dispensingSystemHint")}</div>
+              </div>
+              <div style={{marginBottom:13}}>
+                <FieldLabel required>{t("inventorySystem")}</FieldLabel>
+                <SearchableSelect key={"inv-"+country} options={inventoryOptions} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
+                <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("inventorySystemHint")}</div>
+              </div>
 
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
@@ -635,13 +623,20 @@ function PlaceholderPage({icon,title,desc}){
 
 function HomePage({onNewReco,email,t,profile}){
   const pharmacyName=profile?.pharmacy_name||"";
-  const systemName=profile?.pharmacy_system||"";
+  const dispensing=profile?.dispensing_system||"";
+  const inventory=profile?.inventory_system||"";
   return(
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
         <div style={{fontWeight:900,fontSize:22,color:C.navy}}>{t("welcomeMsg")}</div>
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{email}</div>
-        {pharmacyName&&<div style={{color:C.sky,fontSize:12,fontWeight:600,marginTop:2}}>🏥 {pharmacyName}{systemName?" · 💊 "+systemName:""}</div>}
+        {pharmacyName&&<div style={{color:C.sky,fontSize:12,fontWeight:600,marginTop:2}}>🏥 {pharmacyName}</div>}
+        {(dispensing||inventory)&&(
+          <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+            {dispensing&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6}}>💊 {dispensing}</span>}
+            {inventory&&<span style={{background:"#F0FDF4",color:C.green,fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6}}>📦 {inventory}</span>}
+          </div>
+        )}
       </div>
       <div style={{background:"linear-gradient(135deg,#FFFBEB,#FEF3C7)",border:"1.5px solid #FCD34D",borderRadius:14,padding:"16px 20px",marginBottom:24}}>
         <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{t("liveMsg")}</div>
@@ -661,17 +656,25 @@ function HomePage({onNewReco,email,t,profile}){
 
 function RecoPage({onBack,t,profile}){
   const [files,setFiles]=useState({inv:null,sales:null});const [done,setDone]=useState(false);
-  const system=profile?.pharmacy_system||"";
-  const salesDesc=system?`${system} · CSV · Excel · Tout format`:t("salesDesc");
+  const dispensing=profile?.dispensing_system||"";
+  const inventory=profile?.inventory_system||"";
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
       <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>{t("newRecoTitle")}</div>
-      <div style={{color:C.grey,fontSize:12,marginBottom:20}}>{t("newRecoSub")}</div>
-      {system&&<div style={{background:"#EFF6FF",border:"1px solid "+C.sky,borderRadius:10,padding:"8px 14px",fontSize:12,color:C.sky,fontWeight:600,marginBottom:16}}>💊 {system}</div>}
+      <div style={{color:C.grey,fontSize:12,marginBottom:16}}>{t("newRecoSub")}</div>
+      {(dispensing||inventory)&&(
+        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+          {dispensing&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>💊 {dispensing}</span>}
+          {inventory&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {inventory}</span>}
+        </div>
+      )}
       {!done?(
         <div>
-          {[{k:"inv",label:t("inventoryLabel"),desc:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:salesDesc}].map(f=>(
+          {[
+            {k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc")},
+            {k:"sales",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc")},
+          ].map(f=>(
             <div key={f.k} style={{background:"#fff",borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:C.border)}}>
               <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
