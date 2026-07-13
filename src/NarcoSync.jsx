@@ -25,8 +25,8 @@ const T = {
     pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
     pharmacyPlaceholder:"Type to search or enter custom name…",
-    permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Street address, City, Province/State",
-    phonePlaceholder:"(000) 000-0000",emailPlaceholder:"info@pharmacy.com",
+    permitPlaceholder:"e.g. OPQ-12345",addressPlaceholder:"Start typing your address…",
+    phonePlaceholder:"(514) 000-0000",emailPlaceholder:"info@pharmacy.com",
     ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your full name",
     stripeNote:"💳 Payment setup via Stripe after onboarding — no card required now.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
@@ -66,8 +66,8 @@ const T = {
     pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
     pharmacyPlaceholder:"Tapez pour chercher ou entrez un nom…",
-    permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Adresse, Ville, Province/État",
-    phonePlaceholder:"(000) 000-0000",emailPlaceholder:"info@pharmacie.com",
+    permitPlaceholder:"ex. OPQ-12345",addressPlaceholder:"Commencez à taper votre adresse…",
+    phonePlaceholder:"(514) 000-0000",emailPlaceholder:"info@pharmacie.com",
     ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom complet",
     stripeNote:"💳 Paiement configuré via Stripe après l'inscription — aucune carte requise maintenant.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
@@ -127,7 +127,6 @@ const COUNTRIES=["Canada","United States","France","Algeria","Argentina","Austra
 const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
 const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 
-// ── Moved OUTSIDE components so they don't remount on every keystroke ──
 const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
 
 function FieldLabel({children}){
@@ -145,6 +144,94 @@ function Field({label,value,onChange,placeholder,type="text"}){
 
 function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
+}
+
+function formatPhone(digits){
+  if(!digits) return "";
+  if(digits.length<=3) return "("+digits;
+  if(digits.length<=6) return "("+digits.slice(0,3)+") "+digits.slice(3);
+  if(digits.length<=10) return "("+digits.slice(0,3)+") "+digits.slice(3,6)+"-"+digits.slice(6);
+  return "+"+digits.slice(0,1)+" ("+digits.slice(1,4)+") "+digits.slice(4,7)+"-"+digits.slice(7,11);
+}
+
+function PhoneField({label,value,onChange,placeholder}){
+  function handle(val){
+    const digits=val.replace(/\D/g,"").slice(0,11);
+    onChange(formatPhone(digits));
+  }
+  return(
+    <div style={{marginBottom:13}}>
+      <FieldLabel>{label}</FieldLabel>
+      <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder={placeholder} style={inputStyle}/>
+    </div>
+  );
+}
+
+function formatNominatimAddr(item){
+  const a=item.address||{};
+  const parts=[];
+  if(a.house_number) parts.push(a.house_number);
+  if(a.road||a.pedestrian||a.path) parts.push(a.road||a.pedestrian||a.path);
+  const city=a.city||a.town||a.village||a.hamlet||a.municipality;
+  if(city) parts.push(city);
+  if(a.state||a.province) parts.push(a.state||a.province);
+  if(a.postcode) parts.push(a.postcode);
+  return parts.join(", ")||item.display_name;
+}
+
+function AddressAutocomplete({value,onChange,placeholder}){
+  const [query,setQuery]=useState(value||"");
+  const [results,setResults]=useState([]);
+  const [open,setOpen]=useState(false);
+  const [searching,setSearching]=useState(false);
+  const ref=useRef();
+  const timer=useRef();
+  useEffect(()=>{
+    function outside(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener("mousedown",outside);
+    return()=>document.removeEventListener("mousedown",outside);
+  },[]);
+  function handleInput(val){
+    setQuery(val);onChange(val);
+    clearTimeout(timer.current);
+    if(val.length<4){setResults([]);setOpen(false);return;}
+    timer.current=setTimeout(async()=>{
+      setSearching(true);
+      try{
+        const r=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams({q:val,format:"json",addressdetails:1,limit:6}),{headers:{"Accept-Language":"fr,en"}});
+        const data=await r.json();
+        setResults(data);setOpen(data.length>0);
+      }catch{}
+      setSearching(false);
+    },450);
+  }
+  function select(item){
+    const addr=formatNominatimAddr(item);
+    setQuery(addr);onChange(addr);setOpen(false);setResults([]);
+  }
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <div style={{position:"relative"}}>
+        <input value={query} onChange={e=>handleInput(e.target.value)} placeholder={placeholder} style={inputStyle} autoComplete="off"/>
+        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
+      </div>
+      {open&&results.length>0&&(
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.14)",zIndex:200,maxHeight:240,overflowY:"auto"}}>
+          {results.map((r,i)=>{
+            const main=(r.address?.house_number?r.address.house_number+" ":"")+(r.address?.road||r.address?.pedestrian||r.display_name.split(",")[0]);
+            const sub=r.display_name.split(",").slice(1,4).join(",").trim();
+            return(
+              <div key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>select(r)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
+                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
+              </div>
+            );
+          })}
+          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 Powered by OpenStreetMap</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SearchableSelect({options,value,onChange,placeholder}){
@@ -173,9 +260,7 @@ function SearchableSelect({options,value,onChange,placeholder}){
 }
 
 function SetupScreen({onDone}){
-  const [url,setUrl]=useState("");
-  const [key,setKey]=useState("");
-  const [err,setErr]=useState("");
+  const [url,setUrl]=useState("");const [key,setKey]=useState("");const [err,setErr]=useState("");
   function connect(){if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}SB.save(url.replace(/\/+$/,""),key);onDone();}
   const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
   return(
@@ -205,11 +290,7 @@ function SetupScreen({onDone}){
 }
 
 function AuthScreen({onAuth}){
-  const [mode,setMode]=useState("login");
-  const [email,setEmail]=useState("");
-  const [pwd,setPwd]=useState("");
-  const [err,setErr]=useState("");
-  const [busy,setBusy]=useState(false);
+  const [mode,setMode]=useState("login");const [email,setEmail]=useState("");const [pwd,setPwd]=useState("");const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
   const t=(k)=>T.en[k];
   async function submit(){
     if(!email||!pwd){setErr(t("fillAllFields"));return;}
@@ -259,25 +340,15 @@ function AuthScreen({onAuth}){
 
 function OnboardingWizard({userEmail,onComplete,session}){
   const [step,setStep]=useState(1);
-  const [language,setLanguage]=useState("");
-  const [country,setCountry]=useState("Canada");
-  const [province,setProvince]=useState("");
-  const [pharmacyName,setPharmacyName]=useState("");
-  const [pharmacyPhone,setPharmacyPhone]=useState("");
-  const [pharmacyEmail,setPharmacyEmail]=useState("");
-  const [pharmacyAddress,setPharmacyAddress]=useState("");
-  const [permitNumber,setPermitNumber]=useState("");
-  const [pharmacistOwner,setPharmacistOwner]=useState("");
-  const [pharmacistEmail,setPharmacistEmail]=useState("");
-  const [managerName,setManagerName]=useState("");
-  const [plan,setPlan]=useState("");
-  const [saving,setSaving]=useState(false);
-
+  const [language,setLanguage]=useState("");const [country,setCountry]=useState("Canada");const [province,setProvince]=useState("");
+  const [pharmacyName,setPharmacyName]=useState("");const [pharmacyPhone,setPharmacyPhone]=useState("");const [pharmacyEmail,setPharmacyEmail]=useState("");
+  const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
+  const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
+  const [managerName,setManagerName]=useState("");const [plan,setPlan]=useState("");const [saving,setSaving]=useState(false);
   const lang=getLang(language);
   const t=(k)=>T[lang][k]||T.en[k]||k;
   const pharmacyOptions=PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS;
   useEffect(()=>{setPharmacyName("");},[country]);
-
   async function finish(){
     setSaving(true);
     const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,pharmacy_phone:pharmacyPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
@@ -285,12 +356,10 @@ function OnboardingWizard({userEmail,onComplete,session}){
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     onComplete(profile);setSaving(false);
   }
-
   const pct=(step/3)*100;
   const sel={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
   const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
   const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
-
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
       <div style={{width:"100%",maxWidth:500}}>
@@ -303,28 +372,20 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",maxHeight:"80vh",overflowY:"auto"}}>
-
           {step===1&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
-              <div style={{marginBottom:16}}>
-                <FieldLabel>{t("searchLanguage")}</FieldLabel>
-                <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/>
-              </div>
+              <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
               {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
               {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
             </div>
           )}
-
           {step===2&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>📍 {t("location")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("locationSubtitle")}</div>
-              <div style={{marginBottom:14}}>
-                <FieldLabel>{t("country")}</FieldLabel>
-                <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>
-              </div>
+              <div style={{marginBottom:14}}><FieldLabel>{t("country")}</FieldLabel><select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
               <div style={{marginBottom:22}}>
                 <FieldLabel>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</FieldLabel>
                 {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>):country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} style={sel}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>):(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} style={inputStyle}/>)}
@@ -332,27 +393,20 @@ function OnboardingWizard({userEmail,onComplete,session}){
               <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(1))}{nextBtn(!province,t("next"),()=>setStep(3))}</div>
             </div>
           )}
-
           {step===3&&(
             <div>
               <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:4}}>{t("pharmacySubtitle")}</div>
-
               <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
-              <div style={{marginBottom:13}}>
-                <FieldLabel>{t("pharmacyName")} — {country}</FieldLabel>
-                <SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/>
-              </div>
+              <div style={{marginBottom:13}}><FieldLabel>{t("pharmacyName")} — {country}</FieldLabel><SearchableSelect options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")}/></div>
               <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
-              <Field label={t("pharmacyAddress")} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")}/>
-              <Field label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} placeholder={t("phonePlaceholder")} type="tel"/>
+              <div style={{marginBottom:13}}><FieldLabel>{t("pharmacyAddress")}</FieldLabel><AddressAutocomplete value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")}/></div>
+              <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} placeholder={t("phonePlaceholder")}/>
               <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
-
               <SectionLabel>{t("teamSection")}</SectionLabel>
               <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")}/>
               <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
               <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
-
               <SectionLabel>{t("planSection")}</SectionLabel>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                 {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
@@ -447,8 +501,7 @@ function HomePage({onNewReco,email,t}){
 }
 
 function RecoPage({onBack,t}){
-  const [files,setFiles]=useState({inv:null,sales:null});
-  const [done,setDone]=useState(false);
+  const [files,setFiles]=useState({inv:null,sales:null});const [done,setDone]=useState(false);
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
@@ -483,7 +536,6 @@ export default function App(){
   const [session,setSession]=useState(SB.getSession());
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
-
   useEffect(()=>{
     if(session&&!profile){
       setLoading(true);
@@ -494,7 +546,6 @@ export default function App(){
         .catch(()=>setLoading(false));
     }
   },[session]);
-
   if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);setLoading(true);}}/>;
   if(loading) return(
