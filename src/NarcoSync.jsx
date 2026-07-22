@@ -51,8 +51,8 @@ const T = {
     salesLabel:"💊 Dispensing",salesDesc:"Export from your dispensing software",
     cspLabel:"📋 CSP Purchase Order",cspDesc:"Narcotics receiving documents — Purdue, Paladin, McKesson, etc.",
     regularOrderLabel:"📄 Regular Purchase Order",regularOrderDesc:"Regular orders — PharmaClik, Matrix, McKesson Connect",
-    reconcileNow:"⚡ Reconcile now →",recoComplete:"Reconciliation complete!",
-    recoCompleteSub:"NarcoSync has processed your 4 files.",newRecoBtn:"New reconciliation",
+    reconcileNow:"⚡ Proceed to reconciliation →",recoComplete:"Reconciliation complete!",
+    recoCompleteSub:"Cycle saved successfully.",newRecoBtn:"New reconciliation",
     historyDesc:"Your past reconciliation cycles will appear here.",
     clinicalDesc:"Calculators, minor ailments, global billing guide — coming soon.",
     plansDesc:"Basic $49 · Pro $99 · Enterprise $249 CAD/month.",
@@ -102,8 +102,8 @@ const T = {
     salesLabel:"💊 Dispensation",salesDesc:"Export de votre logiciel de dispensation",
     cspLabel:"📋 Bon de commande CSP",cspDesc:"Réceptions de narcotiques — Purdue, Paladin, McKesson, etc.",
     regularOrderLabel:"📄 Bon de commande régulier",regularOrderDesc:"Commandes régulières — PharmaClik, Matrix, McKesson Connect",
-    reconcileNow:"⚡ Réconcilier maintenant →",recoComplete:"Réconciliation complète!",
-    recoCompleteSub:"NarcoSync a traité vos 4 fichiers.",newRecoBtn:"Nouvelle réconciliation",
+    reconcileNow:"⚡ Procéder à la réconciliation →",recoComplete:"Réconciliation complète!",
+    recoCompleteSub:"Cycle sauvegardé avec succès.",newRecoBtn:"Nouvelle réconciliation",
     historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
     clinicalDesc:"Calculateurs, affections mineures, guide de facturation — à venir.",
     plansDesc:"Basique 49$ · Pro 99$ · Entreprise 249$ CAD/mois.",
@@ -118,6 +118,24 @@ function getLang(l){
   if(l.startsWith("Français")||l.includes("Bilingual")||l.includes("Bilingue")) return "fr";
   return "en";
 }
+
+const DEFAULT_MOLECULES=[
+  {id:1,name:"Hydromorphone",strength:"1mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:2,name:"Hydromorphone",strength:"2mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:3,name:"Hydromorphone",strength:"4mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:4,name:"Hydromorphone",strength:"8mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:5,name:"Morphine",strength:"15mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:6,name:"Morphine",strength:"30mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:7,name:"Oxycodone",strength:"5mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:8,name:"Oxycodone",strength:"10mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:9,name:"Oxycodone",strength:"20mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:10,name:"Fentanyl",strength:"25mcg/h",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:11,name:"Fentanyl",strength:"50mcg/h",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:12,name:"Méthadone",strength:"10mg/mL",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:13,name:"Codéine",strength:"30mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:14,name:"Méthylphénidate",strength:"10mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:15,name:"Lorazépam",strength:"1mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+];
 
 const DISPENSING_SYSTEMS={
   "Canada":["AssiStRx","RxPro","Gespar","Ubik","Reflex","Kroll","Datascan","Logibec","Purkinje","WinRx","Fillware","Nexxsys","Prodigy RX","Propel Rx","HealthWatch","Pharmaserv","Axys Pharmacy","MedAccess","Cerner Pharmacy","BD Pyxis (hospital)","Omnicell (hospital)","Other / Custom"],
@@ -433,9 +451,6 @@ function AdminRevenue({profiles,mrr,planCounts,loading}){
                 </div>
               </div>
             ))}
-          </div>
-          <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:12,padding:"14px 18px",marginTop:20,fontSize:12,color:"#92400E"}}>
-            💳 Estimates based on onboarding plan selection. Actual revenue depends on Stripe billing setup.
           </div>
         </>
       )}
@@ -791,7 +806,7 @@ function Dashboard({session,profile,onLogout}){
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
         {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile}/>}
-        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile}/>}
+        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session}/>}
         {page==="history"&&<PlaceholderPage icon="📝" title={t("history")} desc={t("historyDesc")}/>}
         {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
@@ -837,12 +852,124 @@ function HomePage({onNewReco,email,t,profile}){
   );
 }
 
-// ✅ 4 upload sections
-function RecoPage({onBack,t,profile}){
+// ── RECONCILIATION TABLE ─────────────────────────────────────
+function RecoTable({session,profile,onComplete,lang}){
+  const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
+  const [saving,setSaving]=useState(false);
+  const [nextId,setNextId]=useState(DEFAULT_MOLECULES.length+1);
+
+  function update(id,field,value){setMolecules(prev=>prev.map(m=>m.id===id?{...m,[field]:value}:m));}
+  function addRow(){setMolecules(prev=>[...prev,{id:nextId,name:"",strength:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
+  function removeRow(id){setMolecules(prev=>prev.filter(m=>m.id!==id));}
+  function getTheoretical(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
+  function getDiscrepancy(m){if(m.physical==="")return null;return getTheoretical(m)-(Number(m.physical)||0);}
+
+  const totalDisc=molecules.filter(m=>getDiscrepancy(m)!==null&&getDiscrepancy(m)!==0).length;
+  const allFilled=molecules.length>0&&molecules.every(m=>m.physical!=="");
+  const fr=lang==="fr";
+
+  async function save(){
+    setSaving(true);
+    const {url,key}=SB.get();
+    const cycle={pharmacy_id:session?.user?.id,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
+    try{await fetch(url+"/rest/v1/reconciliations",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(cycle)});}catch{}
+    setSaving(false);
+    onComplete({totalDisc,totalMolecules:molecules.length});
+  }
+
+  const th={padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",whiteSpace:"nowrap",borderBottom:"2px solid #E2E8F0",background:"#F8FAFC"};
+  const td={padding:"5px 7px",fontSize:12,verticalAlign:"middle",borderBottom:"1px solid #F3F4F6"};
+  const ni={width:60,padding:"4px 6px",borderRadius:6,border:"1.5px solid #E2E8F0",fontSize:12,fontFamily:"inherit",textAlign:"center",boxSizing:"border-box"};
+  const pi={width:70,padding:"4px 6px",borderRadius:6,border:"2px solid "+C.sky,fontSize:13,fontFamily:"inherit",textAlign:"center",fontWeight:700,background:"#EFF6FF",boxSizing:"border-box"};
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{fr?"Saisissez les quantités · Les écarts sont calculés automatiquement":"Enter quantities · Discrepancies calculated automatically"}</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"discrepancy(ies)"}</span>}
+          {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
+        </div>
+      </div>
+
+      <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}>
+          <thead>
+            <tr>
+              <th style={th}>{fr?"Molécule":"Molecule"}</th>
+              <th style={th}>{fr?"Force":"Strength"}</th>
+              <th style={{...th,color:"#6B7280"}}>📦 {fr?"Ouverture":"Opening"}</th>
+              <th style={{...th,color:C.orange}}>+ {fr?"Reçu CSP":"Received CSP"}</th>
+              <th style={{...th,color:C.red}}>− {fr?"Dispensé":"Dispensed"}</th>
+              <th style={{...th,color:"#7C3AED"}}>= {fr?"Théorique":"Theoretical"}</th>
+              <th style={{...th,color:C.sky,background:"#EFF6FF"}}>🔵 {fr?"Inventaire physique":"Physical count"}</th>
+              <th style={th}>{fr?"Écart":"Discrepancy"}</th>
+              <th style={{...th,minWidth:130}}>{fr?"Notes / Justification":"Notes / Justification"}</th>
+              <th style={th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {molecules.map((m,i)=>{
+              const theo=getTheoretical(m);
+              const disc=getDiscrepancy(m);
+              return(
+                <tr key={m.id} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
+                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:120,textAlign:"left"}} placeholder={fr?"Molécule":"Molecule"}/></td>
+                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:72,textAlign:"left"}} placeholder={fr?"Force":"Strength"}/></td>
+                  <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={ni} min="0"/></td>
+                  <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,borderColor:C.orange}} min="0"/></td>
+                  <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,borderColor:C.red}} min="0"/></td>
+                  <td style={{...td,textAlign:"center"}}><span style={{fontWeight:900,fontSize:15,color:"#7C3AED"}}>{theo}</span></td>
+                  <td style={{...td,background:"#EFF6FF"}}><input type="number" value={m.physical} onChange={e=>update(m.id,"physical",e.target.value)} style={pi} placeholder="—" min="0"/></td>
+                  <td style={{...td,textAlign:"center"}}>
+                    {disc===null?<span style={{color:"#D1D5DB",fontSize:11}}>—</span>:
+                     disc===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:
+                     <span style={{color:C.red,fontWeight:800}}>⚠️ {disc>0?"+":""}{disc}</span>}
+                  </td>
+                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:140,textAlign:"left"}} placeholder={fr?"Justification…":"Justification…"}/></td>
+                  <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18,lineHeight:1}}>×</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <button onClick={addRow} style={{padding:"8px 16px",borderRadius:9,border:"1.5px dashed #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey,fontWeight:600,marginBottom:20}}>
+        + {fr?"Ajouter une molécule":"Add molecule"}
+      </button>
+
+      <div style={{background:"#fff",borderRadius:12,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",marginBottom:20}}>
+        <div style={{fontWeight:800,fontSize:13,color:C.navy,marginBottom:12}}>{fr?"Résumé":"Summary"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+          {[{label:fr?"Molécules":"Molecules",val:molecules.length,col:C.sky},{label:fr?"Inventaires saisis":"Counts entered",val:molecules.filter(m=>m.physical!=="").length,col:"#7C3AED"},{label:fr?"Écarts":"Discrepancies",val:totalDisc,col:totalDisc>0?C.red:C.green}].map(s=>(
+            <div key={s.label} style={{background:C.light,borderRadius:10,padding:"12px 16px",borderLeft:"4px solid "+s.col}}>
+              <div style={{fontSize:24,fontWeight:900,color:s.col}}>{s.val}</div>
+              <div style={{fontSize:11,color:C.grey,marginTop:2}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving||molecules.length===0} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving||molecules.length===0?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving||molecules.length===0?.5:1}}>
+        {saving?"Saving…":fr?"💾 Sauvegarder ce cycle de réconciliation":"💾 Save this reconciliation cycle"}
+      </button>
+    </div>
+  );
+}
+
+// ── RECO PAGE — 3 steps: upload → table → done ───────────────
+function RecoPage({onBack,t,profile,session}){
+  const [step,setStep]=useState("upload");
   const [files,setFiles]=useState({disp:null,inv:null,csp:null,cmd:null});
-  const [done,setDone]=useState(false);
+  const [result,setResult]=useState(null);
   const dispensing=profile?.dispensing_system||"";
   const inventory=profile?.inventory_system||"";
+  const lang=getLang(profile?.language);
+  const fr=lang==="fr";
 
   const sections=[
     {k:"disp",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc"),color:"#EFF6FF",border:C.sky},
@@ -851,7 +978,32 @@ function RecoPage({onBack,t,profile}){
     {k:"cmd",label:t("regularOrderLabel"),desc:t("regularOrderDesc"),color:"#F5F3FF",border:"#7C3AED"},
   ];
 
-  const anyUploaded=Object.values(files).some(f=>f!==null);
+  if(step==="table"){
+    return(
+      <div style={{padding:"28px 32px"}}>
+        <button onClick={()=>setStep("upload")} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
+        <RecoTable session={session} profile={profile} lang={lang} onComplete={r=>{setResult(r);setStep("done");}}/>
+      </div>
+    );
+  }
+
+  if(step==="done"){
+    return(
+      <div style={{padding:"28px 32px"}}>
+        <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:12}}>{result?.totalDisc>0?"⚠️":"✅"}</div>
+          <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
+          <div style={{fontSize:13,color:C.grey,marginBottom:6}}>{result?.totalMolecules} {fr?"molécules":"molecules"}</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:result?.totalDisc>0?C.red:C.green}}>
+            {result?.totalDisc>0?`⚠️ ${result.totalDisc} ${fr?"écart(s) détecté(s)":"discrepancy(ies) found"}`:`✅ ${fr?"Tout équilibré":"All balanced"}`}
+          </div>
+          <button onClick={()=>{setStep("upload");setFiles({disp:null,inv:null,csp:null,cmd:null});setResult(null);}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>
+            {t("newRecoBtn")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return(
     <div style={{padding:"28px 32px"}}>
@@ -864,26 +1016,20 @@ function RecoPage({onBack,t,profile}){
           {inventory&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {inventory}</span>}
         </div>
       )}
-      {!done?(
-        <div>
-          {sections.map(f=>(
-            <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:`2px dashed ${files[f.k]?C.green:f.border}`}}>
-              <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
-              <input type="file" accept=".csv,.xlsx,.xls,.pdf,.jpg,.png" onChange={e=>setFiles(v=>({...v,[f.k]:e.target.files[0]}))} style={{fontSize:12}}/>
-              {files[f.k]&&<div style={{color:C.green,fontWeight:700,fontSize:12,marginTop:8}}>✓ {files[f.k].name}</div>}
-            </div>
-          ))}
-          <button onClick={()=>setDone(true)} disabled={!anyUploaded} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:C.sky,opacity:!anyUploaded?.5:1}}>{t("reconcileNow")}</button>
+      {sections.map(f=>(
+        <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:`2px dashed ${files[f.k]?C.green:f.border}`}}>
+          <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
+          <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
+          <input type="file" accept=".csv,.xlsx,.xls,.pdf,.jpg,.png" onChange={e=>setFiles(v=>({...v,[f.k]:e.target.files[0]}))} style={{fontSize:12}}/>
+          {files[f.k]&&<div style={{color:C.green,fontWeight:700,fontSize:12,marginTop:8}}>✓ {files[f.k].name}</div>}
         </div>
-      ):(
-        <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
-          <div style={{fontSize:40,marginBottom:12}}>✅</div>
-          <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
-          <div style={{fontSize:13,color:C.grey,marginBottom:20}}>{t("recoCompleteSub")}</div>
-          <button onClick={()=>{setDone(false);setFiles({disp:null,inv:null,csp:null,cmd:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>{t("newRecoBtn")}</button>
-        </div>
-      )}
+      ))}
+      <div style={{background:"#F0FDF4",border:"1px solid "+C.green,borderRadius:10,padding:"12px 16px",fontSize:12,color:"#166534",marginBottom:16}}>
+        💡 {fr?"Vous pouvez aussi procéder directement à la saisie manuelle sans téléverser de fichiers.":"You can also proceed directly to manual entry without uploading files."}
+      </div>
+      <button onClick={()=>setStep("table")} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)"}}>
+        {t("reconcileNow")}
+      </button>
     </div>
   );
 }
