@@ -184,6 +184,8 @@ const SB={
   getProfile:()=>{try{const p=localStorage.getItem("ns_profile");return p?JSON.parse(p):null;}catch{return null;}},
   saveProfile:(p)=>{try{localStorage.setItem("ns_profile",JSON.stringify(p));}catch{}},
   clearProfile:()=>{try{localStorage.removeItem("ns_profile");}catch{}},
+  getAIKey:()=>{try{return localStorage.getItem("ns_ai_key")||"";}catch{return "";}},
+  saveAIKey:(k)=>{try{localStorage.setItem("ns_ai_key",k);}catch{}},
 };
 
 const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani","Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan","Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech","Danish","Dutch","Estonian","Filipino","Finnish","Galician","Georgian","German","Greek","Gujarati","Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic","Igbo","Indonesian","Irish","Italian","Japanese","Javanese","Kannada","Kazakh","Khmer","Korean","Kurdish","Kyrgyz","Lao","Latvian","Lithuanian","Luxembourgish","Macedonian","Malay","Malayalam","Maltese","Maori","Marathi","Mongolian","Nepali","Norwegian","Pashto","Persian","Polish","Portuguese","Punjabi","Romanian","Russian","Serbian","Sinhala","Slovak","Slovenian","Somali","Spanish","Swahili","Swedish","Tajik","Tamil","Telugu","Thai","Turkish","Turkmen","Ukrainian","Urdu","Uzbek","Vietnamese","Welsh","Xhosa","Yoruba","Zulu","Other"];
@@ -852,21 +854,89 @@ function HomePage({onNewReco,email,t,profile}){
   );
 }
 
-// ── RECONCILIATION TABLE with Manufacturer, Format, DIN ─────
+// ── AI SCAN IMPORT ──────────────────────────────────────────
+async function extractMedsFromFile(file, aiKey, fr){
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(",")[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+  const isPDF=file.type==="application/pdf";
+  const mediaType=isPDF?"application/pdf":file.type||"image/jpeg";
+  const contentBlock=isPDF
+    ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
+    :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
+
+  const prompt=fr
+    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}. Inclus chaque produit identifiable."
+    :"This document is a Canadian pharmacy controlled substance/narcotic medication list. Extract ALL medications listed. Return ONLY a valid JSON array (no markdown, no explanation) with objects: {\"name\":\"medication name\",\"strength\":\"dose e.g. 10mg\",\"manufacturer\":\"company e.g. Purdue\",\"format\":\"package e.g. 100 comp.\",\"din\":\"8-digit DIN number or empty string\"}. Include every identifiable product.";
+
+  const response=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:4096,
+      messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]
+    })
+  });
+  const data=await response.json();
+  const text=data.content?.[0]?.text||"[]";
+  const clean=text.replace(/```json|```/g,"").trim();
+  return JSON.parse(clean);
+}
+
+// ── RECONCILIATION TABLE ────────────────────────────────────
 function RecoTable({session,profile,onComplete,lang}){
   const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
   const [saving,setSaving]=useState(false);
   const [nextId,setNextId]=useState(DEFAULT_MOLECULES.length+1);
+  const [importing,setImporting]=useState(false);
+  const [importErr,setImportErr]=useState("");
+  const [aiKey,setAiKey]=useState(SB.getAIKey());
+  const [showAISetup,setShowAISetup]=useState(false);
+  const [aiKeyInput,setAiKeyInput]=useState("");
+  const importRef=useRef();
+  const fr=lang==="fr";
 
   function update(id,field,value){setMolecules(prev=>prev.map(m=>m.id===id?{...m,[field]:value}:m));}
   function addRow(){setMolecules(prev=>[...prev,{id:nextId,name:"",strength:"",manufacturer:"",format:"",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
   function removeRow(id){setMolecules(prev=>prev.filter(m=>m.id!==id));}
   function getTheoretical(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
   function getDiscrepancy(m){if(m.physical==="")return null;return getTheoretical(m)-(Number(m.physical)||0);}
-
   const totalDisc=molecules.filter(m=>getDiscrepancy(m)!==null&&getDiscrepancy(m)!==0).length;
   const allFilled=molecules.length>0&&molecules.every(m=>m.physical!=="");
-  const fr=lang==="fr";
+
+  function saveAIKey(){
+    SB.saveAIKey(aiKeyInput);
+    setAiKey(aiKeyInput);
+    setShowAISetup(false);
+    importRef.current?.click();
+  }
+
+  async function handleImport(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    const key=SB.getAIKey();
+    if(!key){setShowAISetup(true);e.target.value="";return;}
+    setImporting(true);setImportErr("");
+    try{
+      const meds=await extractMedsFromFile(file,key,fr);
+      if(Array.isArray(meds)&&meds.length>0){
+        let id=nextId;
+        const newMols=meds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
+        setMolecules(prev=>[...prev,...newMols]);
+        setNextId(id);
+      } else {
+        setImportErr(fr?"Aucun médicament trouvé dans le fichier.":"No medications found in file.");
+      }
+    }catch(err){
+      setImportErr(fr?"Erreur lors de l'import. Vérifiez votre clé API.":"Import error. Check your API key.");
+    }
+    setImporting(false);
+    e.target.value="";
+  }
 
   async function save(){
     setSaving(true);
@@ -884,16 +954,54 @@ function RecoTable({session,profile,onComplete,lang}){
 
   return(
     <div>
+      {/* AI Setup Modal */}
+      {showAISetup&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>
+              {fr?"Nécessaire pour lire vos scans automatiquement. Votre clé reste dans votre navigateur uniquement.":"Required to read your scans automatically. Your key stays in your browser only."}
+            </div>
+            <div style={{fontSize:11,color:C.orange,background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",marginBottom:16}}>
+              ⚠️ {fr?"Obtenez votre clé sur console.anthropic.com — ne la partagez jamais dans le chat!":"Get your key at console.anthropic.com — never share it in chat!"}
+            </div>
+            <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>
+                {fr?"Annuler":"Cancel"}
+              </button>
+              <button onClick={saveAIKey} disabled={!aiKeyInput.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:aiKeyInput.startsWith("sk-")?1:.4}}>
+                {fr?"Enregistrer et importer":"Save & import"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
           <div style={{fontSize:12,color:C.grey,marginTop:2}}>{fr?"Saisissez les quantités · Écarts calculés automatiquement":"Enter quantities · Discrepancies calculated automatically"}</div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"discrepancy(ies)"}</span>}
           {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
+          <div style={{position:"relative"}}>
+            <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}}/>
+            <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
+              {importing?<span>⏳ {fr?"Lecture IA…":"AI reading…"}</span>:<span>🤖 {fr?"Importer scan":"Import scan"}</span>}
+            </button>
+          </div>
         </div>
       </div>
+
+      {importErr&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{importErr}</div>}
+
+      {importing&&(
+        <div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#7C3AED",fontWeight:600}}>
+          🤖 {fr?"Claude lit votre scan et extrait les médicaments… (~10-30 secondes)":"Claude is reading your scan and extracting medications… (~10-30 seconds)"}
+        </div>
+      )}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
@@ -910,7 +1018,7 @@ function RecoTable({session,profile,onComplete,lang}){
               <th style={{...th,color:"#7C3AED"}}>= {fr?"Théorique":"Theoretical"}</th>
               <th style={{...th,color:C.sky,background:"#EFF6FF"}}>🔵 {fr?"Inventaire physique":"Physical count"}</th>
               <th style={th}>{fr?"Écart":"Discrepancy"}</th>
-              <th style={{...th,minWidth:110}}>{fr?"Notes":"Notes"}</th>
+              <th style={{...th,minWidth:100}}>{fr?"Notes":"Notes"}</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -920,11 +1028,11 @@ function RecoTable({session,profile,onComplete,lang}){
               const disc=getDiscrepancy(m);
               return(
                 <tr key={m.id} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
-                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:110,textAlign:"left"}} placeholder={fr?"Molécule":"Molecule"}/></td>
-                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:68,textAlign:"left"}} placeholder="mg"/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.manufacturer} onChange={e=>update(m.id,"manufacturer",e.target.value)} style={{...ni,width:88,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="Purdue…"/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="100 comp."/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="00000000"/></td>
+                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:110}} placeholder={fr?"Molécule":"Molecule"}/></td>
+                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:68}} placeholder="mg"/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.manufacturer} onChange={e=>update(m.id,"manufacturer",e.target.value)} style={{...ni,width:88,borderColor:"#C4B5FD"}} placeholder="Purdue…"/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80,borderColor:"#C4B5FD"}} placeholder="100 comp."/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,borderColor:"#C4B5FD"}} placeholder="00000000"/></td>
                   <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={{...ni,width:54,textAlign:"center"}} min="0"/></td>
                   <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.orange}} min="0"/></td>
                   <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.red}} min="0"/></td>
@@ -935,7 +1043,7 @@ function RecoTable({session,profile,onComplete,lang}){
                      disc===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:
                      <span style={{color:C.red,fontWeight:800}}>⚠️ {disc>0?"+":""}{disc}</span>}
                   </td>
-                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:110,textAlign:"left"}} placeholder={fr?"Justification…":"Justification…"}/></td>
+                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:100}} placeholder={fr?"Justif…":"Notes…"}/></td>
                   <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18}}>×</button></td>
                 </tr>
               );
@@ -1030,7 +1138,7 @@ function RecoPage({onBack,t,profile,session}){
         </div>
       ))}
       <div style={{background:"#F0FDF4",border:"1px solid "+C.green,borderRadius:10,padding:"12px 16px",fontSize:12,color:"#166534",marginBottom:16}}>
-        💡 {fr?"Vous pouvez procéder directement à la saisie manuelle sans téléverser de fichiers.":"You can proceed directly to manual entry without uploading files."}
+        💡 {fr?"Vous pouvez procéder directement à la saisie manuelle ou utiliser l'import IA 🤖 dans le tableau.":"You can proceed directly to manual entry or use AI import 🤖 in the table."}
       </div>
       <button onClick={()=>setStep("table")} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)"}}>
         {t("reconcileNow")}
