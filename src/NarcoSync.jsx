@@ -120,21 +120,21 @@ function getLang(l){
 }
 
 const DEFAULT_MOLECULES=[
-  {id:1,name:"Hydromorphone",strength:"1mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:2,name:"Hydromorphone",strength:"2mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:3,name:"Hydromorphone",strength:"4mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:4,name:"Hydromorphone",strength:"8mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:5,name:"Morphine",strength:"15mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:6,name:"Morphine",strength:"30mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:7,name:"Oxycodone",strength:"5mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:8,name:"Oxycodone",strength:"10mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:9,name:"Oxycodone",strength:"20mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:10,name:"Fentanyl",strength:"25mcg/h",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:11,name:"Fentanyl",strength:"50mcg/h",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:12,name:"Méthadone",strength:"10mg/mL",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:13,name:"Codéine",strength:"30mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:14,name:"Méthylphénidate",strength:"10mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:15,name:"Lorazépam",strength:"1mg",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:1,name:"Hydromorphone",strength:"1mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:2,name:"Hydromorphone",strength:"2mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:3,name:"Hydromorphone",strength:"4mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:4,name:"Hydromorphone",strength:"8mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:5,name:"Morphine",strength:"15mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:6,name:"Morphine",strength:"30mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:7,name:"Oxycodone",strength:"5mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:8,name:"Oxycodone",strength:"10mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:9,name:"Oxycodone",strength:"20mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:10,name:"Fentanyl",strength:"25mcg/h",manufacturer:"Paladin",format:"5 timbres",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:11,name:"Fentanyl",strength:"50mcg/h",manufacturer:"Paladin",format:"5 timbres",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:12,name:"Méthadone",strength:"10mg/mL",manufacturer:"Paladin",format:"500 mL",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:13,name:"Codéine",strength:"30mg",manufacturer:"Teva",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:14,name:"Méthylphénidate",strength:"10mg",manufacturer:"Novartis",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
+  {id:15,name:"Lorazépam",strength:"1mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
 ];
 
 const DISPENSING_SYSTEMS={
@@ -852,14 +852,14 @@ function HomePage({onNewReco,email,t,profile}){
   );
 }
 
-// ── RECONCILIATION TABLE ─────────────────────────────────────
+// ── RECONCILIATION TABLE with Manufacturer, Format, DIN ─────
 function RecoTable({session,profile,onComplete,lang}){
   const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
   const [saving,setSaving]=useState(false);
   const [nextId,setNextId]=useState(DEFAULT_MOLECULES.length+1);
 
   function update(id,field,value){setMolecules(prev=>prev.map(m=>m.id===id?{...m,[field]:value}:m));}
-  function addRow(){setMolecules(prev=>[...prev,{id:nextId,name:"",strength:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
+  function addRow(){setMolecules(prev=>[...prev,{id:nextId,name:"",strength:"",manufacturer:"",format:"",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
   function removeRow(id){setMolecules(prev=>prev.filter(m=>m.id!==id));}
   function getTheoretical(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
   function getDiscrepancy(m){if(m.physical==="")return null;return getTheoretical(m)-(Number(m.physical)||0);}
@@ -877,37 +877,40 @@ function RecoTable({session,profile,onComplete,lang}){
     onComplete({totalDisc,totalMolecules:molecules.length});
   }
 
-  const th={padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",whiteSpace:"nowrap",borderBottom:"2px solid #E2E8F0",background:"#F8FAFC"};
-  const td={padding:"5px 7px",fontSize:12,verticalAlign:"middle",borderBottom:"1px solid #F3F4F6"};
-  const ni={width:60,padding:"4px 6px",borderRadius:6,border:"1.5px solid #E2E8F0",fontSize:12,fontFamily:"inherit",textAlign:"center",boxSizing:"border-box"};
-  const pi={width:70,padding:"4px 6px",borderRadius:6,border:"2px solid "+C.sky,fontSize:13,fontFamily:"inherit",textAlign:"center",fontWeight:700,background:"#EFF6FF",boxSizing:"border-box"};
+  const th={padding:"7px 8px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",whiteSpace:"nowrap",borderBottom:"2px solid #E2E8F0",background:"#F8FAFC"};
+  const td={padding:"4px 6px",fontSize:12,verticalAlign:"middle",borderBottom:"1px solid #F3F4F6"};
+  const ni={padding:"4px 6px",borderRadius:6,border:"1.5px solid #E2E8F0",fontSize:11,fontFamily:"inherit",boxSizing:"border-box"};
+  const pi={padding:"4px 6px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,fontFamily:"inherit",textAlign:"center",fontWeight:700,background:"#EFF6FF",boxSizing:"border-box",width:64};
 
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
-          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{fr?"Saisissez les quantités · Les écarts sont calculés automatiquement":"Enter quantities · Discrepancies calculated automatically"}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{fr?"Saisissez les quantités · Écarts calculés automatiquement":"Enter quantities · Discrepancies calculated automatically"}</div>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"discrepancy(ies)"}</span>}
           {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
         </div>
       </div>
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
           <thead>
             <tr>
               <th style={th}>{fr?"Molécule":"Molecule"}</th>
               <th style={th}>{fr?"Force":"Strength"}</th>
-              <th style={{...th,color:"#6B7280"}}>📦 {fr?"Ouverture":"Opening"}</th>
+              <th style={{...th,color:"#7C3AED"}}>🏭 {fr?"Fabricant":"Manufacturer"}</th>
+              <th style={{...th,color:"#7C3AED"}}>📦 Format</th>
+              <th style={{...th,color:"#7C3AED"}}>DIN</th>
+              <th style={th}>📦 {fr?"Ouverture":"Opening"}</th>
               <th style={{...th,color:C.orange}}>+ {fr?"Reçu CSP":"Received CSP"}</th>
               <th style={{...th,color:C.red}}>− {fr?"Dispensé":"Dispensed"}</th>
               <th style={{...th,color:"#7C3AED"}}>= {fr?"Théorique":"Theoretical"}</th>
               <th style={{...th,color:C.sky,background:"#EFF6FF"}}>🔵 {fr?"Inventaire physique":"Physical count"}</th>
               <th style={th}>{fr?"Écart":"Discrepancy"}</th>
-              <th style={{...th,minWidth:130}}>{fr?"Notes / Justification":"Notes / Justification"}</th>
+              <th style={{...th,minWidth:110}}>{fr?"Notes":"Notes"}</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -917,11 +920,14 @@ function RecoTable({session,profile,onComplete,lang}){
               const disc=getDiscrepancy(m);
               return(
                 <tr key={m.id} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
-                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:120,textAlign:"left"}} placeholder={fr?"Molécule":"Molecule"}/></td>
-                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:72,textAlign:"left"}} placeholder={fr?"Force":"Strength"}/></td>
-                  <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={ni} min="0"/></td>
-                  <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,borderColor:C.orange}} min="0"/></td>
-                  <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,borderColor:C.red}} min="0"/></td>
+                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:110,textAlign:"left"}} placeholder={fr?"Molécule":"Molecule"}/></td>
+                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:68,textAlign:"left"}} placeholder="mg"/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.manufacturer} onChange={e=>update(m.id,"manufacturer",e.target.value)} style={{...ni,width:88,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="Purdue…"/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="100 comp."/></td>
+                  <td style={{...td,background:"#FAFAFF"}}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,textAlign:"left",borderColor:"#C4B5FD"}} placeholder="00000000"/></td>
+                  <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={{...ni,width:54,textAlign:"center"}} min="0"/></td>
+                  <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.orange}} min="0"/></td>
+                  <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.red}} min="0"/></td>
                   <td style={{...td,textAlign:"center"}}><span style={{fontWeight:900,fontSize:15,color:"#7C3AED"}}>{theo}</span></td>
                   <td style={{...td,background:"#EFF6FF"}}><input type="number" value={m.physical} onChange={e=>update(m.id,"physical",e.target.value)} style={pi} placeholder="—" min="0"/></td>
                   <td style={{...td,textAlign:"center"}}>
@@ -929,8 +935,8 @@ function RecoTable({session,profile,onComplete,lang}){
                      disc===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:
                      <span style={{color:C.red,fontWeight:800}}>⚠️ {disc>0?"+":""}{disc}</span>}
                   </td>
-                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:140,textAlign:"left"}} placeholder={fr?"Justification…":"Justification…"}/></td>
-                  <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18,lineHeight:1}}>×</button></td>
+                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:110,textAlign:"left"}} placeholder={fr?"Justification…":"Justification…"}/></td>
+                  <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18}}>×</button></td>
                 </tr>
               );
             })}
@@ -955,13 +961,12 @@ function RecoTable({session,profile,onComplete,lang}){
       </div>
 
       <button onClick={save} disabled={saving||molecules.length===0} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving||molecules.length===0?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving||molecules.length===0?.5:1}}>
-        {saving?"Saving…":fr?"💾 Sauvegarder ce cycle de réconciliation":"💾 Save this reconciliation cycle"}
+        {saving?"Saving…":fr?"💾 Sauvegarder ce cycle":"💾 Save this reconciliation cycle"}
       </button>
     </div>
   );
 }
 
-// ── RECO PAGE — 3 steps: upload → table → done ───────────────
 function RecoPage({onBack,t,profile,session}){
   const [step,setStep]=useState("upload");
   const [files,setFiles]=useState({disp:null,inv:null,csp:null,cmd:null});
@@ -1025,7 +1030,7 @@ function RecoPage({onBack,t,profile,session}){
         </div>
       ))}
       <div style={{background:"#F0FDF4",border:"1px solid "+C.green,borderRadius:10,padding:"12px 16px",fontSize:12,color:"#166534",marginBottom:16}}>
-        💡 {fr?"Vous pouvez aussi procéder directement à la saisie manuelle sans téléverser de fichiers.":"You can also proceed directly to manual entry without uploading files."}
+        💡 {fr?"Vous pouvez procéder directement à la saisie manuelle sans téléverser de fichiers.":"You can proceed directly to manual entry without uploading files."}
       </div>
       <button onClick={()=>setStep("table")} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)"}}>
         {t("reconcileNow")}
