@@ -182,7 +182,6 @@ const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Bruns
 const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 
 const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
-
 const PLAN_COLORS={basic:{bg:"#EFF6FF",color:"#1E4D8C"},pro:{bg:"#F0FDF4",color:"#1A9E5F"},enterprise:{bg:"#FFF7ED",color:"#C2410C"}};
 const PLAN_PRICE={basic:49,pro:99,enterprise:249};
 
@@ -200,18 +199,14 @@ function AdminDashboard({session,onLogout}){
   const [filterPlan,setFilterPlan]=useState("all");
   const [filterCountry,setFilterCountry]=useState("all");
   const [selected,setSelected]=useState(null);
-
   useEffect(()=>{
     const {url,key}=SB.get();
-    fetch(url+"/rest/v1/profiles?select=*&order=created_at.desc",{
-      headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
-    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setProfiles(data);setLoading(false);}).catch(()=>setLoading(false));
+    fetch(url+"/rest/v1/profiles?select=*&order=created_at.desc",{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
+      .then(r=>r.json()).then(data=>{if(Array.isArray(data))setProfiles(data);setLoading(false);}).catch(()=>setLoading(false));
   },[]);
-
   const mrr=profiles.reduce((s,p)=>s+(PLAN_PRICE[p.plan]||0),0);
   const planCounts={basic:profiles.filter(p=>p.plan==="basic").length,pro:profiles.filter(p=>p.plan==="pro").length,enterprise:profiles.filter(p=>p.plan==="enterprise").length};
   const countries=[...new Set(profiles.map(p=>p.country).filter(Boolean))].sort();
-
   const filtered=profiles.filter(p=>{
     const q=search.toLowerCase();
     const matchS=!search||[p.pharmacy_name,p.email,p.pharmacist_owner,p.pharmacy_address].some(v=>v?.toLowerCase().includes(q));
@@ -219,9 +214,7 @@ function AdminDashboard({session,onLogout}){
     const matchC=filterCountry==="all"||p.country===filterCountry;
     return matchS&&matchP&&matchC;
   });
-
   const nav=[{id:"overview",icon:"📊",label:"Overview"},{id:"pharmacies",icon:"🏥",label:"Pharmacies"},{id:"revenue",icon:"💰",label:"Revenue"}];
-
   return(
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
       <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
@@ -273,12 +266,7 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
       {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:(
         <>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
-            {[
-              {icon:"🏥",label:"Total pharmacies",val:profiles.length,col:C.sky},
-              {icon:"💰",label:"Est. MRR",val:"$"+mrr+" CAD",col:C.green},
-              {icon:"🌍",label:"Countries",val:countries.length,col:"#7C3AED"},
-              {icon:"⭐",label:"Pro + Enterprise",val:planCounts.pro+planCounts.enterprise,col:C.orange},
-            ].map(s=>(
+            {[{icon:"🏥",label:"Total pharmacies",val:profiles.length,col:C.sky},{icon:"💰",label:"Est. MRR",val:"$"+mrr+" CAD",col:C.green},{icon:"🌍",label:"Countries",val:countries.length,col:"#7C3AED"},{icon:"⭐",label:"Pro + Enterprise",val:planCounts.pro+planCounts.enterprise,col:C.orange}].map(s=>(
               <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
                 <div style={{fontSize:24,marginBottom:8}}>{s.icon}</div>
                 <div style={{fontSize:26,fontWeight:900,color:s.col}}>{s.val}</div>
@@ -289,7 +277,7 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
             <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
               <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>📋 Plans breakdown</div>
-              {[{k:"basic",label:"Basic",price:49},{k:"pro",label:"Pro",price:99},{k:"enterprise",label:"Enterprise",price:249}].map(p=>(
+              {[{k:"basic",price:49},{k:"pro",price:99},{k:"enterprise",price:249}].map(p=>(
                 <div key={p.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies</span></div>
                   <span style={{fontSize:12,fontWeight:700,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
@@ -336,7 +324,7 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{total} registered · {profiles.length} shown</div>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pharmacy, email, owner…" style={{...inputStyle,maxWidth:280,border:"1.5px solid #E2E8F0"}}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pharmacy, email, owner…" style={{...inputStyle,maxWidth:280}}/>
         <select value={filterPlan} onChange={e=>setFilterPlan(e.target.value)} style={sel}>
           <option value="all">All plans</option>
           <option value="basic">Basic</option>
@@ -394,7 +382,7 @@ function PharmacyDetail({profile:p,onBack}){
         <PlanBadge plan={p.plan}/>
       </div>
       {(p.dispensing_system||p.inventory_system)&&(
-        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,marginBottom:20}}>
           {p.dispensing_system&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>💊 {p.dispensing_system}</span>}
           {p.inventory_system&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {p.inventory_system}</span>}
         </div>
