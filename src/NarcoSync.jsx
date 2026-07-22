@@ -46,11 +46,13 @@ const T = {
     liveSubMsg:"Connected to Supabase · Ready for your first reconciliation",
     emptyState:"No cycles yet",emptyStateSub:"Complete your first reconciliation to see stats here.",
     newReco:"⚡ + New Reconciliation",newRecoTitle:"⚡ New Reconciliation",
-    newRecoSub:"Upload your inventory and sales files · Any format",
+    newRecoSub:"Upload your 4 files · Any format",
     inventoryLabel:"📦 Inventory",inventoryDesc:"Export from your ordering/inventory system",
-    salesLabel:"💊 Sales / Dispensing",salesDesc:"Export from your dispensing software",
+    salesLabel:"💊 Dispensing",salesDesc:"Export from your dispensing software",
+    cspLabel:"📋 CSP Purchase Order",cspDesc:"Narcotics receiving documents — Purdue, Paladin, McKesson, etc.",
+    regularOrderLabel:"📄 Regular Purchase Order",regularOrderDesc:"Regular orders — PharmaClik, Matrix, McKesson Connect",
     reconcileNow:"⚡ Reconcile now →",recoComplete:"Reconciliation complete!",
-    recoCompleteSub:"NarcoSync is live and connected to Supabase.",newRecoBtn:"New reconciliation",
+    recoCompleteSub:"NarcoSync has processed your 4 files.",newRecoBtn:"New reconciliation",
     historyDesc:"Your past reconciliation cycles will appear here.",
     clinicalDesc:"Calculators, minor ailments, global billing guide — coming soon.",
     plansDesc:"Basic $49 · Pro $99 · Enterprise $249 CAD/month.",
@@ -95,11 +97,13 @@ const T = {
     liveSubMsg:"Connecté à Supabase · Prêt pour votre première réconciliation",
     emptyState:"Aucun cycle pour l'instant",emptyStateSub:"Complétez votre première réconciliation pour voir les statistiques ici.",
     newReco:"⚡ + Nouvelle réconciliation",newRecoTitle:"⚡ Nouvelle réconciliation",
-    newRecoSub:"Téléversez vos fichiers d'inventaire et de ventes · Tout format",
+    newRecoSub:"Téléversez vos 4 fichiers · Tout format",
     inventoryLabel:"📦 Inventaire",inventoryDesc:"Export de votre système de commande / inventaire",
-    salesLabel:"💊 Ventes / Dispensation",salesDesc:"Export de votre logiciel de dispensation",
+    salesLabel:"💊 Dispensation",salesDesc:"Export de votre logiciel de dispensation",
+    cspLabel:"📋 Bon de commande CSP",cspDesc:"Réceptions de narcotiques — Purdue, Paladin, McKesson, etc.",
+    regularOrderLabel:"📄 Bon de commande régulier",regularOrderDesc:"Commandes régulières — PharmaClik, Matrix, McKesson Connect",
     reconcileNow:"⚡ Réconcilier maintenant →",recoComplete:"Réconciliation complète!",
-    recoCompleteSub:"NarcoSync est en ligne et connecté à Supabase.",newRecoBtn:"Nouvelle réconciliation",
+    recoCompleteSub:"NarcoSync a traité vos 4 fichiers.",newRecoBtn:"Nouvelle réconciliation",
     historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
     clinicalDesc:"Calculateurs, affections mineures, guide de facturation — à venir.",
     plansDesc:"Basique 49$ · Pro 99$ · Entreprise 249$ CAD/mois.",
@@ -833,10 +837,22 @@ function HomePage({onNewReco,email,t,profile}){
   );
 }
 
+// ✅ 4 upload sections
 function RecoPage({onBack,t,profile}){
-  const [files,setFiles]=useState({inv:null,sales:null});const [done,setDone]=useState(false);
+  const [files,setFiles]=useState({disp:null,inv:null,csp:null,cmd:null});
+  const [done,setDone]=useState(false);
   const dispensing=profile?.dispensing_system||"";
   const inventory=profile?.inventory_system||"";
+
+  const sections=[
+    {k:"disp",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc"),color:"#EFF6FF",border:C.sky},
+    {k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc"),color:"#F0FDF4",border:C.green},
+    {k:"csp",label:t("cspLabel"),desc:t("cspDesc"),color:"#FFF7ED",border:C.orange},
+    {k:"cmd",label:t("regularOrderLabel"),desc:t("regularOrderDesc"),color:"#F5F3FF",border:"#7C3AED"},
+  ];
+
+  const anyUploaded=Object.values(files).some(f=>f!==null);
+
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
@@ -850,22 +866,22 @@ function RecoPage({onBack,t,profile}){
       )}
       {!done?(
         <div>
-          {[{k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc")},{k:"sales",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc")}].map(f=>(
-            <div key={f.k} style={{background:"#fff",borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:C.border)}}>
+          {sections.map(f=>(
+            <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:`2px dashed ${files[f.k]?C.green:f.border}`}}>
               <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
               <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
               <input type="file" accept=".csv,.xlsx,.xls,.pdf,.jpg,.png" onChange={e=>setFiles(v=>({...v,[f.k]:e.target.files[0]}))} style={{fontSize:12}}/>
               {files[f.k]&&<div style={{color:C.green,fontWeight:700,fontSize:12,marginTop:8}}>✓ {files[f.k].name}</div>}
             </div>
           ))}
-          <button onClick={()=>setDone(true)} disabled={!files.inv&&!files.sales} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:C.sky,opacity:(!files.inv&&!files.sales)?.5:1}}>{t("reconcileNow")}</button>
+          <button onClick={()=>setDone(true)} disabled={!anyUploaded} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:C.sky,opacity:!anyUploaded?.5:1}}>{t("reconcileNow")}</button>
         </div>
       ):(
         <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
           <div style={{fontSize:40,marginBottom:12}}>✅</div>
           <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
           <div style={{fontSize:13,color:C.grey,marginBottom:20}}>{t("recoCompleteSub")}</div>
-          <button onClick={()=>{setDone(false);setFiles({inv:null,sales:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>{t("newRecoBtn")}</button>
+          <button onClick={()=>{setDone(false);setFiles({disp:null,inv:null,csp:null,cmd:null});}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>{t("newRecoBtn")}</button>
         </div>
       )}
     </div>
