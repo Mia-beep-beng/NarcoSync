@@ -854,8 +854,7 @@ function HomePage({onNewReco,email,t,profile}){
   );
 }
 
-// ── AI SCAN IMPORT ──────────────────────────────────────────
-async function extractMedsFromFile(file, aiKey, fr){
+async function extractMedsFromFile(file,aiKey,fr){
   const base64=await new Promise((res,rej)=>{
     const reader=new FileReader();
     reader.onload=()=>res(reader.result.split(",")[1]);
@@ -867,19 +866,13 @@ async function extractMedsFromFile(file, aiKey, fr){
   const contentBlock=isPDF
     ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
-
   const prompt=fr
     ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}. Inclus chaque produit identifiable."
     :"This document is a Canadian pharmacy controlled substance/narcotic medication list. Extract ALL medications listed. Return ONLY a valid JSON array (no markdown, no explanation) with objects: {\"name\":\"medication name\",\"strength\":\"dose e.g. 10mg\",\"manufacturer\":\"company e.g. Purdue\",\"format\":\"package e.g. 100 comp.\",\"din\":\"8-digit DIN number or empty string\"}. Include every identifiable product.";
-
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-6",
-      max_tokens:4096,
-      messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]
-    })
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4096,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
   });
   const data=await response.json();
   const text=data.content?.[0]?.text||"[]";
@@ -887,14 +880,13 @@ async function extractMedsFromFile(file, aiKey, fr){
   return JSON.parse(clean);
 }
 
-// ── RECONCILIATION TABLE ────────────────────────────────────
 function RecoTable({session,profile,onComplete,lang}){
   const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
   const [saving,setSaving]=useState(false);
   const [nextId,setNextId]=useState(DEFAULT_MOLECULES.length+1);
   const [importing,setImporting]=useState(false);
+  const [importProgress,setImportProgress]=useState("");
   const [importErr,setImportErr]=useState("");
-  const [aiKey,setAiKey]=useState(SB.getAIKey());
   const [showAISetup,setShowAISetup]=useState(false);
   const [aiKeyInput,setAiKeyInput]=useState("");
   const importRef=useRef();
@@ -910,31 +902,37 @@ function RecoTable({session,profile,onComplete,lang}){
 
   function saveAIKey(){
     SB.saveAIKey(aiKeyInput);
-    setAiKey(aiKeyInput);
     setShowAISetup(false);
     importRef.current?.click();
   }
 
+  // ✅ MULTI-FILE IMPORT
   async function handleImport(e){
-    const file=e.target.files[0];
-    if(!file) return;
+    const files=Array.from(e.target.files);
+    if(!files.length) return;
     const key=SB.getAIKey();
     if(!key){setShowAISetup(true);e.target.value="";return;}
     setImporting(true);setImportErr("");
-    try{
-      const meds=await extractMedsFromFile(file,key,fr);
-      if(Array.isArray(meds)&&meds.length>0){
-        let id=nextId;
-        const newMols=meds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
-        setMolecules(prev=>[...prev,...newMols]);
-        setNextId(id);
-      } else {
-        setImportErr(fr?"Aucun médicament trouvé dans le fichier.":"No medications found in file.");
+    let allMeds=[];
+    for(let i=0;i<files.length;i++){
+      setImportProgress(fr?`Lecture fichier ${i+1}/${files.length}…`:`Reading file ${i+1}/${files.length}…`);
+      try{
+        const meds=await extractMedsFromFile(files[i],key,fr);
+        if(Array.isArray(meds)) allMeds=[...allMeds,...meds];
+      }catch(err){
+        console.error("Error on file",files[i].name,err);
       }
-    }catch(err){
-      setImportErr(fr?"Erreur lors de l'import. Vérifiez votre clé API.":"Import error. Check your API key.");
+    }
+    if(allMeds.length>0){
+      let id=nextId;
+      const newMols=allMeds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
+      setMolecules(prev=>[...prev,...newMols]);
+      setNextId(id);
+    } else {
+      setImportErr(fr?"Aucun médicament trouvé dans les fichiers.":"No medications found in files.");
     }
     setImporting(false);
+    setImportProgress("");
     e.target.value="";
   }
 
@@ -954,16 +952,15 @@ function RecoTable({session,profile,onComplete,lang}){
 
   return(
     <div>
-      {/* AI Setup Modal */}
       {showAISetup&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
             <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
             <div style={{fontSize:12,color:C.grey,marginBottom:16}}>
-              {fr?"Nécessaire pour lire vos scans automatiquement. Votre clé reste dans votre navigateur uniquement.":"Required to read your scans automatically. Your key stays in your browser only."}
+              {fr?"Nécessaire pour lire vos scans. Votre clé reste dans votre navigateur uniquement.":"Required to read your scans. Your key stays in your browser only."}
             </div>
             <div style={{fontSize:11,color:C.orange,background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",marginBottom:16}}>
-              ⚠️ {fr?"Obtenez votre clé sur console.anthropic.com — ne la partagez jamais dans le chat!":"Get your key at console.anthropic.com — never share it in chat!"}
+              ⚠️ {fr?"Obtenez votre clé sur console.anthropic.com":"Get your key at console.anthropic.com"}
             </div>
             <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
             <div style={{display:"flex",gap:8}}>
@@ -986,12 +983,10 @@ function RecoTable({session,profile,onComplete,lang}){
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"discrepancy(ies)"}</span>}
           {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
-          <div style={{position:"relative"}}>
-            <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}}/>
-            <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
-              {importing?<span>⏳ {fr?"Lecture IA…":"AI reading…"}</span>:<span>🤖 {fr?"Importer scan":"Import scan"}</span>}
-            </button>
-          </div>
+          <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}} multiple/>
+          <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
+            {importing?<span>⏳ {importProgress||"IA…"}</span>:<span>🤖 {fr?"Importer scans (multi)":"Import scans (multi)"}</span>}
+          </button>
         </div>
       </div>
 
@@ -999,7 +994,7 @@ function RecoTable({session,profile,onComplete,lang}){
 
       {importing&&(
         <div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#7C3AED",fontWeight:600}}>
-          🤖 {fr?"Claude lit votre scan et extrait les médicaments… (~10-30 secondes)":"Claude is reading your scan and extracting medications… (~10-30 seconds)"}
+          🤖 {importProgress} {fr?"Claude lit vos scans…":"Claude is reading your scans…"}
         </div>
       )}
 
@@ -1138,7 +1133,7 @@ function RecoPage({onBack,t,profile,session}){
         </div>
       ))}
       <div style={{background:"#F0FDF4",border:"1px solid "+C.green,borderRadius:10,padding:"12px 16px",fontSize:12,color:"#166534",marginBottom:16}}>
-        💡 {fr?"Vous pouvez procéder directement à la saisie manuelle ou utiliser l'import IA 🤖 dans le tableau.":"You can proceed directly to manual entry or use AI import 🤖 in the table."}
+        💡 {fr?"Procédez directement à la réconciliation — utilisez 🤖 dans le tableau pour importer vos scans.":"Proceed directly to reconciliation — use 🤖 in the table to import your scans."}
       </div>
       <button onClick={()=>setStep("table")} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)"}}>
         {t("reconcileNow")}
