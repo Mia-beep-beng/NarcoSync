@@ -405,12 +405,6 @@ function PharmacyDetail({profile:p,onBack}){
         </div>
         <PlanBadge plan={p.plan}/>
       </div>
-      {(p.dispensing_system||p.inventory_system)&&(
-        <div style={{display:"flex",gap:8,marginBottom:20}}>
-          {p.dispensing_system&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>💊 {p.dispensing_system}</span>}
-          {p.inventory_system&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {p.inventory_system}</span>}
-        </div>
-      )}
       <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
         {rows.map(([label,key],i)=>(
           <div key={key} style={{display:"flex",padding:"10px 0",borderBottom:i<rows.length-1?"1px solid #F3F4F6":"none"}}>
@@ -807,9 +801,9 @@ function Dashboard({session,profile,onLogout}){
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
-        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile}/>}
+        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile} session={session}/>}
         {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session}/>}
-        {page==="history"&&<PlaceholderPage icon="📝" title={t("history")} desc={t("historyDesc")}/>}
+        {page==="history"&&<HistoryPage t={t} profile={profile} session={session} fr={getLang(profile?.language)==="fr"}/>}
         {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
       </div>
@@ -821,10 +815,128 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-function HomePage({onNewReco,email,t,profile}){
+// ── HISTORY PAGE ─────────────────────────────────────────────
+function HistoryPage({session,fr,t}){
+  const [cycles,setCycles]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [selected,setSelected]=useState(null);
+
+  useEffect(()=>{
+    const {url,key}=SB.get();
+    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc",{
+      headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
+    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);setLoading(false);}).catch(()=>setLoading(false));
+  },[]);
+
+  function formatDate(d){
+    if(!d) return "—";
+    const dt=new Date(d);
+    return dt.toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  }
+
+  if(selected){
+    const mols=typeof selected.molecules==="string"?JSON.parse(selected.molecules||"[]"):selected.molecules||[];
+    return(
+      <div style={{padding:"28px 32px"}}>
+        <button onClick={()=>setSelected(null)} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← {fr?"Retour":"Back"}</button>
+        <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>📋 {fr?"Cycle du":"Cycle"} {formatDate(selected.completed_at)}</div>
+        <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+          <span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>{selected.total_molecules} {fr?"molécules":"molecules"}</span>
+          <span style={{background:selected.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:selected.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>
+            {selected.total_discrepancies>0?`⚠️ ${selected.total_discrepancies} ${fr?"écart(s)":"discrepancy(ies)"}`:`✅ ${fr?"Tout équilibré":"All balanced"}`}
+          </span>
+        </div>
+        <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+            <thead>
+              <tr style={{background:"#F8FAFC"}}>
+                {[fr?"Molécule":"Molecule",fr?"Force":"Strength",fr?"Fabricant":"Manufacturer","Format","DIN",fr?"Ouverture":"Opening",fr?"Reçu CSP":"Received CSP",fr?"Dispensé":"Dispensed",fr?"Théorique":"Theoretical",fr?"Inventaire physique":"Physical count",fr?"Écart":"Discrepancy",fr?"Notes":"Notes"].map(h=>(
+                  <th key={h} style={{padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",borderBottom:"2px solid #E2E8F0",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {mols.map((m,i)=>{
+                const theo=(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);
+                const disc=m.physical!==""?theo-(Number(m.physical)||0):null;
+                return(
+                  <tr key={i} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
+                    {[m.name,m.strength,m.manufacturer,m.format,m.din,m.opening,m.received,m.dispensed,theo].map((v,j)=>(
+                      <td key={j} style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.navy}}>{v||"—"}</td>
+                    ))}
+                    <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.sky,fontWeight:700}}>{m.physical!==""?m.physical:"—"}</td>
+                    <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",fontWeight:700,color:disc===null?"#D1D5DB":disc===0?C.green:C.red}}>
+                      {disc===null?"—":disc===0?"✓ 0":`⚠️ ${disc>0?"+":""}${disc}`}
+                    </td>
+                    <td style={{padding:"6px 10px",fontSize:11,borderBottom:"1px solid #F3F4F6",color:C.grey}}>{m.notes||"—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{marginBottom:24}}>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📝 {fr?"Historique des cycles":"Reconciliation History"}</div>
+        <div style={{color:C.grey,fontSize:13,marginTop:4}}>{fr?"Tous vos cycles de réconciliation sauvegardés":"All your saved reconciliation cycles"}</div>
+      </div>
+      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:
+       cycles.length===0?(
+        <div style={{background:"#fff",borderRadius:14,padding:60,textAlign:"center",boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+          <div style={{fontSize:48,marginBottom:16}}>📋</div>
+          <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:8}}>{fr?"Aucun cycle pour l'instant":"No cycles yet"}</div>
+          <div style={{fontSize:13,color:C.grey}}>{fr?"Complétez votre première réconciliation pour voir l'historique ici.":"Complete your first reconciliation to see history here."}</div>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {cycles.map((c,i)=>(
+            <div key={i} onClick={()=>setSelected(c)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent"}}
+              onMouseEnter={e=>e.currentTarget.style.border="1.5px solid "+C.sky}
+              onMouseLeave={e=>e.currentTarget.style.border="1.5px solid transparent"}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:15,color:C.navy}}>📋 {formatDate(c.completed_at)}</div>
+                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.pharmacy_name} · {c.dispensing_system}</div>
+                </div>
+                <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
+                  {c.total_discrepancies>0?`⚠️ ${c.total_discrepancies} ${fr?"écart(s)":"disc."}`:`✅ ${fr?"Équilibré":"Balanced"}`}
+                </span>
+              </div>
+              <div style={{display:"flex",gap:16}}>
+                <span style={{fontSize:11,color:C.grey}}>💊 {c.total_molecules} {fr?"molécules":"molecules"}</span>
+                <span style={{fontSize:11,color:C.grey}}>→ {fr?"Cliquer pour voir le détail":"Click to view details"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HomePage({onNewReco,email,t,profile,session}){
+  const [cycles,setCycles]=useState([]);
+  const [loadingCycles,setLoadingCycles]=useState(true);
   const pharmacyName=profile?.pharmacy_name||"";
   const dispensing=profile?.dispensing_system||"";
   const inventory=profile?.inventory_system||"";
+  const fr=getLang(profile?.language)==="fr";
+
+  useEffect(()=>{
+    const {url,key}=SB.get();
+    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc&limit=5",{
+      headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
+    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);setLoadingCycles(false);}).catch(()=>setLoadingCycles(false));
+  },[]);
+
+  const totalCycles=cycles.length;
+  const lastDisc=cycles[0]?.total_discrepancies||0;
+
   return(
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
@@ -838,15 +950,53 @@ function HomePage({onNewReco,email,t,profile}){
           </div>
         )}
       </div>
-      <div style={{background:"linear-gradient(135deg,#FFFBEB,#FEF3C7)",border:"1.5px solid #FCD34D",borderRadius:14,padding:"16px 20px",marginBottom:24}}>
-        <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{t("liveMsg")}</div>
-        <div style={{fontSize:12,color:C.grey,marginTop:2}}>{t("liveSubMsg")}</div>
-      </div>
-      <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center",marginBottom:24}}>
-        <div style={{fontSize:40,marginBottom:12}}>📊</div>
-        <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:6}}>{t("emptyState")}</div>
-        <div style={{fontSize:13,color:C.grey,maxWidth:300,margin:"0 auto"}}>{t("emptyStateSub")}</div>
-      </div>
+
+      {totalCycles>0?(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
+          {[
+            {icon:"📋",label:fr?"Cycles complétés":"Cycles completed",val:totalCycles,col:C.sky},
+            {icon:lastDisc>0?"⚠️":"✅",label:fr?"Écarts dernier cycle":"Last cycle discrepancies",val:lastDisc,col:lastDisc>0?C.red:C.green},
+            {icon:"💊",label:fr?"Molécules dernier cycle":"Last cycle molecules",val:cycles[0]?.total_molecules||0,col:"#7C3AED"},
+          ].map(s=>(
+            <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
+              <div style={{fontSize:22,marginBottom:6}}>{s.icon}</div>
+              <div style={{fontSize:28,fontWeight:900,color:s.col}}>{s.val}</div>
+              <div style={{fontSize:11,color:C.grey,marginTop:4}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      ):(
+        <div style={{background:"linear-gradient(135deg,#FFFBEB,#FEF3C7)",border:"1.5px solid #FCD34D",borderRadius:14,padding:"16px 20px",marginBottom:24}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{t("liveMsg")}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{t("liveSubMsg")}</div>
+        </div>
+      )}
+
+      {totalCycles===0&&(
+        <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:40,marginBottom:12}}>📊</div>
+          <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:6}}>{t("emptyState")}</div>
+          <div style={{fontSize:13,color:C.grey,maxWidth:300,margin:"0 auto"}}>{t("emptyStateSub")}</div>
+        </div>
+      )}
+
+      {totalCycles>0&&(
+        <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",marginBottom:24}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:14}}>🕐 {fr?"Cycles récents":"Recent cycles"}</div>
+          {cycles.slice(0,3).map((c,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<Math.min(cycles.length,3)-1?"1px solid #F3F4F6":"none"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:C.navy}}>{new Date(c.completed_at).toLocaleDateString(fr?"fr-CA":"en-CA",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+                <div style={{fontSize:11,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"molécules":"molecules"}</div>
+              </div>
+              <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:20}}>
+                {c.total_discrepancies>0?`⚠️ ${c.total_discrepancies}`:"✅"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <button onClick={onNewReco} style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:900,fontSize:15,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)",boxShadow:"0 6px 20px rgba(46,134,222,.35)"}}>
         {t("newReco")}
       </button>
@@ -867,8 +1017,8 @@ async function extractMedsFromFile(file,aiKey,fr){
     ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
   const prompt=fr
-    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}. Inclus chaque produit identifiable."
-    :"This document is a Canadian pharmacy controlled substance/narcotic medication list. Extract ALL medications listed. Return ONLY a valid JSON array (no markdown, no explanation) with objects: {\"name\":\"medication name\",\"strength\":\"dose e.g. 10mg\",\"manufacturer\":\"company e.g. Purdue\",\"format\":\"package e.g. 100 comp.\",\"din\":\"8-digit DIN number or empty string\"}. Include every identifiable product.";
+    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}."
+    :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
@@ -900,13 +1050,8 @@ function RecoTable({session,profile,onComplete,lang}){
   const totalDisc=molecules.filter(m=>getDiscrepancy(m)!==null&&getDiscrepancy(m)!==0).length;
   const allFilled=molecules.length>0&&molecules.every(m=>m.physical!=="");
 
-  function saveAIKey(){
-    SB.saveAIKey(aiKeyInput);
-    setShowAISetup(false);
-    importRef.current?.click();
-  }
+  function saveAIKey(){SB.saveAIKey(aiKeyInput);setShowAISetup(false);importRef.current?.click();}
 
-  // ✅ MULTI-FILE IMPORT
   async function handleImport(e){
     const files=Array.from(e.target.files);
     if(!files.length) return;
@@ -915,25 +1060,16 @@ function RecoTable({session,profile,onComplete,lang}){
     setImporting(true);setImportErr("");
     let allMeds=[];
     for(let i=0;i<files.length;i++){
-      setImportProgress(fr?`Lecture fichier ${i+1}/${files.length}…`:`Reading file ${i+1}/${files.length}…`);
-      try{
-        const meds=await extractMedsFromFile(files[i],key,fr);
-        if(Array.isArray(meds)) allMeds=[...allMeds,...meds];
-      }catch(err){
-        console.error("Error on file",files[i].name,err);
-      }
+      setImportProgress(fr?`Lecture ${i+1}/${files.length}…`:`Reading ${i+1}/${files.length}…`);
+      try{const meds=await extractMedsFromFile(files[i],key,fr);if(Array.isArray(meds))allMeds=[...allMeds,...meds];}
+      catch(err){console.error(err);}
     }
     if(allMeds.length>0){
       let id=nextId;
       const newMols=allMeds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
-      setMolecules(prev=>[...prev,...newMols]);
-      setNextId(id);
-    } else {
-      setImportErr(fr?"Aucun médicament trouvé dans les fichiers.":"No medications found in files.");
-    }
-    setImporting(false);
-    setImportProgress("");
-    e.target.value="";
+      setMolecules(prev=>[...prev,...newMols]);setNextId(id);
+    } else setImportErr(fr?"Aucun médicament trouvé.":"No medications found.");
+    setImporting(false);setImportProgress("");e.target.value="";
   }
 
   async function save(){
@@ -941,8 +1077,7 @@ function RecoTable({session,profile,onComplete,lang}){
     const {url,key}=SB.get();
     const cycle={pharmacy_id:session?.user?.id,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
     try{await fetch(url+"/rest/v1/reconciliations",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(cycle)});}catch{}
-    setSaving(false);
-    onComplete({totalDisc,totalMolecules:molecules.length});
+    setSaving(false);onComplete({totalDisc,totalMolecules:molecules.length});
   }
 
   const th={padding:"7px 8px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",whiteSpace:"nowrap",borderBottom:"2px solid #E2E8F0",background:"#F8FAFC"};
@@ -956,17 +1091,13 @@ function RecoTable({session,profile,onComplete,lang}){
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
             <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
-            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>
-              {fr?"Nécessaire pour lire vos scans. Votre clé reste dans votre navigateur uniquement.":"Required to read your scans. Your key stays in your browser only."}
-            </div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>{fr?"Votre clé reste dans votre navigateur uniquement.":"Your key stays in your browser only."}</div>
             <div style={{fontSize:11,color:C.orange,background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",marginBottom:16}}>
               ⚠️ {fr?"Obtenez votre clé sur console.anthropic.com":"Get your key at console.anthropic.com"}
             </div>
             <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>
-                {fr?"Annuler":"Cancel"}
-              </button>
+              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{fr?"Annuler":"Cancel"}</button>
               <button onClick={saveAIKey} disabled={!aiKeyInput.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:aiKeyInput.startsWith("sk-")?1:.4}}>
                 {fr?"Enregistrer et importer":"Save & import"}
               </button>
@@ -985,36 +1116,21 @@ function RecoTable({session,profile,onComplete,lang}){
           {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
           <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}} multiple/>
           <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
-            {importing?<span>⏳ {importProgress||"IA…"}</span>:<span>🤖 {fr?"Importer scans (multi)":"Import scans (multi)"}</span>}
+            {importing?<span>⏳ {importProgress||"IA…"}</span>:<span>🤖 {fr?"Importer scans":"Import scans"}</span>}
           </button>
         </div>
       </div>
 
       {importErr&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{importErr}</div>}
-
-      {importing&&(
-        <div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#7C3AED",fontWeight:600}}>
-          🤖 {importProgress} {fr?"Claude lit vos scans…":"Claude is reading your scans…"}
-        </div>
-      )}
+      {importing&&<div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#7C3AED",fontWeight:600}}>🤖 {importProgress} {fr?"Claude lit vos scans…":"Claude is reading your scans…"}</div>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
           <thead>
             <tr>
-              <th style={th}>{fr?"Molécule":"Molecule"}</th>
-              <th style={th}>{fr?"Force":"Strength"}</th>
-              <th style={{...th,color:"#7C3AED"}}>🏭 {fr?"Fabricant":"Manufacturer"}</th>
-              <th style={{...th,color:"#7C3AED"}}>📦 Format</th>
-              <th style={{...th,color:"#7C3AED"}}>DIN</th>
-              <th style={th}>📦 {fr?"Ouverture":"Opening"}</th>
-              <th style={{...th,color:C.orange}}>+ {fr?"Reçu CSP":"Received CSP"}</th>
-              <th style={{...th,color:C.red}}>− {fr?"Dispensé":"Dispensed"}</th>
-              <th style={{...th,color:"#7C3AED"}}>= {fr?"Théorique":"Theoretical"}</th>
-              <th style={{...th,color:C.sky,background:"#EFF6FF"}}>🔵 {fr?"Inventaire physique":"Physical count"}</th>
-              <th style={th}>{fr?"Écart":"Discrepancy"}</th>
-              <th style={{...th,minWidth:100}}>{fr?"Notes":"Notes"}</th>
-              <th style={th}></th>
+              {[fr?"Molécule":"Molecule",fr?"Force":"Strength","🏭 "+( fr?"Fabricant":"Manufacturer"),"📦 Format","DIN","📦 "+(fr?"Ouverture":"Opening"),"+ "+(fr?"Reçu CSP":"Received CSP"),"− "+(fr?"Dispensé":"Dispensed"),"= "+(fr?"Théorique":"Theoretical"),"🔵 "+(fr?"Inventaire physique":"Physical count"),fr?"Écart":"Discrepancy",fr?"Notes":"Notes",""].map((h,i)=>(
+                <th key={i} style={{...th,color:i>=2&&i<=4?"#7C3AED":i===5?C.grey:i===6?C.orange:i===7?C.red:i===8?"#7C3AED":i===9?C.sky:C.grey,background:i===9?"#EFF6FF":"#F8FAFC"}}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
