@@ -215,6 +215,213 @@ function PlanBadge({plan}){
   return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
 }
 
+/* ===== DRUG CATALOG (admin only) ===== */
+
+async function catFetch(path,opts){
+  const g=SB.get();
+  const s=SB.getSession();
+  const tok=(s&&s.access_token)?s.access_token:g.key;
+  const o=opts||{};
+  const h={"apikey":g.key,"Authorization":"Bearer "+tok,"Content-Type":"application/json"};
+  if(o.prefer) h["Prefer"]=o.prefer;
+  const r=await fetch(g.url+"/rest/v1/"+path,{method:o.method||"GET",headers:h,body:o.body?JSON.stringify(o.body):undefined});
+  if(!r.ok){const t=await r.text();throw new Error("Supabase "+r.status+" - "+t.slice(0,200));}
+  const txt=await r.text();
+  return txt?JSON.parse(txt):[];
+}
+
+const CAT={
+  async list(search){
+    let q="drug_catalog?select=*&order=molecule.asc&limit=500";
+    if(search&&search.trim()){
+      const s=encodeURIComponent("*"+search.trim()+"*");
+      q+="&or=(molecule.ilike."+s+",din.ilike."+s+",manufacturer.ilike."+s+")";
+    }
+    return await catFetch(q);
+  },
+  async upsertMany(rows){
+    const clean=rows.filter(r=>r&&r.molecule).map(r=>({
+      molecule:String(r.molecule||"").trim(),
+      strength:String(r.strength||"").trim()||null,
+      manufacturer:String(r.manufacturer||"").trim()||null,
+      format:String(r.format||"").trim()||null,
+      din:String(r.din||"").replace(/\D/g,"").trim()||null,
+      is_narcotic:r.is_narcotic!==false
+    }));
+    const withDin=clean.filter(r=>r.din);
+    const noDin=clean.filter(r=>!r.din);
+    let n=0;
+    if(withDin.length){
+      const d=await catFetch("drug_catalog?on_conflict=din",{method:"POST",body:withDin,prefer:"resolution=merge-duplicates,return=representation"});
+      n+=(d||[]).length;
+    }
+    if(noDin.length){
+      const d2=await catFetch("drug_catalog",{method:"POST",body:noDin,prefer:"return=representation"});
+      n+=(d2||[]).length;
+    }
+    return n;
+  },
+  async remove(id){await catFetch("drug_catalog?id=eq."+id,{method:"DELETE"});}
+};
+
+async function extractCatalogFromFile(file,aiKey){
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(",")[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+  const isPDF=file.type==="application/pdf";
+  const mediaType=isPDF?"application/pdf":file.type||"image/jpeg";
+  const contentBlock=isPDF
+    ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
+    :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
+  const prompt="Ce document est un catalogue de medicaments d'une pharmacie canadienne. Extrais TOUTES les lignes de medicaments. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"molecule\":\"nom de la molecule\",\"strength\":\"force ex: 10mg\",\"manufacturer\":\"fabricant\",\"format\":\"format ex: 100 comp.\",\"din\":\"numero DIN a 8 chiffres ou chaine vide\"}.";
+  const response=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:8000,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
+  });
+  const data=await response.json();
+  const text=data.content?.[0]?.text||"[]";
+  const clean=text.replace(/```json|```/g,"").trim();
+  return JSON.parse(clean);
+}
+
+function AdminCatalogPage(){
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [search,setSearch]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState("");
+  const [pending,setPending]=useState(null);
+  const [showAISetup,setShowAISetup]=useState(false);
+  const [aiKeyInput,setAiKeyInput]=useState("");
+  const fileRef=useRef();
+
+  async function load(s){
+    setLoading(true);setErr("");
+    try{setRows(await CAT.list(s));}catch(e){setErr(e.message||String(e));}
+    setLoading(false);
+  }
+  useEffect(()=>{load("");},[]);
+
+  function saveAIKey(){SB.saveAIKey(aiKeyInput);setShowAISetup(false);fileRef.current?.click();}
+
+  async function handleFiles(e){
+    const files=Array.from(e.target.files||[]);
+    if(!files.length) return;
+    const key=SB.getAIKey();
+    if(!key){setShowAISetup(true);e.target.value="";return;}
+    setErr("");let all=[];let bad="";
+    for(let i=0;i<files.length;i++){
+      setBusy("Reading "+(i+1)+"/"+files.length+"…");
+      try{const meds=await extractCatalogFromFile(files[i],key);if(Array.isArray(meds))all=all.concat(meds);}
+      catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
+    }
+    setBusy("");e.target.value="";
+    if(bad)setErr(bad);
+    if(all.length)setPending(all);
+    else if(!bad)setErr("No drug detected.");
+  }
+
+  async function confirmImport(){
+    setBusy("Saving…");
+    try{
+      const n=await CAT.upsertMany(pending);
+      setPending(null);setBusy("");
+      await load(search);
+      alert("Imported: "+n);
+    }catch(e){setBusy("");setErr(e.message||String(e));}
+  }
+
+  async function del(id){
+    if(!window.confirm("Delete this row?")) return;
+    try{await CAT.remove(id);setRows(rows.filter(r=>r.id!==id));}catch(e){setErr(e.message||String(e));}
+  }
+
+  const th={textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"1.5px solid #E2E8F0",whiteSpace:"nowrap"};
+  const td={padding:"8px 12px",fontSize:13,borderBottom:"1px solid #F3F4F6",color:C.navy};
+
+  return(
+    <div style={{padding:"28px 32px"}}>
+      {showAISetup&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Claude API key</div>
+            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>Your key stays in your browser only.</div>
+            <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>Cancel</button>
+              <button onClick={saveAIKey} disabled={!aiKeyInput.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:aiKeyInput.startsWith("sk-")?1:.4}}>Save & import</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📚 Drug catalog</div>
+          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} molecules · readable by all pharmacies</div>
+        </div>
+        <div>
+          <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
+          <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
+            {busy?"⏳ "+busy:"🤖 Import scan"}
+          </button>
+        </div>
+      </div>
+
+      <input value={search} placeholder="Search molecule, DIN, manufacturer…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
+
+      {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
+
+      {pending&&(
+        <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:12,padding:16,marginBottom:18}}>
+          <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>{pending.length} rows detected — review before saving</div>
+          <div style={{maxHeight:260,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr><th style={th}>Molecule</th><th style={th}>Strength</th><th style={th}>Manufacturer</th><th style={th}>Format</th><th style={th}>DIN</th></tr></thead>
+              <tbody>
+                {pending.map((r,i)=>(
+                  <tr key={i}>
+                    <td style={td}>{r.molecule}</td><td style={td}>{r.strength}</td>
+                    <td style={td}>{r.manufacturer}</td><td style={td}>{r.format}</td><td style={td}>{r.din}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Save</button>
+          <button onClick={()=>setPending(null)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Cancel</button>
+        </div>
+      )}
+
+      <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+          <thead>
+            <tr><th style={th}>Molecule</th><th style={th}>Strength</th><th style={th}>Manufacturer</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr>
+          </thead>
+          <tbody>
+            {loading&&<tr><td style={td} colSpan={6}>Loading…</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>Empty catalog — import your scanned pages.</td></tr>}
+            {rows.map(r=>(
+              <tr key={r.id}>
+                <td style={{...td,fontWeight:700}}>{r.molecule}</td>
+                <td style={td}>{r.strength||"—"}</td>
+                <td style={td}>{r.manufacturer||"—"}</td>
+                <td style={td}>{r.format||"—"}</td>
+                <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
+                <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({session,onLogout}){
   const [page,setPage]=useState("overview");
   const [profiles,setProfiles]=useState([]);
@@ -238,7 +445,7 @@ function AdminDashboard({session,onLogout}){
     const matchC=filterCountry==="all"||p.country===filterCountry;
     return matchS&&matchP&&matchC;
   });
-  const nav=[{id:"overview",icon:"📊",label:"Overview"},{id:"pharmacies",icon:"🏥",label:"Pharmacies"},{id:"revenue",icon:"💰",label:"Revenue"}];
+  const nav=[{id:"overview",icon:"📊",label:"Overview"},{id:"pharmacies",icon:"🏥",label:"Pharmacies"},{id:"catalog",icon:"📚",label:"Drug catalog"},{id:"revenue",icon:"💰",label:"Revenue"}];
   return(
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
       <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
@@ -271,6 +478,7 @@ function AdminDashboard({session,onLogout}){
           <>
             {page==="overview"&&<AdminOverview profiles={profiles} mrr={mrr} planCounts={planCounts} countries={countries} loading={loading} onViewAll={()=>setPage("pharmacies")}/>}
             {page==="pharmacies"&&<AdminPharmacies profiles={filtered} total={profiles.length} search={search} setSearch={setSearch} filterPlan={filterPlan} setFilterPlan={setFilterPlan} filterCountry={filterCountry} setFilterCountry={setFilterCountry} countries={countries} loading={loading} onSelect={setSelected}/>}
+            {page==="catalog"&&<AdminCatalogPage/>}
             {page==="revenue"&&<AdminRevenue profiles={profiles} mrr={mrr} planCounts={planCounts} loading={loading}/>}
           </>
         )}
@@ -815,7 +1023,7 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-// ── HISTORY PAGE ─────────────────────────────────────────────
+// HISTORY PAGE
 function HistoryPage({session,fr,t}){
   const [cycles,setCycles]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -843,7 +1051,7 @@ function HistoryPage({session,fr,t}){
         <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
           <span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>{selected.total_molecules} {fr?"molécules":"molecules"}</span>
           <span style={{background:selected.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:selected.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>
-            {selected.total_discrepancies>0?`⚠️ ${selected.total_discrepancies} ${fr?"écart(s)":"discrepancy(ies)"}`:`✅ ${fr?"Tout équilibré":"All balanced"}`}
+            {selected.total_discrepancies>0?"⚠️ "+selected.total_discrepancies+" "+(fr?"écart(s)":"discrepancy(ies)"):"✅ "+(fr?"Tout équilibré":"All balanced")}
           </span>
         </div>
         <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
@@ -866,7 +1074,7 @@ function HistoryPage({session,fr,t}){
                     ))}
                     <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.sky,fontWeight:700}}>{m.physical!==""?m.physical:"—"}</td>
                     <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",fontWeight:700,color:disc===null?"#D1D5DB":disc===0?C.green:C.red}}>
-                      {disc===null?"—":disc===0?"✓ 0":`⚠️ ${disc>0?"+":""}${disc}`}
+                      {disc===null?"—":disc===0?"✓ 0":"⚠️ "+(disc>0?"+":"")+disc}
                     </td>
                     <td style={{padding:"6px 10px",fontSize:11,borderBottom:"1px solid #F3F4F6",color:C.grey}}>{m.notes||"—"}</td>
                   </tr>
@@ -904,7 +1112,7 @@ function HistoryPage({session,fr,t}){
                   <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.pharmacy_name} · {c.dispensing_system}</div>
                 </div>
                 <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
-                  {c.total_discrepancies>0?`⚠️ ${c.total_discrepancies} ${fr?"écart(s)":"disc."}`:`✅ ${fr?"Équilibré":"Balanced"}`}
+                  {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies+" "+(fr?"écart(s)":"disc."):"✅ "+(fr?"Équilibré":"Balanced")}
                 </span>
               </div>
               <div style={{display:"flex",gap:16}}>
@@ -990,7 +1198,7 @@ function HomePage({onNewReco,email,t,profile,session}){
                 <div style={{fontSize:11,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"molécules":"molecules"}</div>
               </div>
               <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:20}}>
-                {c.total_discrepancies>0?`⚠️ ${c.total_discrepancies}`:"✅"}
+                {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
               </span>
             </div>
           ))}
@@ -1060,7 +1268,7 @@ function RecoTable({session,profile,onComplete,lang}){
     setImporting(true);setImportErr("");
     let allMeds=[];
     for(let i=0;i<files.length;i++){
-      setImportProgress(fr?`Lecture ${i+1}/${files.length}…`:`Reading ${i+1}/${files.length}…`);
+      setImportProgress(fr?"Lecture "+(i+1)+"/"+files.length+"…":"Reading "+(i+1)+"/"+files.length+"…");
       try{const meds=await extractMedsFromFile(files[i],key,fr);if(Array.isArray(meds))allMeds=[...allMeds,...meds];}
       catch(err){console.error(err);}
     }
@@ -1196,8 +1404,8 @@ function RecoPage({onBack,t,profile,session}){
   const fr=lang==="fr";
 
   const sections=[
-    {k:"disp",label:t("salesLabel"),desc:dispensing?`${dispensing} · CSV · Excel · Tout format`:t("salesDesc"),color:"#EFF6FF",border:C.sky},
-    {k:"inv",label:t("inventoryLabel"),desc:inventory?`${inventory} · CSV · Excel · Tout format`:t("inventoryDesc"),color:"#F0FDF4",border:C.green},
+    {k:"disp",label:t("salesLabel"),desc:dispensing?dispensing+" · CSV · Excel · Tout format":t("salesDesc"),color:"#EFF6FF",border:C.sky},
+    {k:"inv",label:t("inventoryLabel"),desc:inventory?inventory+" · CSV · Excel · Tout format":t("inventoryDesc"),color:"#F0FDF4",border:C.green},
     {k:"csp",label:t("cspLabel"),desc:t("cspDesc"),color:"#FFF7ED",border:C.orange},
     {k:"cmd",label:t("regularOrderLabel"),desc:t("regularOrderDesc"),color:"#F5F3FF",border:"#7C3AED"},
   ];
@@ -1219,7 +1427,7 @@ function RecoPage({onBack,t,profile,session}){
           <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
           <div style={{fontSize:13,color:C.grey,marginBottom:6}}>{result?.totalMolecules} {fr?"molécules":"molecules"}</div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:result?.totalDisc>0?C.red:C.green}}>
-            {result?.totalDisc>0?`⚠️ ${result.totalDisc} ${fr?"écart(s) détecté(s)":"discrepancy(ies) found"}`:`✅ ${fr?"Tout équilibré":"All balanced"}`}
+            {result?.totalDisc>0?"⚠️ "+result.totalDisc+" "+(fr?"écart(s) détecté(s)":"discrepancy(ies) found"):"✅ "+(fr?"Tout équilibré":"All balanced")}
           </div>
           <button onClick={()=>{setStep("upload");setFiles({disp:null,inv:null,csp:null,cmd:null});setResult(null);}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>
             {t("newRecoBtn")}
@@ -1241,7 +1449,7 @@ function RecoPage({onBack,t,profile,session}){
         </div>
       )}
       {sections.map(f=>(
-        <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:`2px dashed ${files[f.k]?C.green:f.border}`}}>
+        <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:f.border)}}>
           <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
           <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
           <input type="file" accept=".csv,.xlsx,.xls,.pdf,.jpg,.png" onChange={e=>setFiles(v=>({...v,[f.k]:e.target.files[0]}))} style={{fontSize:12}}/>
