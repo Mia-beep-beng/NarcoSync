@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 
+const NS_URL="https://lqykpjgqbhaprbtafimi.supabase.co";
+const NS_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxeWtwamdxYmhhcHJidGFmaW1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MzMzNjMsImV4cCI6MjA5OTMwOTM2M30.N2C5u-FmEqVyemYyqVlw64RQErQe7O-uGVzYulV8nOI";
+try{localStorage.setItem("ns_url",NS_URL);localStorage.setItem("ns_key",NS_KEY);}catch(e){}
+
 const C = {
   navy:"#0F2744",blue:"#1E4D8C",sky:"#2E86DE",
   green:"#1A9E5F",red:"#D63031",orange:"#E67E22",
@@ -177,7 +181,7 @@ const PROVINCE_COORDS={
 const SB={
   isConfigured:()=>{try{return !!(localStorage.getItem("ns_url")&&localStorage.getItem("ns_key"));}catch{return false;}},
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
-  get:()=>{try{return{url:localStorage.getItem("ns_url")||"",key:localStorage.getItem("ns_key")||""};}catch{return{url:"",key:""};}},
+  get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
   saveSession:(s)=>{try{localStorage.setItem("ns_session",JSON.stringify(s));}catch{}},
   clearSession:()=>{try{localStorage.removeItem("ns_session");}catch{}},
@@ -232,7 +236,7 @@ async function catFetch(path,opts){
 
 function isDiscontinued(v){
   const s=String(v||"").toLowerCase();
-  return s.indexOf("disc")>=0||s.indexOf("discontinu")>=0||s.indexOf("cesse")>=0||s.indexOf("retir")>=0;
+  return s.indexOf("disc")>=0||s.indexOf("cesse")>=0||s.indexOf("retir")>=0;
 }
 
 const CAT={
@@ -285,7 +289,7 @@ async function extractCatalogFromFile(file,aiKey){
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
   const prompt="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
     +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
-    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, discontinué, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
+    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
     +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
     +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
     +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
@@ -818,7 +822,7 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
 }
 
 function SetupScreen({onDone}){
-  const [url,setUrl]=useState("");const [key,setKey]=useState("");const [err,setErr]=useState("");
+  const [url,setUrl]=useState(NS_URL);const [key,setKey]=useState(NS_KEY);const [err,setErr]=useState("");
   function connect(){if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}SB.save(url.replace(/\/+$/,""),key);onDone();}
   const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
   return(
@@ -858,8 +862,8 @@ function AuthScreen({onAuth}){
       const r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,password:pwd})});
       const d=await r.json();
       if(d.access_token){SB.saveSession(d);onAuth(d);}
-      else setErr(d.error_description||d.msg||t("authFailed"));
-    }catch{setErr(t("networkError"));}
+      else setErr((d.error_description||d.msg||d.message||t("authFailed"))+" ["+r.status+"]");
+    }catch(e){setErr(t("networkError")+" - "+(e.message||""));}
     setBusy(false);
   }
   const inp={width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
@@ -882,7 +886,7 @@ function AuthScreen({onAuth}){
           {[{l:"Email",v:email,s:setEmail,t:"email",ph:"pharmacist@clinic.com"},{l:"Password",v:pwd,s:setPwd,t:"password",ph:"Min. 6 characters"}].map(f=>(
             <div key={f.l} style={{marginBottom:13}}>
               <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
-              <input type={f.t} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={inp}/>
+              <input type={f.t} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={inp} autoComplete="off"/>
             </div>
           ))}
           {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
@@ -1049,7 +1053,6 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-// HISTORY PAGE
 function HistoryPage({session,fr,t}){
   const [cycles,setCycles]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1155,7 +1158,6 @@ function HistoryPage({session,fr,t}){
 
 function HomePage({onNewReco,email,t,profile,session}){
   const [cycles,setCycles]=useState([]);
-  const [loadingCycles,setLoadingCycles]=useState(true);
   const pharmacyName=profile?.pharmacy_name||"";
   const dispensing=profile?.dispensing_system||"";
   const inventory=profile?.inventory_system||"";
@@ -1165,7 +1167,7 @@ function HomePage({onNewReco,email,t,profile,session}){
     const {url,key}=SB.get();
     fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc&limit=5",{
       headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
-    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);setLoadingCycles(false);}).catch(()=>setLoadingCycles(false));
+    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);}).catch(()=>{});
   },[]);
 
   const totalCycles=cycles.length;
@@ -1251,7 +1253,7 @@ async function extractMedsFromFile(file,aiKey,fr){
     ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
   const prompt=fr
-    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Ignore les lignes marquées discontinue/discontinué. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}."
+    ?"Ce document est une liste de medicaments controles d'une pharmacie canadienne. Extrais TOUS les medicaments listes. Ignore les lignes marquees discontinue. Retourne UNIQUEMENT un tableau JSON valide (sans markdown) avec des objets: {\"name\":\"nom\",\"strength\":\"dose\",\"manufacturer\":\"fabricant\",\"format\":\"format\",\"din\":\"DIN 8 chiffres ou vide\"}."
     :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Skip lines marked discontinued. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
@@ -1329,9 +1331,6 @@ function RecoTable({session,profile,onComplete,lang}){
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
             <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
             <div style={{fontSize:12,color:C.grey,marginBottom:16}}>{fr?"Votre clé reste dans votre navigateur uniquement.":"Your key stays in your browser only."}</div>
-            <div style={{fontSize:11,color:C.orange,background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",marginBottom:16}}>
-              ⚠️ {fr?"Obtenez votre clé sur console.anthropic.com":"Get your key at console.anthropic.com"}
-            </div>
             <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{fr?"Annuler":"Cancel"}</button>
@@ -1496,7 +1495,7 @@ function RecoPage({onBack,t,profile,session}){
 }
 
 export default function App(){
-  const [configured,setConfigured]=useState(SB.isConfigured());
+  const [configured,setConfigured]=useState(true);
   const [session,setSession]=useState(SB.getSession());
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
