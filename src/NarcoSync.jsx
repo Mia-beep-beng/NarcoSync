@@ -219,7 +219,7 @@ function PlanBadge({plan}){
   return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
 }
 
-/* ===== DRUG CATALOG (admin only) ===== */
+/* ===== DRUG CATALOG ===== */
 
 async function catFetch(path,opts){
   const g=SB.get();
@@ -241,7 +241,7 @@ function isDiscontinued(v){
 
 const CAT={
   async list(search){
-    let q="drug_catalog?select=*&order=molecule.asc&limit=1000";
+    let q="drug_catalog?select=*&order=molecule.asc&limit=2000";
     if(search&&search.trim()){
       const s=encodeURIComponent("*"+search.trim()+"*");
       q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
@@ -259,15 +259,21 @@ const CAT={
         din:String(r.din||"").replace(/\D/g,"").trim()||null,
         is_narcotic:true
       }));
-    const withDin=clean.filter(r=>r.din);
-    const noDin=clean.filter(r=>!r.din);
+    const seen={};
+    const withDin=[];
+    const noDin=[];
+    clean.forEach(r=>{
+      if(r.din){ if(!seen[r.din]){seen[r.din]=1;withDin.push(r);} }
+      else noDin.push(r);
+    });
     let n=0;
-    if(withDin.length){
-      const d=await catFetch("drug_catalog?on_conflict=din",{method:"POST",body:withDin,prefer:"resolution=merge-duplicates,return=representation"});
+    const BATCH=200;
+    for(let i=0;i<withDin.length;i+=BATCH){
+      const d=await catFetch("drug_catalog?on_conflict=din",{method:"POST",body:withDin.slice(i,i+BATCH),prefer:"resolution=merge-duplicates,return=representation"});
       n+=(d||[]).length;
     }
-    if(noDin.length){
-      const d2=await catFetch("drug_catalog",{method:"POST",body:noDin,prefer:"return=representation"});
+    for(let i=0;i<noDin.length;i+=BATCH){
+      const d2=await catFetch("drug_catalog",{method:"POST",body:noDin.slice(i,i+BATCH),prefer:"return=representation"});
       n+=(d2||[]).length;
     }
     return n;
@@ -275,38 +281,93 @@ const CAT={
   async remove(id){await catFetch("drug_catalog?id=eq."+id,{method:"DELETE"});}
 };
 
-async function extractCatalogFromFile(file,aiKey){
-  const base64=await new Promise((res,rej)=>{
-    const reader=new FileReader();
-    reader.onload=()=>res(reader.result.split(",")[1]);
-    reader.onerror=rej;
-    reader.readAsDataURL(file);
+function loadPdfLib(){
+  return new Promise((res,rej)=>{
+    if(window.PDFLib) return res(window.PDFLib);
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
+    s.onload=()=>{ if(window.PDFLib) res(window.PDFLib); else rej(new Error("pdf-lib introuvable")); };
+    s.onerror=()=>rej(new Error("Chargement pdf-lib echoue"));
+    document.head.appendChild(s);
   });
-  const isPDF=file.type==="application/pdf";
-  const mediaType=isPDF?"application/pdf":file.type||"image/jpeg";
-  const contentBlock=isPDF
-    ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
-    :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
-  const prompt="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
-    +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
-    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
-    +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
-    +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
-    +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
+}
+
+function b64FromBytes(bytes){
+  let bin="";
+  const chunk=8192;
+  for(let i=0;i<bytes.length;i+=chunk){
+    bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+  }
+  return btoa(bin);
+}
+
+const CAT_PROMPT="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
+  +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
+  +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
+  +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
+  +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
+  +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
+
+async function callClaude(block,aiKey){
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content:[block,{type:"text",text:CAT_PROMPT}]}]})
   });
-  if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,200));}
+  if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,150));}
   const data=await response.json();
-  const text=data.content?.[0]?.text||"[]";
+  const text=(data.content||[]).map(i=>i.text||"").join("");
   const clean=text.replace(/```json|```/g,"").trim();
   const a=clean.indexOf("[");
   const b=clean.lastIndexOf("]");
-  if(a===-1||b===-1) throw new Error("Reponse IA illisible");
-  const arr=JSON.parse(clean.slice(a,b+1));
-  return arr.filter(r=>!isDiscontinued(r.status));
+  if(a===-1||b===-1) throw new Error("Reponse illisible");
+  return JSON.parse(clean.slice(a,b+1));
+}
+
+async function extractCatalogFromFile(file,aiKey,onProgress){
+  const isPDF=file.type==="application/pdf"||/\.pdf$/i.test(file.name);
+
+  if(!isPDF){
+    const base64=await new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=()=>res(reader.result.split(",")[1]);
+      reader.onerror=rej;
+      reader.readAsDataURL(file);
+    });
+    const rows=await callClaude({type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},aiKey);
+    return rows.filter(r=>!isDiscontinued(r.status));
+  }
+
+  const PDFLib=await loadPdfLib();
+  const buf=await file.arrayBuffer();
+  const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
+  const total=src.getPageCount();
+  const CHUNK=4;
+  let all=[];
+  const failed=[];
+
+  for(let start=0;start<total;start+=CHUNK){
+    const end=Math.min(start+CHUNK,total);
+    if(onProgress) onProgress("Pages "+(start+1)+"-"+end+" / "+total);
+    const out=await PDFLib.PDFDocument.create();
+    const idx=[];
+    for(let p=start;p<end;p++) idx.push(p);
+    const copied=await out.copyPages(src,idx);
+    copied.forEach(pg=>out.addPage(pg));
+    const bytes=await out.save();
+    const b64=b64FromBytes(bytes);
+    try{
+      const rows=await callClaude({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},aiKey);
+      if(Array.isArray(rows)) all=all.concat(rows);
+    }catch(e){
+      failed.push((start+1)+"-"+end);
+    }
+  }
+
+  if(failed.length===Math.ceil(total/CHUNK)) throw new Error("Toutes les pages ont echoue");
+  const res=all.filter(r=>!isDiscontinued(r.status));
+  res.failedRanges=failed.join(", ");
+  return res;
 }
 
 function AdminCatalogPage(){
@@ -314,9 +375,9 @@ function AdminCatalogPage(){
   const [loading,setLoading]=useState(true);
   const [search,setSearch]=useState("");
   const [err,setErr]=useState("");
+  const [warn,setWarn]=useState("");
   const [busy,setBusy]=useState("");
   const [pending,setPending]=useState(null);
-  const [skipped,setSkipped]=useState(0);
   const [showAISetup,setShowAISetup]=useState(false);
   const [aiKeyInput,setAiKeyInput]=useState("");
   const fileRef=useRef();
@@ -335,34 +396,34 @@ function AdminCatalogPage(){
     if(!files.length) return;
     const key=SB.getAIKey();
     if(!key){setShowAISetup(true);e.target.value="";return;}
-    setErr("");let all=[];let bad="";
+    setErr("");setWarn("");
+    let all=[];let bad="";let skippedRanges="";
     for(let i=0;i<files.length;i++){
-      setBusy("Reading "+(i+1)+"/"+files.length+"…");
-      try{const meds=await extractCatalogFromFile(files[i],key);if(Array.isArray(meds))all=all.concat(meds);}
-      catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
+      try{
+        const meds=await extractCatalogFromFile(files[i],key,(p)=>setBusy(p));
+        if(Array.isArray(meds)) all=all.concat(meds);
+        if(meds.failedRanges) skippedRanges+=(skippedRanges?" · ":"")+files[i].name+": "+meds.failedRanges;
+      }catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
     }
     setBusy("");e.target.value="";
     if(bad)setErr(bad);
-    if(all.length){
-      const keep=all.filter(r=>!isDiscontinued(r.status));
-      setSkipped(all.length-keep.length);
-      setPending(keep);
-    }
-    else if(!bad)setErr("No drug detected.");
+    if(skippedRanges)setWarn("Pages non lues: "+skippedRanges);
+    if(all.length) setPending(all);
+    else if(!bad) setErr("Aucun produit detecte.");
   }
 
   async function confirmImport(){
-    setBusy("Saving…");
+    setBusy("Enregistrement…");
     try{
       const n=await CAT.upsertMany(pending);
       setPending(null);setBusy("");
       await load(search);
-      alert("Imported: "+n);
+      alert("Importe : "+n);
     }catch(e){setBusy("");setErr(e.message||String(e));}
   }
 
   async function del(id){
-    if(!window.confirm("Delete this row?")) return;
+    if(!window.confirm("Supprimer cette ligne?")) return;
     try{await CAT.remove(id);setRows(rows.filter(r=>r.id!==id));}catch(e){setErr(e.message||String(e));}
   }
 
@@ -388,7 +449,7 @@ function AdminCatalogPage(){
       <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
         <div>
           <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📚 Drug catalog</div>
-          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} products · discontinued lines excluded</div>
+          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} produits · lignes discontinuées exclues</div>
         </div>
         <div>
           <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
@@ -398,18 +459,20 @@ function AdminCatalogPage(){
         </div>
       </div>
 
-      <input value={search} placeholder="Search description, DIN, CUP…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
+      <input value={search} placeholder="Chercher description, DIN, CUP…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
 
+      {busy&&<div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#5B21B6",fontWeight:600,marginBottom:14}}>🤖 {busy}</div>}
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
+      {warn&&<div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#92400E",marginBottom:14}}>⚠️ {warn}</div>}
 
       {pending&&(
         <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:12,padding:16,marginBottom:18}}>
           <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>
-            {pending.length} active rows detected{skipped>0?" · "+skipped+" discontinued skipped":""} — review before saving
+            {pending.length} lignes actives détectées — vérifier avant d'enregistrer
           </div>
-          <div style={{maxHeight:280,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
+          <div style={{maxHeight:300,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}>Status</th></tr></thead>
+              <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th></tr></thead>
               <tbody>
                 {pending.map((r,i)=>(
                   <tr key={i}>
@@ -417,14 +480,13 @@ function AdminCatalogPage(){
                     <td style={td}>{r.description}</td>
                     <td style={td}>{r.format}</td>
                     <td style={{...td,fontFamily:"monospace"}}>{r.din}</td>
-                    <td style={{...td,color:C.green,fontSize:11}}>{r.status||"—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Save</button>
-          <button onClick={()=>{setPending(null);setSkipped(0);}} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Cancel</button>
+          <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Enregistrer</button>
+          <button onClick={()=>setPending(null)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Annuler</button>
         </div>
       )}
 
@@ -434,8 +496,8 @@ function AdminCatalogPage(){
             <tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr>
           </thead>
           <tbody>
-            {loading&&<tr><td style={td} colSpan={5}>Loading…</td></tr>}
-            {!loading&&rows.length===0&&<tr><td style={td} colSpan={5}>Empty catalog — import your scanned pages.</td></tr>}
+            {loading&&<tr><td style={td} colSpan={5}>Chargement…</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={5}>Catalogue vide — importez vos pages scannées.</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
                 <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
@@ -857,7 +919,7 @@ function AuthScreen({onAuth}){
   }
 
   async function sendRecovery(){
-    if(!email){setErr("Entrez votre courriel / Enter your email first.");return;}
+    if(!email){setErr("Entrez votre courriel.");return;}
     setBusy(true);setErr("");setMsg("");
     const {url,key}=SB.get();
     try{
@@ -1312,33 +1374,6 @@ function HomePage({onNewReco,email,t,profile,session}){
   );
 }
 
-async function extractMedsFromFile(file,aiKey,fr){
-  const base64=await new Promise((res,rej)=>{
-    const reader=new FileReader();
-    reader.onload=()=>res(reader.result.split(",")[1]);
-    reader.onerror=rej;
-    reader.readAsDataURL(file);
-  });
-  const isPDF=file.type==="application/pdf";
-  const mediaType=isPDF?"application/pdf":file.type||"image/jpeg";
-  const contentBlock=isPDF
-    ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
-    :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
-  const prompt=fr
-    ?"Ce document est une liste de medicaments controles d'une pharmacie canadienne. Extrais TOUS les medicaments listes. Ignore les lignes marquees discontinue. Retourne UNIQUEMENT un tableau JSON valide (sans markdown) avec des objets: {\"name\":\"nom\",\"strength\":\"dose\",\"manufacturer\":\"fabricant\",\"format\":\"format\",\"din\":\"DIN 8 chiffres ou vide\"}."
-    :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Skip lines marked discontinued. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
-  const response=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4096,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
-  });
-  if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,200));}
-  const data=await response.json();
-  const text=data.content?.[0]?.text||"[]";
-  const clean=text.replace(/```json|```/g,"").trim();
-  return JSON.parse(clean);
-}
-
 function RecoTable({session,profile,onComplete,lang}){
   const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
   const [saving,setSaving]=useState(false);
@@ -1369,13 +1404,15 @@ function RecoTable({session,profile,onComplete,lang}){
     setImporting(true);setImportErr("");
     let allMeds=[];let bad="";
     for(let i=0;i<files.length;i++){
-      setImportProgress(fr?"Lecture "+(i+1)+"/"+files.length+"…":"Reading "+(i+1)+"/"+files.length+"…");
-      try{const meds=await extractMedsFromFile(files[i],key,fr);if(Array.isArray(meds))allMeds=[...allMeds,...meds];}
+      try{
+        const meds=await extractCatalogFromFile(files[i],key,(p)=>setImportProgress(p));
+        if(Array.isArray(meds)) allMeds=allMeds.concat(meds);
+      }
       catch(err){bad=files[i].name+" - "+(err.message||String(err));}
     }
     if(allMeds.length>0){
       let id=nextId;
-      const newMols=allMeds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
+      const newMols=allMeds.map(m=>({id:id++,name:m.description||m.molecule||"",strength:"",manufacturer:"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:m.cup?"CUP "+m.cup:""}));
       setMolecules(prev=>[...prev,...newMols]);setNextId(id);
     }
     if(bad) setImportErr(bad);
