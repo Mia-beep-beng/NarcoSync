@@ -296,7 +296,7 @@ async function extractCatalogFromFile(file,aiKey){
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:8000,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
   });
   if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,200));}
   const data=await response.json();
