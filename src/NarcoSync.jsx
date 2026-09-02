@@ -29,9 +29,9 @@ const T = {
     softwareSection:"💻 Software Systems",
     pharmacyName:"Pharmacy chain / banner",permitNumber:"Permit / License number",
     pharmacyAddress:"Pharmacy address",pharmacyPhone:"Pharmacy phone",pharmacyEmail:"Pharmacy email",
-    dispensingSystem:"Dispensing software",dispensingSystemHint:"Software that generates your dispensing records (sales/Rx history)",
+    dispensingSystem:"Dispensing software",dispensingSystemHint:"Software that generates your dispensing records",
     dispensingSystemPlaceholder:"Search dispensing software…",
-    inventorySystem:"Ordering / inventory system",inventorySystemHint:"Software used for stock ordering and inventory management",
+    inventorySystem:"Ordering / inventory system",inventorySystemHint:"Software used for stock ordering",
     inventorySystemPlaceholder:"Search inventory system…",
     pharmacistOwner:"Pharmacist-owner name",pharmacistEmail:"Pharmacist-owner email",
     managerName:"Your name (team lead / manager)",
@@ -45,6 +45,7 @@ const T = {
     requiredNote:"* Required fields",planRequired:"⚠️ Please select a plan to continue.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
     dashboard:"Dashboard",reconciliation:"Reconciliation",history:"History",
+    inventory:"My inventory",
     clinical:"Clinical",plans:"Plans",signOut:"🔒 Sign out",loggedInAs:"LOGGED IN AS",
     welcomeMsg:"Welcome to NarcoSync 👋",liveMsg:"🎉 NarcoSync is live!",
     liveSubMsg:"Connected to Supabase · Ready for your first reconciliation",
@@ -53,7 +54,7 @@ const T = {
     newRecoSub:"Upload your 4 files · Any format",
     inventoryLabel:"📦 Inventory",inventoryDesc:"Export from your ordering/inventory system",
     salesLabel:"💊 Dispensing",salesDesc:"Export from your dispensing software",
-    cspLabel:"📋 CSP Purchase Order",cspDesc:"Narcotics receiving documents — Purdue, Paladin, McKesson, etc.",
+    cspLabel:"📋 CSP Purchase Order",cspDesc:"Narcotics receiving — Purdue, Paladin, McKesson, etc.",
     regularOrderLabel:"📄 Regular Purchase Order",regularOrderDesc:"Regular orders — PharmaClik, Matrix, McKesson Connect",
     reconcileNow:"⚡ Proceed to reconciliation →",recoComplete:"Reconciliation complete!",
     recoCompleteSub:"Cycle saved successfully.",newRecoBtn:"New reconciliation",
@@ -80,9 +81,9 @@ const T = {
     softwareSection:"💻 Logiciels",
     pharmacyName:"Bannière / chaîne pharmacie",permitNumber:"Numéro de permis / licence",
     pharmacyAddress:"Adresse de la pharmacie",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
-    dispensingSystem:"Logiciel de dispensation",dispensingSystemHint:"Logiciel qui génère vos dossiers de dispensation (ventes / historique Rx)",
+    dispensingSystem:"Logiciel de dispensation",dispensingSystemHint:"Logiciel qui génère vos dossiers de dispensation",
     dispensingSystemPlaceholder:"Chercher le logiciel de dispensation…",
-    inventorySystem:"Système de commande / inventaire",inventorySystemHint:"Logiciel utilisé pour les commandes et la gestion des stocks",
+    inventorySystem:"Système de commande / inventaire",inventorySystemHint:"Logiciel utilisé pour les commandes",
     inventorySystemPlaceholder:"Chercher le système d'inventaire…",
     pharmacistOwner:"Nom du pharmacien-propriétaire",pharmacistEmail:"Courriel du pharmacien-propriétaire",
     managerName:"Votre nom (chef d'équipe / gestionnaire)",
@@ -96,6 +97,7 @@ const T = {
     requiredNote:"* Champs obligatoires",planRequired:"⚠️ Veuillez sélectionner un forfait pour continuer.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
     dashboard:"Tableau de bord",reconciliation:"Réconciliation",history:"Historique",
+    inventory:"Mon inventaire",
     clinical:"Clinique",plans:"Forfaits",signOut:"🔒 Se déconnecter",loggedInAs:"CONNECTÉ EN TANT QUE",
     welcomeMsg:"Bienvenue sur NarcoSync 👋",liveMsg:"🎉 NarcoSync est en ligne!",
     liveSubMsg:"Connecté à Supabase · Prêt pour votre première réconciliation",
@@ -123,28 +125,10 @@ function getLang(l){
   return "en";
 }
 
-const DEFAULT_MOLECULES=[
-  {id:1,name:"Hydromorphone",strength:"1mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:2,name:"Hydromorphone",strength:"2mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:3,name:"Hydromorphone",strength:"4mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:4,name:"Hydromorphone",strength:"8mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:5,name:"Morphine",strength:"15mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:6,name:"Morphine",strength:"30mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:7,name:"Oxycodone",strength:"5mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:8,name:"Oxycodone",strength:"10mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:9,name:"Oxycodone",strength:"20mg",manufacturer:"Purdue",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:10,name:"Fentanyl",strength:"25mcg/h",manufacturer:"Paladin",format:"5 timbres",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:11,name:"Fentanyl",strength:"50mcg/h",manufacturer:"Paladin",format:"5 timbres",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:12,name:"Méthadone",strength:"10mg/mL",manufacturer:"Paladin",format:"500 mL",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:13,name:"Codéine",strength:"30mg",manufacturer:"Teva",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:14,name:"Méthylphénidate",strength:"10mg",manufacturer:"Novartis",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-  {id:15,name:"Lorazépam",strength:"1mg",manufacturer:"Sandoz",format:"100 comp.",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""},
-];
-
 const DISPENSING_SYSTEMS={
   "Canada":["AssiStRx","RxPro","Gespar","Ubik","Reflex","Kroll","Datascan","Logibec","Purkinje","WinRx","Fillware","Nexxsys","Prodigy RX","Propel Rx","HealthWatch","Pharmaserv","Axys Pharmacy","MedAccess","Cerner Pharmacy","BD Pyxis (hospital)","Omnicell (hospital)","Other / Custom"],
   "United States":["QS/1 (NRx)","PioneerRx","Liberty Software","Rx30","ScriptPro","PDX","Computer-Rx","BestRx","McKesson EnterpriseRx","Intercom Plus","Epic Willow","Cerner Pharmacy","SuiteRx","FrameworkLTC","Winpharm","ARxIUM","Other / Custom"],
-  "France":["Winpharma","Lgpi (Pharmagest)","Pharmagest Smart Rx","Isipharm","Pharmonet","Caducée","Ordoclic","Cegi","Propharm","Delta Informatique","BPCO Pharma","Other / Custom"],
+  "France":["Winpharma","Lgpi (Pharmagest)","Pharmagest Smart Rx","Isipharm","Pharmonet","Caducée","Ordoclic","Cegi","Propharm","Delta Informatique","Other / Custom"],
   "United Kingdom":["Rx Web (Cegedim)","Pharmacy Manager (EMIS Health)","SystmOne Pharmacy","Vision Pharmacy","Titan Pharmacy System","Positive Solutions","IPS Dispense","Other / Custom"],
   "Australia":["Fred Dispense (Fred IT)","Minfos","Corum Clear Dispense","Z Dispense","Simple Pharmacy System","Toniq","Other / Custom"],
   "Germany":["LAUER-FISCHER","IXOS","Pharmatechnik","ADG Apothekensoftware","Other / Custom"],
@@ -179,7 +163,6 @@ const PROVINCE_COORDS={
 };
 
 const SB={
-  isConfigured:()=>{try{return !!(localStorage.getItem("ns_url")&&localStorage.getItem("ns_key"));}catch{return false;}},
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
   get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
@@ -192,12 +175,12 @@ const SB={
   saveAIKey:(k)=>{try{localStorage.setItem("ns_ai_key",k);}catch{}},
 };
 
-const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Afrikaans","Albanian","Amharic","Arabic","Armenian","Azerbaijani","Basque","Belarusian","Bengali","Bosnian","Bulgarian","Catalan","Chinese (Simplified)","Chinese (Traditional)","Croatian","Czech","Danish","Dutch","Estonian","Filipino","Finnish","Galician","Georgian","German","Greek","Gujarati","Haitian Creole","Hausa","Hebrew","Hindi","Hungarian","Icelandic","Igbo","Indonesian","Irish","Italian","Japanese","Javanese","Kannada","Kazakh","Khmer","Korean","Kurdish","Kyrgyz","Lao","Latvian","Lithuanian","Luxembourgish","Macedonian","Malay","Malayalam","Maltese","Maori","Marathi","Mongolian","Nepali","Norwegian","Pashto","Persian","Polish","Portuguese","Punjabi","Romanian","Russian","Serbian","Sinhala","Slovak","Slovenian","Somali","Spanish","Swahili","Swedish","Tajik","Tamil","Telugu","Thai","Turkish","Turkmen","Ukrainian","Urdu","Uzbek","Vietnamese","Welsh","Xhosa","Yoruba","Zulu","Other"];
+const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Arabic","Chinese (Simplified)","Dutch","German","Greek","Hindi","Italian","Japanese","Korean","Polish","Portuguese","Punjabi","Romanian","Russian","Spanish","Tagalog","Ukrainian","Urdu","Vietnamese","Other"];
 
 const PHARMACY_CHAINS_BY_COUNTRY={
   "Canada":["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Lawtons","Rexall","Guardian","Medicine Shoppe","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","Loblaw Pharmacy","Sobeys Pharmacy","London Drugs","PharmaChoice","Remedy'sRx","Co-op Pharmacy","Other / Independent"],
-  "United States":["CVS Pharmacy","Walgreens","Rite Aid","Walmart Pharmacy","Costco Pharmacy","Kroger Pharmacy","Publix Pharmacy","Albertsons Pharmacy","Safeway Pharmacy","Target Pharmacy","Hy-Vee Pharmacy","Meijer Pharmacy","Giant Pharmacy","Stop & Shop Pharmacy","Wegmans Pharmacy","H-E-B Pharmacy","Harris Teeter Pharmacy","Fred Meyer Pharmacy","Kinney Drugs","Health Mart","Good Neighbor Pharmacy","Medicine Shoppe","Other / Independent"],
-  "France":["Pharmacie Lafayette","Pharmavie","Giropharm","PHR Pharmacies","Pharmodel","Optipharm","Welcoop","Alphega Pharmacie","Other / Independent"],
+  "United States":["CVS Pharmacy","Walgreens","Rite Aid","Walmart Pharmacy","Costco Pharmacy","Kroger Pharmacy","Publix Pharmacy","Target Pharmacy","Health Mart","Good Neighbor Pharmacy","Medicine Shoppe","Other / Independent"],
+  "France":["Pharmacie Lafayette","Pharmavie","Giropharm","PHR Pharmacies","Pharmodel","Welcoop","Alphega Pharmacie","Other / Independent"],
   "United Kingdom":["Boots","Lloyds Pharmacy","Well Pharmacy","Superdrug Pharmacy","Day Lewis Pharmacy","Rowlands Pharmacy","Other / Independent"],
   "Australia":["Chemist Warehouse","Priceline Pharmacy","Terry White Chemmart","Blooms The Chemist","Amcal","Guardian Pharmacy","Other / Independent"],
   "Belgium":["Multipharma","Newpharma","Other / Independent"],
@@ -212,6 +195,7 @@ const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado"
 const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
 const PLAN_COLORS={basic:{bg:"#EFF6FF",color:"#1E4D8C"},pro:{bg:"#F0FDF4",color:"#1A9E5F"},enterprise:{bg:"#FFF7ED",color:"#C2410C"}};
 const PLAN_PRICE={basic:49,pro:99,enterprise:249};
+const CATEGORIES=[{v:"narco",l:"Narcotique"},{v:"benzo",l:"Benzo / Ciblé"},{v:"cible",l:"Ciblé"},{v:"autre",l:"Autre"}];
 
 function PlanBadge({plan}){
   if(!plan) return null;
@@ -219,9 +203,9 @@ function PlanBadge({plan}){
   return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
 }
 
-/* ===== DRUG CATALOG ===== */
+/* ===== SUPABASE REST ===== */
 
-async function catFetch(path,opts){
+async function sbFetch(path,opts){
   const g=SB.get();
   const s=SB.getSession();
   const tok=(s&&s.access_token)?s.access_token:g.key;
@@ -238,6 +222,7 @@ function isDiscontinued(v){
   const s=String(v||"").toLowerCase();
   return s.indexOf("disc")>=0||s.indexOf("cesse")>=0||s.indexOf("retir")>=0;
 }
+function cleanDin(d){return String(d||"").replace(/\D/g,"").trim();}
 
 const CAT={
   async list(search){
@@ -246,40 +231,90 @@ const CAT={
       const s=encodeURIComponent("*"+search.trim()+"*");
       q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
     }
-    return await catFetch(q);
+    return await sbFetch(q);
+  },
+  async byDins(dins){
+    if(!dins.length) return [];
+    const out=[];
+    for(let i=0;i<dins.length;i+=100){
+      const chunk=dins.slice(i,i+100).filter(Boolean);
+      if(!chunk.length) continue;
+      const q="drug_catalog?select=*&din=in.("+chunk.join(",")+")";
+      const r=await sbFetch(q);
+      r.forEach(x=>out.push(x));
+    }
+    return out;
   },
   async upsertMany(rows){
     const clean=rows
       .filter(r=>r&&(r.description||r.molecule))
-      .filter(r=>!isDiscontinued(r.status||r.command||r.commande))
+      .filter(r=>!isDiscontinued(r.status))
       .map(r=>({
         cup:String(r.cup||"").trim()||null,
         molecule:String(r.description||r.molecule||"").trim(),
+        strength:String(r.strength||"").trim()||null,
         format:String(r.format||"").trim()||null,
-        din:String(r.din||"").replace(/\D/g,"").trim()||null,
+        din:cleanDin(r.din)||null,
+        category:r.category||"narco",
         is_narcotic:true
       }));
-    const seen={};
-    const withDin=[];
-    const noDin=[];
-    clean.forEach(r=>{
-      if(r.din){ if(!seen[r.din]){seen[r.din]=1;withDin.push(r);} }
-      else noDin.push(r);
-    });
-    let n=0;
-    const BATCH=200;
-    for(let i=0;i<withDin.length;i+=BATCH){
-      const d=await catFetch("drug_catalog?on_conflict=din",{method:"POST",body:withDin.slice(i,i+BATCH),prefer:"resolution=merge-duplicates,return=representation"});
+    const seen={};const withDin=[];const noDin=[];
+    clean.forEach(r=>{ if(r.din){ if(!seen[r.din]){seen[r.din]=1;withDin.push(r);} } else noDin.push(r); });
+    let n=0;const B=200;
+    for(let i=0;i<withDin.length;i+=B){
+      const d=await sbFetch("drug_catalog?on_conflict=din",{method:"POST",body:withDin.slice(i,i+B),prefer:"resolution=merge-duplicates,return=representation"});
       n+=(d||[]).length;
     }
-    for(let i=0;i<noDin.length;i+=BATCH){
-      const d2=await catFetch("drug_catalog",{method:"POST",body:noDin.slice(i,i+BATCH),prefer:"return=representation"});
-      n+=(d2||[]).length;
+    for(let i=0;i<noDin.length;i+=B){
+      const d=await sbFetch("drug_catalog",{method:"POST",body:noDin.slice(i,i+B),prefer:"return=representation"});
+      n+=(d||[]).length;
     }
     return n;
   },
-  async remove(id){await catFetch("drug_catalog?id=eq."+id,{method:"DELETE"});}
+  async remove(id){await sbFetch("drug_catalog?id=eq."+id,{method:"DELETE"});}
 };
+
+const INV={
+  async list(userId,search){
+    let q="pharmacy_drugs?select=*&user_id=eq."+userId+"&order=molecule.asc&limit=5000";
+    if(search&&search.trim()){
+      const s=encodeURIComponent("*"+search.trim()+"*");
+      q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
+    }
+    return await sbFetch(q);
+  },
+  async addMany(userId,rows){
+    const existing=await sbFetch("pharmacy_drugs?select=din&user_id=eq."+userId+"&limit=5000");
+    const have={};existing.forEach(e=>{if(e.din)have[e.din]=1;});
+    const body=[];
+    rows.forEach(r=>{
+      const din=cleanDin(r.din);
+      if(din&&have[din]) return;
+      if(din) have[din]=1;
+      body.push({
+        user_id:userId,
+        drug_id:r.drug_id||null,
+        din:din||null,
+        cup:String(r.cup||"").trim()||null,
+        molecule:String(r.molecule||r.description||"").trim(),
+        strength:String(r.strength||"").trim()||null,
+        format:String(r.format||"").trim()||null,
+        active:true
+      });
+    });
+    if(!body.length) return 0;
+    let n=0;const B=200;
+    for(let i=0;i<body.length;i+=B){
+      const d=await sbFetch("pharmacy_drugs",{method:"POST",body:body.slice(i,i+B),prefer:"return=representation"});
+      n+=(d||[]).length;
+    }
+    return n;
+  },
+  async update(id,patch){await sbFetch("pharmacy_drugs?id=eq."+id,{method:"PATCH",body:patch});},
+  async remove(id){await sbFetch("pharmacy_drugs?id=eq."+id,{method:"DELETE"});}
+};
+
+/* ===== PDF + AI ===== */
 
 function loadPdfLib(){
   return new Promise((res,rej)=>{
@@ -291,138 +326,375 @@ function loadPdfLib(){
     document.head.appendChild(s);
   });
 }
-
 function b64FromBytes(bytes){
-  let bin="";
-  const chunk=8192;
-  for(let i=0;i<bytes.length;i+=chunk){
-    bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
-  }
+  let bin="";const chunk=8192;
+  for(let i=0;i<bytes.length;i+=chunk) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
   return btoa(bin);
 }
-
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
-const CAT_PROMPT="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
-  +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
-  +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
-  +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
-  +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
-  +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
+const PROMPT_CATALOG="Ce document est une liste de produits d'une pharmacie canadienne. Colonnes: CUP, description, format, commande (statut), DIN. "
+  +"Pour CHAQUE ligne extrais ces valeurs. N'inclus PAS les lignes dont la commande indique discontinue, DISC, cesse ou retire. "
+  +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown ni backticks. "
+  +"Format: [{\"cup\":\"\",\"description\":\"\",\"strength\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
 
-async function callClaude(block,aiKey){
+const PROMPT_ORDER="Ce document est un bon de commande ou une liste d'inventaire d'une pharmacie canadienne. "
+  +"Pour CHAQUE ligne de produit extrais: cup (code produit), description (nom du medicament), strength (force ex 5mg), format (ex 100 comp), din (8 chiffres), qty (quantite recue ou en stock, un nombre). "
+  +"Si une valeur est absente mets une chaine vide, et qty a 0 si aucune quantite. "
+  +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown ni backticks. "
+  +"Format: [{\"cup\":\"\",\"description\":\"\",\"strength\":\"\",\"format\":\"\",\"din\":\"\",\"qty\":0}]";
+
+async function callClaude(block,aiKey,prompt){
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content:[block,{type:"text",text:CAT_PROMPT}]}]})
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content:[block,{type:"text",text:prompt}]}]})
   });
   if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,150));}
   const data=await response.json();
   const text=(data.content||[]).map(i=>i.text||"").join("");
   const clean=text.replace(/```json|```/g,"").trim();
-  const a=clean.indexOf("[");
-  const b=clean.lastIndexOf("]");
+  const a=clean.indexOf("[");const b=clean.lastIndexOf("]");
   if(a===-1||b===-1) throw new Error("Reponse illisible");
   return JSON.parse(clean.slice(a,b+1));
 }
 
-async function callClaudeRetry(block,aiKey){
-  const max=4;
-  for(let a=0;a<max;a++){
-    try{ return await callClaude(block,aiKey); }
+async function callClaudeRetry(block,aiKey,prompt){
+  for(let a=0;a<4;a++){
+    try{ return await callClaude(block,aiKey,prompt); }
     catch(e){
-      const msg=String(e.message||"");
-      const retryable=msg.indexOf("429")>=0||msg.indexOf("529")>=0||msg.indexOf("500")>=0||msg.indexOf("503")>=0||msg.indexOf("illisible")>=0;
-      if(retryable&&a<max-1){ await sleep(2000*Math.pow(2,a)); continue; }
+      const m=String(e.message||"");
+      const retry=m.indexOf("429")>=0||m.indexOf("529")>=0||m.indexOf("500")>=0||m.indexOf("503")>=0||m.indexOf("illisible")>=0;
+      if(retry&&a<3){ await sleep(2000*Math.pow(2,a)); continue; }
       throw e;
     }
   }
 }
 
-async function extractCatalogFromFile(file,aiKey,onProgress,ctrl){
+async function scanFile(file,aiKey,prompt,onProgress,ctrl){
   const isPDF=file.type==="application/pdf"||/\.pdf$/i.test(file.name);
-
   if(!isPDF){
     const base64=await new Promise((res,rej)=>{
-      const reader=new FileReader();
-      reader.onload=()=>res(reader.result.split(",")[1]);
-      reader.onerror=rej;
-      reader.readAsDataURL(file);
+      const rd=new FileReader();
+      rd.onload=()=>res(rd.result.split(",")[1]);
+      rd.onerror=rej;rd.readAsDataURL(file);
     });
-    const rows=await callClaudeRetry({type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},aiKey);
-    const r1=rows.filter(r=>!isDiscontinued(r.status));
-    r1.failedRanges="";
-    return r1;
+    const rows=await callClaudeRetry({type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},aiKey,prompt);
+    const r=rows.filter(x=>!isDiscontinued(x.status));r.failedRanges="";return r;
   }
-
   const PDFLib=await loadPdfLib();
   const buf=await file.arrayBuffer();
   const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
   const total=src.getPageCount();
-  const CHUNK=4;
-  const PARALLEL=3;
-
+  const CHUNK=4,PARALLEL=3;
   const blocks=[];
   for(let s=0;s<total;s+=CHUNK) blocks.push([s,Math.min(s+CHUNK,total)]);
-
-  let all=[];
-  const failed=[];
-  let done=0;
-  const t0=Date.now();
-  let cursor=0;
-
-  async function buildB64(start,end){
-    const out=await PDFLib.PDFDocument.create();
-    const idx=[];
-    for(let p=start;p<end;p++) idx.push(p);
-    const copied=await out.copyPages(src,idx);
-    copied.forEach(pg=>out.addPage(pg));
-    const bytes=await out.save();
-    return b64FromBytes(bytes);
-  }
+  let all=[];const failed=[];let done=0;const t0=Date.now();let cursor=0;
 
   function report(){
     if(!onProgress) return;
     const pct=Math.round(done/blocks.length*100);
-    const elapsed=(Date.now()-t0)/1000;
-    const rate=done>0?done/elapsed:0;
+    const el=(Date.now()-t0)/1000;
+    const rate=done>0?done/el:0;
     const left=rate>0?Math.round((blocks.length-done)/rate):0;
-    const mins=Math.floor(left/60), secs=left%60;
-    const pagesDone=Math.min(done*CHUNK,total);
-    onProgress(pct+"% · "+pagesDone+"/"+total+" pages"+(left>0?" · ~"+(mins?mins+"m ":"")+secs+"s restant":"")+(failed.length?" · "+failed.length+" bloc(s) manqué(s)":""));
+    const m=Math.floor(left/60),s2=left%60;
+    onProgress(pct+"% · "+Math.min(done*CHUNK,total)+"/"+total+" pages"+(left>0?" · ~"+(m?m+"m ":"")+s2+"s":"")+(failed.length?" · "+failed.length+" manqué(s)":""));
   }
-
   async function worker(){
     while(true){
       if(ctrl&&ctrl.cancelled) return;
-      while(ctrl&&ctrl.paused){ await sleep(400); if(ctrl.cancelled) return; }
+      while(ctrl&&ctrl.paused){await sleep(400);if(ctrl.cancelled)return;}
       const my=cursor++;
       if(my>=blocks.length) return;
-      const start=blocks[my][0], end=blocks[my][1];
+      const st=blocks[my][0],en=blocks[my][1];
       try{
-        let b64=await buildB64(start,end);
-        const rows=await callClaudeRetry({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},aiKey);
+        const out=await PDFLib.PDFDocument.create();
+        const idx=[];for(let p=st;p<en;p++) idx.push(p);
+        const cp=await out.copyPages(src,idx);
+        cp.forEach(pg=>out.addPage(pg));
+        const bytes=await out.save();
+        let b64=b64FromBytes(bytes);
+        const rows=await callClaudeRetry({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},aiKey,prompt);
         b64=null;
         if(Array.isArray(rows)) all=all.concat(rows);
-      }catch(e){
-        failed.push((start+1)+"-"+end);
-      }
-      done++;
-      report();
+      }catch(e){ failed.push((st+1)+"-"+en); }
+      done++;report();
     }
   }
-
   report();
-  const workers=[];
-  for(let w=0;w<Math.min(PARALLEL,blocks.length);w++) workers.push(worker());
-  await Promise.all(workers);
-
+  const ws=[];
+  for(let w=0;w<Math.min(PARALLEL,blocks.length);w++) ws.push(worker());
+  await Promise.all(ws);
   if(failed.length===blocks.length) throw new Error("Toutes les pages ont echoue");
-  const res=all.filter(r=>!isDiscontinued(r.status));
+  const res=all.filter(x=>!isDiscontinued(x.status));
   res.failedRanges=failed.join(", ");
   return res;
 }
 
+/* ===== AI KEY MODAL ===== */
+function AIKeyModal({onClose,onSaved}){
+  const [k,setK]=useState("");
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
+        <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
+        <div style={{fontSize:12,color:C.grey,marginBottom:16}}>Votre clé reste dans votre navigateur uniquement.</div>
+        <input value={k} onChange={e=>setK(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>Annuler</button>
+          <button onClick={()=>{SB.saveAIKey(k);onSaved();}} disabled={!k.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:k.startsWith("sk-")?1:.4}}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===== VALIDATION TABLE (pharmacist confirms OCR) ===== */
+function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr}){
+  function up(i,f,v){ setRows(rows.map((r,j)=>j===i?{...r,[f]:v}:r)); }
+  function del(i){ setRows(rows.filter((r,j)=>j!==i)); }
+  const th={textAlign:"left",padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"2px solid #E2E8F0",whiteSpace:"nowrap"};
+  const ni={padding:"5px 7px",borderRadius:6,border:"1.5px solid #E2E8F0",fontSize:12,fontFamily:"inherit",boxSizing:"border-box",width:"100%"};
+  const td={padding:"4px 6px",borderBottom:"1px solid #F3F4F6"};
+  const badDin=rows.filter(r=>cleanDin(r.din).length!==8).length;
+  return(
+    <div style={{background:"#FFFBEB",border:"2px solid #FCD34D",borderRadius:14,padding:18,marginBottom:20}}>
+      <div style={{fontWeight:900,fontSize:15,color:"#92400E",marginBottom:4}}>
+        ⚠️ {fr?"Validation requise par le pharmacien":"Pharmacist validation required"}
+      </div>
+      <div style={{fontSize:12,color:"#92400E",marginBottom:14}}>
+        {rows.length} {fr?"lignes lues. Vérifiez et corrigez chaque valeur avant d'enregistrer.":"rows read. Check and correct each value before saving."}
+        {badDin>0&&<span style={{fontWeight:800}}> · {badDin} DIN {fr?"à vérifier (≠ 8 chiffres)":"to check"}</span>}
+      </div>
+      <div style={{maxHeight:420,overflowY:"auto",background:"#fff",borderRadius:10,marginBottom:14}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:820}}>
+          <thead><tr>
+            <th style={th}>CUP</th><th style={th}>{fr?"Description":"Description"}</th><th style={th}>{fr?"Force":"Strength"}</th>
+            <th style={th}>Format</th><th style={th}>DIN</th>{showQty&&<th style={th}>{fr?"Qté":"Qty"}</th>}<th style={th}></th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r,i)=>{
+              const dinOk=cleanDin(r.din).length===8;
+              return(
+                <tr key={i}>
+                  <td style={td}><input value={r.cup||""} onChange={e=>up(i,"cup",e.target.value)} style={{...ni,fontFamily:"monospace",width:110}}/></td>
+                  <td style={td}><input value={r.description||r.molecule||""} onChange={e=>up(i,"description",e.target.value)} style={{...ni,minWidth:200}}/></td>
+                  <td style={td}><input value={r.strength||""} onChange={e=>up(i,"strength",e.target.value)} style={{...ni,width:70}}/></td>
+                  <td style={td}><input value={r.format||""} onChange={e=>up(i,"format",e.target.value)} style={{...ni,width:90}}/></td>
+                  <td style={td}><input value={r.din||""} onChange={e=>up(i,"din",e.target.value)} style={{...ni,width:90,fontFamily:"monospace",borderColor:dinOk?"#E2E8F0":"#FCA5A5",background:dinOk?"#fff":"#FEF2F2"}}/></td>
+                  {showQty&&<td style={td}><input type="number" value={r.qty||0} onChange={e=>up(i,"qty",e.target.value)} style={{...ni,width:64,textAlign:"center"}}/></td>}
+                  <td style={td}><button onClick={()=>del(i)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:15}}>×</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button onClick={onConfirm} disabled={busy||rows.length===0} style={{padding:"11px 20px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:C.green,marginRight:8,opacity:busy?.5:1}}>
+        ✅ {fr?"Valider et enregistrer":"Validate and save"}
+      </button>
+      <button onClick={onCancel} style={{padding:"11px 20px",borderRadius:10,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>
+        {fr?"Annuler":"Cancel"}
+      </button>
+    </div>
+  );
+}
+
+/* ===== CLIENT: MY INVENTORY ===== */
+function InventoryPage({session,fr}){
+  const uid=session.user.id;
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [search,setSearch]=useState("");
+  const [err,setErr]=useState("");
+  const [info,setInfo]=useState("");
+  const [busy,setBusy]=useState("");
+  const [paused,setPaused]=useState(false);
+  const [pending,setPending]=useState(null);
+  const [showKey,setShowKey]=useState(false);
+  const [showAdd,setShowAdd]=useState(false);
+  const [nw,setNw]=useState({cup:"",molecule:"",strength:"",format:"",din:""});
+  const [catQuery,setCatQuery]=useState("");
+  const [catRes,setCatRes]=useState([]);
+  const fileRef=useRef();
+  const ctrlRef=useRef({paused:false,cancelled:false});
+
+  async function load(s){
+    setLoading(true);setErr("");
+    try{setRows(await INV.list(uid,s));}catch(e){setErr(e.message||String(e));}
+    setLoading(false);
+  }
+  useEffect(()=>{load("");},[]);
+
+  async function searchCatalog(q){
+    setCatQuery(q);
+    if(!q||q.length<2){setCatRes([]);return;}
+    try{ setCatRes((await CAT.list(q)).slice(0,20)); }catch(e){}
+  }
+
+  async function addFromCatalog(d){
+    try{
+      await INV.addMany(uid,[{drug_id:d.id,din:d.din,cup:d.cup,molecule:d.molecule,strength:d.strength,format:d.format}]);
+      setCatQuery("");setCatRes([]);setInfo(fr?"Ajouté à votre inventaire.":"Added.");
+      await load(search);
+    }catch(e){setErr(e.message||String(e));}
+  }
+
+  async function addManual(){
+    if(!nw.molecule.trim()){setErr(fr?"Le nom est requis.":"Name required.");return;}
+    try{
+      const din=cleanDin(nw.din);
+      if(din){
+        const hit=await CAT.byDins([din]);
+        if(!hit.length) await CAT.upsertMany([{din:din,description:nw.molecule,strength:nw.strength,format:nw.format,cup:nw.cup}]);
+      }
+      await INV.addMany(uid,[{din:din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format}]);
+      setNw({cup:"",molecule:"",strength:"",format:"",din:""});setShowAdd(false);
+      setInfo(fr?"Produit ajouté.":"Product added.");
+      await load(search);
+    }catch(e){setErr(e.message||String(e));}
+  }
+
+  async function handleFiles(e){
+    const files=Array.from(e.target.files||[]);
+    if(!files.length) return;
+    const key=SB.getAIKey();
+    if(!key){setShowKey(true);e.target.value="";return;}
+    setErr("");setInfo("");setPaused(false);
+    ctrlRef.current={paused:false,cancelled:false};
+    let all=[];let bad="";
+    for(let i=0;i<files.length;i++){
+      try{
+        const lbl=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
+        const r=await scanFile(files[i],key,PROMPT_ORDER,(p)=>setBusy(lbl+p),ctrlRef.current);
+        if(Array.isArray(r)) all=all.concat(r);
+      }catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
+      if(ctrlRef.current.cancelled) break;
+    }
+    setBusy("");e.target.value="";
+    if(bad) setErr(bad);
+    if(all.length) setPending(all.map(r=>({...r,din:cleanDin(r.din)})));
+    else if(!bad) setErr(fr?"Aucun produit détecté.":"No product detected.");
+  }
+
+  async function confirmPending(){
+    setBusy(fr?"Enregistrement…":"Saving…");
+    try{
+      const dins=pending.map(r=>cleanDin(r.din)).filter(d=>d.length===8);
+      const known=await CAT.byDins(dins);
+      const map={};known.forEach(k=>{if(k.din)map[k.din]=k;});
+      const newOnes=pending.filter(r=>{const d=cleanDin(r.din);return d.length===8&&!map[d];});
+      if(newOnes.length) await CAT.upsertMany(newOnes);
+      const nAdded=await INV.addMany(uid,pending.map(r=>{
+        const d=cleanDin(r.din);
+        const hit=map[d];
+        return {drug_id:hit?hit.id:null,din:d,cup:r.cup||(hit?hit.cup:""),molecule:r.description||r.molecule||(hit?hit.molecule:""),strength:r.strength||(hit?hit.strength:""),format:r.format||(hit?hit.format:"")};
+      }));
+      setPending(null);setBusy("");
+      setInfo((fr?"Inventaire mis à jour : ":"Inventory updated: ")+nAdded+(newOnes.length?(fr?" · nouveaux au catalogue : ":" · new to catalog: ")+newOnes.length:""));
+      await load(search);
+    }catch(e){setBusy("");setErr(e.message||String(e));}
+  }
+
+  async function del(id){
+    if(!window.confirm(fr?"Retirer ce produit de votre inventaire?":"Remove this product?")) return;
+    try{await INV.remove(id);setRows(rows.filter(r=>r.id!==id));}catch(e){setErr(e.message||String(e));}
+  }
+
+  const th={textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"1.5px solid #E2E8F0",whiteSpace:"nowrap"};
+  const td={padding:"8px 12px",fontSize:13,borderBottom:"1px solid #F3F4F6",color:C.navy};
+
+  return(
+    <div style={{padding:"28px 32px"}}>
+      {showKey&&<AIKeyModal onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
+
+      <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📦 {fr?"Mon inventaire":"My inventory"}</div>
+          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} {fr?"produits détenus par votre pharmacie":"products held by your pharmacy"}</div>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
+          <button onClick={()=>setShowAdd(!showAdd)} style={{padding:"10px 16px",borderRadius:10,border:"1.5px solid "+C.sky,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.sky,background:"#fff"}}>
+            + {fr?"Ajout manuel":"Add manually"}
+          </button>
+          <button onClick={()=>{if(!SB.getAIKey()){setShowKey(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
+            🤖 {fr?"Scanner inventaire / bon d'achat":"Scan inventory / order"}
+          </button>
+        </div>
+      </div>
+
+      {showAdd&&(
+        <div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:12,padding:16,marginBottom:18}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:10}}>🔍 {fr?"Chercher dans le catalogue":"Search the catalog"}</div>
+          <input value={catQuery} onChange={e=>searchCatalog(e.target.value)} placeholder={fr?"Nom, DIN ou CUP…":"Name, DIN or CUP…"} style={{...inputStyle,marginBottom:10}}/>
+          {catRes.length>0&&(
+            <div style={{background:"#fff",borderRadius:10,maxHeight:200,overflowY:"auto",marginBottom:14}}>
+              {catRes.map(d=>(
+                <div key={d.id} onClick={()=>addFromCatalog(d)} style={{padding:"9px 12px",borderBottom:"1px solid #F3F4F6",cursor:"pointer",fontSize:12,display:"flex",justifyContent:"space-between",gap:10}}>
+                  <span style={{fontWeight:700,color:C.navy}}>{d.molecule}</span>
+                  <span style={{color:C.grey,fontFamily:"monospace"}}>{d.format||""} · {d.din||"—"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:10,marginTop:6}}>✍️ {fr?"Ou saisir un produit absent du catalogue":"Or enter a product not in the catalog"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:10}}>
+            {[["cup","CUP"],["molecule",fr?"Description *":"Description *"],["strength",fr?"Force":"Strength"],["format","Format"],["din","DIN"]].map(([k,l])=>(
+              <div key={k}>
+                <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{l}</label>
+                <input value={nw[k]} onChange={e=>setNw({...nw,[k]:e.target.value})} style={{...inputStyle,fontSize:12,padding:"8px 10px"}}/>
+              </div>
+            ))}
+          </div>
+          <button onClick={addManual} style={{padding:"9px 18px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>
+            {fr?"Ajouter":"Add"}
+          </button>
+        </div>
+      )}
+
+      <input value={search} placeholder={fr?"Chercher dans mon inventaire…":"Search my inventory…"} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
+
+      {busy&&(
+        <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,color:"#5B21B6",fontWeight:600}}>🤖 {busy}</span>
+          <span style={{display:"flex",gap:8}}>
+            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #C4B5FD",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#5B21B6"}}>{paused?"▶️ Reprendre":"⏸ Pause"}</button>
+            <button onClick={()=>{ctrlRef.current.cancelled=true;}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #FCA5A5",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:C.red}}>✕ Arrêter</button>
+          </span>
+        </div>
+      )}
+      {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
+      {info&&<div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#166534",marginBottom:14}}>✅ {info}</div>}
+
+      {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={true} onConfirm={confirmPending} onCancel={()=>setPending(null)} busy={!!busy} fr={fr}/>}
+
+      <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+          <thead><tr>
+            <th style={th}>CUP</th><th style={th}>Description</th><th style={th}>{fr?"Force":"Strength"}</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th>
+          </tr></thead>
+          <tbody>
+            {loading&&<tr><td style={td} colSpan={6}>{fr?"Chargement…":"Loading…"}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>{fr?"Inventaire vide — scannez votre inventaire ou ajoutez manuellement.":"Empty — scan your inventory or add manually."}</td></tr>}
+            {rows.map(r=>(
+              <tr key={r.id}>
+                <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
+                <td style={{...td,fontWeight:700}}>{r.molecule||"—"}</td>
+                <td style={td}>{r.strength||"—"}</td>
+                <td style={td}>{r.format||"—"}</td>
+                <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
+                <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ===== ADMIN CATALOG ===== */
 function AdminCatalogPage(){
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -432,8 +704,7 @@ function AdminCatalogPage(){
   const [busy,setBusy]=useState("");
   const [paused,setPaused]=useState(false);
   const [pending,setPending]=useState(null);
-  const [showAISetup,setShowAISetup]=useState(false);
-  const [aiKeyInput,setAiKeyInput]=useState("");
+  const [showKey,setShowKey]=useState(false);
   const fileRef=useRef();
   const ctrlRef=useRef({paused:false,cancelled:false});
 
@@ -444,29 +715,27 @@ function AdminCatalogPage(){
   }
   useEffect(()=>{load("");},[]);
 
-  function saveAIKey(){SB.saveAIKey(aiKeyInput);setShowAISetup(false);fileRef.current?.click();}
-
   async function handleFiles(e){
     const files=Array.from(e.target.files||[]);
     if(!files.length) return;
     const key=SB.getAIKey();
-    if(!key){setShowAISetup(true);e.target.value="";return;}
+    if(!key){setShowKey(true);e.target.value="";return;}
     setErr("");setWarn("");setPaused(false);
     ctrlRef.current={paused:false,cancelled:false};
-    let all=[];let bad="";let skippedRanges="";
+    let all=[];let bad="";let skipped="";
     for(let i=0;i<files.length;i++){
       try{
-        const label=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
-        const meds=await extractCatalogFromFile(files[i],key,(p)=>setBusy(label+p),ctrlRef.current);
-        if(Array.isArray(meds)) all=all.concat(meds);
-        if(meds.failedRanges) skippedRanges+=(skippedRanges?" · ":"")+files[i].name+": "+meds.failedRanges;
+        const lbl=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
+        const r=await scanFile(files[i],key,PROMPT_CATALOG,(p)=>setBusy(lbl+p),ctrlRef.current);
+        if(Array.isArray(r)) all=all.concat(r);
+        if(r.failedRanges) skipped+=(skipped?" · ":"")+files[i].name+": "+r.failedRanges;
       }catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
       if(ctrlRef.current.cancelled) break;
     }
     setBusy("");e.target.value="";
     if(bad)setErr(bad);
-    if(skippedRanges)setWarn("Pages non lues: "+skippedRanges);
-    if(all.length) setPending(all);
+    if(skipped)setWarn("Pages non lues: "+skipped);
+    if(all.length) setPending(all.map(r=>({...r,din:cleanDin(r.din)})));
     else if(!bad) setErr("Aucun produit detecte.");
   }
 
@@ -490,20 +759,7 @@ function AdminCatalogPage(){
 
   return(
     <div style={{padding:"28px 32px"}}>
-      {showAISetup&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
-            <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Claude API key</div>
-            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>Your key stays in your browser only.</div>
-            <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>Cancel</button>
-              <button onClick={saveAIKey} disabled={!aiKeyInput.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:aiKeyInput.startsWith("sk-")?1:.4}}>Save & import</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {showKey&&<AIKeyModal onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
       <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
         <div>
           <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📚 Drug catalog</div>
@@ -511,8 +767,8 @@ function AdminCatalogPage(){
         </div>
         <div>
           <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
-          <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
-            {busy?"⏳ Import en cours…":"🤖 Import scan"}
+          <button onClick={()=>{if(!SB.getAIKey()){setShowKey(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
+            {busy?"⏳ Import…":"🤖 Import scan"}
           </button>
         </div>
       </div>
@@ -528,48 +784,22 @@ function AdminCatalogPage(){
           </span>
         </div>
       )}
-
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
       {warn&&<div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#92400E",marginBottom:14}}>⚠️ {warn}</div>}
 
-      {pending&&(
-        <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:12,padding:16,marginBottom:18}}>
-          <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>
-            {pending.length} lignes actives détectées — vérifier avant d'enregistrer
-          </div>
-          <div style={{maxHeight:320,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
-            <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th></tr></thead>
-              <tbody>
-                {pending.slice(0,500).map((r,i)=>(
-                  <tr key={i}>
-                    <td style={{...td,fontFamily:"monospace"}}>{r.cup}</td>
-                    <td style={td}>{r.description}</td>
-                    <td style={td}>{r.format}</td>
-                    <td style={{...td,fontFamily:"monospace"}}>{r.din}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {pending.length>500&&<div style={{padding:"8px 12px",fontSize:12,color:C.grey}}>… et {pending.length-500} autres lignes</div>}
-          </div>
-          <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Enregistrer</button>
-          <button onClick={()=>setPending(null)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Annuler</button>
-        </div>
-      )}
+      {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={false} onConfirm={confirmImport} onCancel={()=>setPending(null)} busy={!!busy} fr={true}/>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
-          <thead>
-            <tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr>
-          </thead>
+          <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Force</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr></thead>
           <tbody>
-            {loading&&<tr><td style={td} colSpan={5}>Chargement…</td></tr>}
-            {!loading&&rows.length===0&&<tr><td style={td} colSpan={5}>Catalogue vide — importez vos pages scannées.</td></tr>}
+            {loading&&<tr><td style={td} colSpan={6}>Chargement…</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>Catalogue vide.</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
                 <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
                 <td style={{...td,fontWeight:700}}>{r.molecule}</td>
+                <td style={td}>{r.strength||"—"}</td>
                 <td style={td}>{r.format||"—"}</td>
                 <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
                 <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
@@ -600,10 +830,10 @@ function AdminDashboard({session,onLogout}){
   const countries=[...new Set(profiles.map(p=>p.country).filter(Boolean))].sort();
   const filtered=profiles.filter(p=>{
     const q=search.toLowerCase();
-    const matchS=!search||[p.pharmacy_name,p.email,p.pharmacist_owner,p.pharmacy_address].some(v=>v?.toLowerCase().includes(q));
-    const matchP=filterPlan==="all"||p.plan===filterPlan;
-    const matchC=filterCountry==="all"||p.country===filterCountry;
-    return matchS&&matchP&&matchC;
+    const mS=!search||[p.pharmacy_name,p.email,p.pharmacist_owner,p.pharmacy_address].some(v=>v?.toLowerCase().includes(q));
+    const mP=filterPlan==="all"||p.plan===filterPlan;
+    const mC=filterCountry==="all"||p.country===filterCountry;
+    return mS&&mP&&mC;
   });
   const nav=[{id:"overview",icon:"📊",label:"Overview"},{id:"pharmacies",icon:"🏥",label:"Pharmacies"},{id:"catalog",icon:"📚",label:"Drug catalog"},{id:"revenue",icon:"💰",label:"Revenue"}];
   return(
@@ -666,32 +896,12 @@ function AdminOverview({profiles,mrr,planCounts,countries,loading,onViewAll}){
               </div>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
-            <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
-              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>📋 Plans breakdown</div>
-              {[{k:"basic",price:49},{k:"pro",price:99},{k:"enterprise",price:249}].map(p=>(
-                <div key={p.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies</span></div>
-                  <span style={{fontSize:12,fontWeight:700,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
-                </div>
-              ))}
-            </div>
-            <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
-              <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:16}}>🌍 Countries</div>
-              {countries.length===0?<div style={{color:C.grey,fontSize:12}}>No data yet</div>:countries.map(c=>(
-                <div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                  <span style={{fontSize:12,color:C.navy,fontWeight:600}}>{c}</span>
-                  <span style={{fontSize:11,color:C.grey}}>{profiles.filter(p=>p.country===c).length} pharmacy</span>
-                </div>
-              ))}
-            </div>
-          </div>
           <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div style={{fontWeight:800,fontSize:14,color:C.navy}}>🕐 Recent signups</div>
               <button onClick={onViewAll} style={{fontSize:12,color:C.sky,fontWeight:700,background:"none",border:"none",cursor:"pointer"}}>View all →</button>
             </div>
-            {recent.length===0?<div style={{color:C.grey,fontSize:12}}>No pharmacies registered yet.</div>:recent.map((p,i)=>(
+            {recent.length===0?<div style={{color:C.grey,fontSize:12}}>No pharmacies yet.</div>:recent.map((p,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<recent.length-1?"1px solid #F3F4F6":"none"}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{p.pharmacy_name||"—"}</div>
@@ -716,25 +926,19 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{total} registered · {profiles.length} shown</div>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pharmacy, email, owner…" style={{...inputStyle,maxWidth:280}}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{...inputStyle,maxWidth:280}}/>
         <select value={filterPlan} onChange={e=>setFilterPlan(e.target.value)} style={sel}>
-          <option value="all">All plans</option>
-          <option value="basic">Basic</option>
-          <option value="pro">Pro</option>
-          <option value="enterprise">Enterprise</option>
+          <option value="all">All plans</option><option value="basic">Basic</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option>
         </select>
         <select value={filterCountry} onChange={e=>setFilterCountry(e.target.value)} style={sel}>
-          <option value="all">All countries</option>
-          {countries.map(c=><option key={c}>{c}</option>)}
+          <option value="all">All countries</option>{countries.map(c=><option key={c}>{c}</option>)}
         </select>
       </div>
       {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:
        profiles.length===0?<div style={{background:"#fff",borderRadius:14,padding:40,textAlign:"center",color:C.grey}}>No pharmacies found.</div>:(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {profiles.map((p,i)=>(
-            <div key={i} onClick={()=>onSelect(p)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent"}}
-              onMouseEnter={e=>e.currentTarget.style.border="1.5px solid "+C.sky}
-              onMouseLeave={e=>e.currentTarget.style.border="1.5px solid transparent"}>
+            <div key={i} onClick={()=>onSelect(p)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent"}}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
                 <div>
                   <div style={{fontWeight:800,fontSize:15,color:C.navy}}>{p.pharmacy_name||"—"}</div>
@@ -743,16 +947,10 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
                 <PlanBadge plan={p.plan}/>
               </div>
               <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                {[{icon:"📍",val:[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"},{icon:"👤",val:p.pharmacist_owner||"—"},{icon:"📞",val:p.pharmacy_phone||"—"}].map((item,j)=>(
-                  <div key={j} style={{fontSize:11,color:C.grey}}><span style={{marginRight:4}}>{item.icon}</span>{item.val}</div>
+                {[{icon:"📍",val:[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"},{icon:"👤",val:p.pharmacist_owner||"—"},{icon:"📞",val:p.pharmacy_phone||"—"}].map((it,j)=>(
+                  <div key={j} style={{fontSize:11,color:C.grey}}><span style={{marginRight:4}}>{it.icon}</span>{it.val}</div>
                 ))}
               </div>
-              {(p.dispensing_system||p.inventory_system)&&(
-                <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-                  {p.dispensing_system&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6}}>💊 {p.dispensing_system}</span>}
-                  {p.inventory_system&&<span style={{background:"#F0FDF4",color:C.green,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6}}>📦 {p.inventory_system}</span>}
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -762,7 +960,7 @@ function AdminPharmacies({profiles,total,search,setSearch,filterPlan,setFilterPl
 }
 
 function PharmacyDetail({profile:p,onBack}){
-  const rows=[["Pharmacy","pharmacy_name"],["Email","email"],["Plan","plan"],["Country","country"],["Province","province"],["Address","pharmacy_address"],["Phone","pharmacy_phone"],["Pharmacy email","pharmacy_email"],["Permit #","permit_number"],["Pharmacist-owner","pharmacist_owner"],["Owner email","pharmacist_email"],["Manager","owner_name"],["Dispensing system","dispensing_system"],["Inventory system","inventory_system"],["Language","language"]];
+  const rows=[["Pharmacy","pharmacy_name"],["Email","email"],["Plan","plan"],["Country","country"],["Province","province"],["Address","pharmacy_address"],["Phone","pharmacy_phone"],["Permit #","permit_number"],["Pharmacist-owner","pharmacist_owner"],["Manager","owner_name"],["Dispensing system","dispensing_system"],["Inventory system","inventory_system"],["Language","language"]];
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← Back</button>
@@ -807,7 +1005,7 @@ function AdminRevenue({profiles,mrr,planCounts,loading}){
             {arr.map(p=>(
               <div key={p.k} style={{marginBottom:20}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} pharmacies × ${p.price}/mo</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><PlanBadge plan={p.k}/><span style={{fontSize:12,color:C.grey}}>{planCounts[p.k]} × ${p.price}/mo</span></div>
                   <span style={{fontWeight:800,fontSize:13,color:C.navy}}>${planCounts[p.k]*p.price}/mo</span>
                 </div>
                 <div style={{height:8,background:"#F3F4F6",borderRadius:4,overflow:"hidden"}}>
@@ -838,24 +1036,22 @@ function Field({label,value,onChange,placeholder,type="text",hint,required}){
 function SectionLabel({children}){
   return <div style={{fontSize:10,fontWeight:800,color:"#2E86DE",letterSpacing:1,marginBottom:10,marginTop:16,textTransform:"uppercase"}}>{children}</div>;
 }
-function formatLocalPhone(digits){
-  if(!digits) return "";
-  if(digits.length<=3) return digits;
-  if(digits.length<=6) return digits.slice(0,3)+"-"+digits.slice(3);
-  return digits.slice(0,3)+"-"+digits.slice(3,6)+"-"+digits.slice(6,10);
+function formatLocalPhone(d){
+  if(!d) return "";
+  if(d.length<=3) return d;
+  if(d.length<=6) return d.slice(0,3)+"-"+d.slice(3);
+  return d.slice(0,3)+"-"+d.slice(3,6)+"-"+d.slice(6,10);
 }
 function PhoneField({label,value,onChange,countryCode,required}){
   const code=countryCode||"+1";
-  function handle(val){const digits=val.replace(/\D/g,"").slice(0,10);onChange(formatLocalPhone(digits));}
+  function handle(v){onChange(formatLocalPhone(v.replace(/\D/g,"").slice(0,10)));}
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel required={required}>{label}</FieldLabel>
       <div style={{display:"flex",gap:8}}>
-        <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>{code}</div>
-        <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000"
-          style={{...inputStyle,flex:1,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
+        <div style={{padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,background:"#EFF6FF",color:"#1E4D8C",fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>{code}</div>
+        <input type="tel" value={value} onChange={e=>handle(e.target.value)} placeholder="514-000-0000" style={{...inputStyle,flex:1,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}}/>
       </div>
-      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Indicatif / Country code: {code}</div>
     </div>
   );
 }
@@ -864,11 +1060,10 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
   const [query,setQuery]=useState(value||"");
   const [results,setResults]=useState([]);
   const [open,setOpen]=useState(false);
-  const [searching,setSearching]=useState(false);
   const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
   const inputRef=useRef();const dropRef=useRef();const timer=useRef();
   useEffect(()=>{
-    function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
+    function outside(e){const i=inputRef.current&&inputRef.current.contains(e.target);const d=dropRef.current&&dropRef.current.contains(e.target);if(!i&&!d)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
   function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+4,left:r.left,width:r.width});}}
@@ -877,44 +1072,38 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     if(val.length<3){setResults([]);setOpen(false);return;}
     updatePos();
     timer.current=setTimeout(async()=>{
-      setSearching(true);
       try{
         const params=new URLSearchParams({q:val,limit:7,lang:"fr"});
         if(countryIso) params.set("countrycode",countryIso);
-        const coords=PROVINCE_COORDS[province];
-        if(coords){params.set("lat",coords.lat);params.set("lon",coords.lon);}
+        const co=PROVINCE_COORDS[province];
+        if(co){params.set("lat",co.lat);params.set("lon",co.lon);}
         const r=await fetch("https://photon.komoot.io/api/?"+params);
         const data=await r.json();
-        const features=(data.features||[]).filter(f=>f.properties&&(f.properties.street||f.properties.name));
-        setResults(features);if(features.length>0){updatePos();setOpen(true);}
+        const f=(data.features||[]).filter(x=>x.properties&&(x.properties.street||x.properties.name));
+        setResults(f);if(f.length){updatePos();setOpen(true);}
       }catch{}
-      setSearching(false);
     },400);
   }
-  function select(feature){
-    const p=feature.properties;const parts=[];
-    if(p.housenumber) parts.push(p.housenumber);if(p.street||p.name) parts.push(p.street||p.name);
-    if(p.city||p.locality) parts.push(p.city||p.locality);if(p.state) parts.push(p.state);if(p.postcode) parts.push(p.postcode);
-    const addr=parts.join(", ")||p.name||"";setQuery(addr);onChange(addr);setOpen(false);setResults([]);
+  function select(f){
+    const p=f.properties;const parts=[];
+    if(p.housenumber) parts.push(p.housenumber);
+    if(p.street||p.name) parts.push(p.street||p.name);
+    if(p.city||p.locality) parts.push(p.city||p.locality);
+    if(p.state) parts.push(p.state);if(p.postcode) parts.push(p.postcode);
+    const a=parts.join(", ")||p.name||"";setQuery(a);onChange(a);setOpen(false);setResults([]);
   }
   return(
     <div style={{marginBottom:13}}>
       <FieldLabel required={required}>📍 {placeholder}</FieldLabel>
-      <div style={{position:"relative"}}>
-        <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)}
-          onFocus={()=>{if(results.length>0){updatePos();setOpen(true);}}}
-          placeholder={placeholder} style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}} autoComplete="off"/>
-        {searching&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#6B7280"}}>🔍</div>}
-      </div>
+      <input ref={inputRef} value={query} onChange={e=>handleInput(e.target.value)} onFocus={()=>{if(results.length){updatePos();setOpen(true);}}}
+        placeholder={placeholder} style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}} autoComplete="off"/>
       {open&&results.length>0&&(
         <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:240,overflowY:"auto"}}>
           {results.map((f,i)=>{const p=f.properties;const main=(p.housenumber?p.housenumber+" ":"")+(p.street||p.name||"");const sub=[p.city||p.locality,p.state,p.postcode].filter(Boolean).join(", ");
-            return(<div key={i} onClick={()=>select(f)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0",background:"#fff"}}>
+            return(<div key={i} onClick={()=>select(f)} style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #E2E8F0"}}>
               <div style={{fontSize:13,fontWeight:600,color:"#0F2744"}}>{main}</div>
               <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>{sub}</div>
-            </div>);
-          })}
-          <div style={{padding:"6px 14px",fontSize:10,color:"#9CA3AF",borderTop:"1px solid #E2E8F0"}}>📍 OpenStreetMap</div>
+            </div>);})}
         </div>
       )}
       {hint&&<div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{hint}</div>}
@@ -928,22 +1117,20 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
   const [dropPos,setDropPos]=useState({top:0,left:0,width:300});
   const inputRef=useRef();const dropRef=useRef();
   useEffect(()=>{
-    function outside(e){const inI=inputRef.current&&inputRef.current.contains(e.target);const inD=dropRef.current&&dropRef.current.contains(e.target);if(!inI&&!inD)setOpen(false);}
+    function outside(e){const i=inputRef.current&&inputRef.current.contains(e.target);const d=dropRef.current&&dropRef.current.contains(e.target);if(!i&&!d)setOpen(false);}
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[]);
   function updatePos(){if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropPos({top:r.bottom+4,left:r.left,width:r.width});}}
   const filtered=options.filter(o=>!query||o.toLowerCase().includes(query.toLowerCase())).slice(0,20);
   return(
     <div>
-      <input ref={inputRef} value={query}
-        onChange={e=>{setQuery(e.target.value);onChange(e.target.value);updatePos();setOpen(true);}}
-        onFocus={()=>{updatePos();setOpen(true);}}
-        placeholder={placeholder} style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}} autoComplete="off"/>
+      <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);onChange(e.target.value);updatePos();setOpen(true);}}
+        onFocus={()=>{updatePos();setOpen(true);}} placeholder={placeholder}
+        style={{...inputStyle,border:required&&!value.trim()?"1.5px solid #FCA5A5":"1.5px solid #E2E8F0"}} autoComplete="off"/>
       {open&&filtered.length>0&&(
         <div ref={dropRef} style={{position:"fixed",top:dropPos.top,left:dropPos.left,width:dropPos.width,background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,.2)",zIndex:9999,maxHeight:220,overflowY:"auto"}}>
           {filtered.map(o=>(
-            <div key={o} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}}
-              style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
+            <div key={o} onClick={()=>{onChange(o);setQuery(o);setOpen(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#0F2744",borderBottom:"1px solid #E2E8F0",background:value===o?"#EFF6FF":"#fff"}}>{o}</div>
           ))}
         </div>
       )}
@@ -992,8 +1179,8 @@ function AuthScreen({onAuth}){
     const {url,key}=SB.get();
     try{
       const r=await fetch(url+"/auth/v1/recover",{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email:email,redirect_to:window.location.origin})});
-      if(r.ok) setMsg("Courriel envoyé à "+email+" — vérifiez votre boîte de réception.");
-      else{const d=await r.json();setErr((d.msg||d.message||"Could not send email")+" ["+r.status+"]");}
+      if(r.ok) setMsg("Courriel envoyé à "+email+".");
+      else{const d=await r.json();setErr((d.msg||d.message||"Erreur")+" ["+r.status+"]");}
     }catch(e){setErr("Network error - "+(e.message||""));}
     setBusy(false);
   }
@@ -1007,10 +1194,10 @@ function AuthScreen({onAuth}){
       const r=await fetch(url+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":key,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({password:np1})});
       const d=await r.json();
       if(r.ok){
-        setMsg("Mot de passe mis à jour. Connectez-vous maintenant.");
+        setMsg("Mot de passe mis à jour.");
         setRecoveryToken(null);setMode("login");setNp1("");setNp2("");setPwd("");
         try{window.history.replaceState({},"",window.location.pathname);}catch(e){}
-      } else setErr((d.msg||d.message||"Could not update password")+" ["+r.status+"]");
+      } else setErr((d.msg||d.message||"Erreur")+" ["+r.status+"]");
     }catch(e){setErr("Network error - "+(e.message||""));}
     setBusy(false);
   }
@@ -1026,36 +1213,32 @@ function AuthScreen({onAuth}){
           <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>{t("restrictedAccess")}</div>
         </div>
         <div style={{background:"#fff",borderRadius:18,padding:26,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-
           {mode==="reset"?(
             <div>
               <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🔑 Nouveau mot de passe</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Choisissez un nouveau mot de passe pour votre compte.</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Choisissez un nouveau mot de passe.</div>
               <div style={{marginBottom:13}}>
                 <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Nouveau mot de passe</label>
                 <input type="password" value={np1} onChange={e=>setNp1(e.target.value)} placeholder="Min. 6 caractères" style={inp} autoComplete="new-password"/>
               </div>
               <div style={{marginBottom:13}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Confirmer le mot de passe</label>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Confirmer</label>
                 <input type="password" value={np2} onChange={e=>setNp2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&applyNewPassword()} placeholder="Retapez-le" style={{...inp,border:np2&&np1!==np2?"1.5px solid #FCA5A5":"1.5px solid "+C.border}} autoComplete="new-password"/>
               </div>
-              {np2&&np1!==np2&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>Les mots de passe ne correspondent pas.</div>}
-              {np2&&np1===np2&&np1.length>=6&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>✓ Les mots de passe correspondent</div>}
+              {np2&&np1!==np2&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>Ne correspondent pas.</div>}
+              {np2&&np1===np2&&np1.length>=6&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>✓ Correspondent</div>}
               {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
               {msg&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>{msg}</div>}
               <button onClick={applyNewPassword} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)"}}>
                 {busy?"…":"Enregistrer →"}
               </button>
-              <button onClick={()=>{setRecoveryToken(null);setMode("login");setErr("");}} style={{width:"100%",marginTop:10,padding:9,borderRadius:9,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,color:C.grey,background:"#fff"}}>
-                Annuler
-              </button>
             </div>
           ):mode==="forgot"?(
             <div>
               <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🔓 Mot de passe oublié</div>
-              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Nous vous enverrons un lien pour en choisir un nouveau.</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Nous vous enverrons un lien.</div>
               <div style={{marginBottom:13}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Courriel / Email</label>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Courriel</label>
                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendRecovery()} placeholder="pharmacien@pharmacie.com" style={inp}/>
               </div>
               {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
@@ -1064,7 +1247,7 @@ function AuthScreen({onAuth}){
                 {busy?"…":"Envoyer le lien →"}
               </button>
               <button onClick={()=>{setMode("login");setErr("");setMsg("");}} style={{width:"100%",marginTop:10,padding:9,borderRadius:9,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,color:C.grey,background:"#fff"}}>
-                ← Retour à la connexion
+                ← Retour
               </button>
             </div>
           ):(
@@ -1094,7 +1277,6 @@ function AuthScreen({onAuth}){
               )}
             </div>
           )}
-
         </div>
       </div>
     </div>
@@ -1129,8 +1311,8 @@ function OnboardingWizard({userEmail,onComplete,session}){
   }
   const pct=(step/3)*100;
   const sel={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
-  const nextBtn=(disabled,label,onClick,green)=>(<button onClick={onClick} disabled={disabled} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:green?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:disabled?.4:1}}>{label}</button>);
-  const backBtn=(onClick)=>(<button onClick={onClick} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
+  const nextBtn=(d,l,o,g)=>(<button onClick={o} disabled={d} style={{flex:2,padding:13,borderRadius:10,border:"none",cursor:d?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:g?"linear-gradient(135deg,#1A9E5F,#1E4D8C)":"linear-gradient(135deg,#1E4D8C,#2E86DE)",opacity:d?.4:1}}>{l}</button>);
+  const backBtn=(o)=>(<button onClick={o} style={{flex:1,padding:13,borderRadius:10,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.grey,background:"#fff"}}>{t("back")}</button>);
   return(
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)",padding:"24px 16px",overflowY:"auto"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
@@ -1140,14 +1322,13 @@ function OnboardingWizard({userEmail,onComplete,session}){
           <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>{t("stepOf")} {step} {t("ofTotal")} 3 · {userEmail}</div>
         </div>
         <div style={{height:4,background:"rgba(255,255,255,.15)",borderRadius:4,marginBottom:22,overflow:"hidden"}}>
-          <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4,transition:"width .3s ease"}}/>
+          <div style={{height:"100%",width:pct+"%",background:"#2E86DE",borderRadius:4}}/>
         </div>
         <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)",marginBottom:32}}>
           {step===1&&(<div>
             <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🌐 {t("language")}</div>
             <div style={{fontSize:12,color:C.grey,marginBottom:20}}>{t("langSubtitle")}</div>
             <div style={{marginBottom:16}}><FieldLabel>{t("searchLanguage")}</FieldLabel><SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
-            {language&&<div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:10,padding:"10px 14px",marginBottom:18,fontSize:12,color:C.sky,fontWeight:700}}>{t("selected")}: {language}</div>}
             {nextBtn(!language.trim(),t("next"),()=>setStep(2))}
           </div>)}
           {step===2&&(<div>
@@ -1162,13 +1343,11 @@ function OnboardingWizard({userEmail,onComplete,session}){
           </div>)}
           {step===3&&(<div>
             <div style={{fontWeight:800,fontSize:18,color:C.navy,marginBottom:4}}>🏥 {t("yourPharmacy")}</div>
-            <div style={{fontSize:12,color:C.grey,marginBottom:2}}>{t("pharmacySubtitle")}</div>
             <div style={{fontSize:10,color:C.red,marginBottom:12}}>{t("requiredNote")}</div>
             <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
             <div style={{marginBottom:13}}>
               <FieldLabel required>{t("pharmacyName")}</FieldLabel>
               <SearchableSelect key={"chain-"+country} options={pharmacyOptions} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
-              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("pharmacyNameHint")}</div>
             </div>
             <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")}/>
             <AddressAutocomplete key={"addr-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("addressPlaceholder")} hint={t("addressHint")} countryIso={countryIso} province={province} required/>
@@ -1178,19 +1357,16 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div style={{marginBottom:13}}>
               <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
               <SearchableSelect key={"disp-"+country} options={dispensingOptions} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("dispensingSystemPlaceholder")} required/>
-              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("dispensingSystemHint")}</div>
             </div>
             <div style={{marginBottom:13}}>
               <FieldLabel required>{t("inventorySystem")}</FieldLabel>
               <SearchableSelect key={"inv-"+country} options={inventoryOptions} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
-              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>{t("inventorySystemHint")}</div>
             </div>
             <SectionLabel>{t("teamSection")}</SectionLabel>
             <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
             <Field label={t("pharmacistEmail")} value={pharmacistEmail} onChange={setPharmacistEmail} placeholder={t("ownerEmailPlaceholder")} type="email"/>
             <Field label={t("managerName")} value={managerName} onChange={setManagerName} placeholder={t("managerPlaceholder")}/>
             <SectionLabel>{t("planSection")} <span style={{color:C.red}}>*</span></SectionLabel>
-            {!plan&&<div style={{fontSize:11,color:C.red,marginBottom:8,fontWeight:600}}>{t("planRequired")}</div>}
             <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
               {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
                 <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"12px 16px",borderRadius:12,border:"2px solid "+(plan===p.v?C.sky:C.border),cursor:"pointer",fontFamily:"inherit",textAlign:"left",background:plan===p.v?"#EFF6FF":"#fff"}}>
@@ -1201,7 +1377,6 @@ function OnboardingWizard({userEmail,onComplete,session}){
                 </button>
               ))}
             </div>
-            <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:10,padding:"10px 14px",fontSize:11,color:"#92400E",marginBottom:18}}>{t("stripeNote")}</div>
             <div style={{display:"flex",gap:10}}>{backBtn(()=>setStep(2))}{nextBtn(!canLaunch||saving,saving?t("saving"):t("launch"),finish,true)}</div>
           </div>)}
         </div>
@@ -1214,8 +1389,16 @@ function Dashboard({session,profile,onLogout}){
   const [page,setPage]=useState("home");
   const email=session?.user?.email||"pharmacist@clinic.com";
   const lang=getLang(profile?.language);
+  const fr=lang==="fr";
   const t=(k)=>T[lang][k]||T.en[k]||k;
-  const nav=[{id:"home",icon:"🏠",label:t("dashboard")},{id:"reco",icon:"⚡",label:t("reconciliation")},{id:"history",icon:"📝",label:t("history")},{id:"clinical",icon:"🏥",label:t("clinical")},{id:"pricing",icon:"💳",label:t("plans")}];
+  const nav=[
+    {id:"home",icon:"🏠",label:t("dashboard")},
+    {id:"inv",icon:"📦",label:t("inventory")},
+    {id:"reco",icon:"⚡",label:t("reconciliation")},
+    {id:"history",icon:"📝",label:t("history")},
+    {id:"clinical",icon:"🏥",label:t("clinical")},
+    {id:"pricing",icon:"💳",label:t("plans")}
+  ];
   return(
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
       <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
@@ -1242,8 +1425,9 @@ function Dashboard({session,profile,onLogout}){
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
         {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile} session={session}/>}
-        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session}/>}
-        {page==="history"&&<HistoryPage t={t} profile={profile} session={session} fr={getLang(profile?.language)==="fr"}/>}
+        {page==="inv"&&<InventoryPage session={session} fr={fr}/>}
+        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session} onGoInv={()=>setPage("inv")}/>}
+        {page==="history"&&<HistoryPage t={t} profile={profile} session={session} fr={fr}/>}
         {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
       </div>
@@ -1255,61 +1439,44 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-function HistoryPage({session,fr,t}){
+function HistoryPage({session,fr}){
   const [cycles,setCycles]=useState([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
-
   useEffect(()=>{
     const {url,key}=SB.get();
     fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc",{
       headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
-    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);setLoading(false);}).catch(()=>setLoading(false));
+    }).then(r=>r.json()).then(d=>{if(Array.isArray(d))setCycles(d);setLoading(false);}).catch(()=>setLoading(false));
   },[]);
-
-  function formatDate(d){
-    if(!d) return "—";
-    const dt=new Date(d);
-    return dt.toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-  }
+  function fd(d){ if(!d) return "—"; return new Date(d).toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
 
   if(selected){
     const mols=typeof selected.molecules==="string"?JSON.parse(selected.molecules||"[]"):selected.molecules||[];
     return(
       <div style={{padding:"28px 32px"}}>
         <button onClick={()=>setSelected(null)} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← {fr?"Retour":"Back"}</button>
-        <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>📋 {fr?"Cycle du":"Cycle"} {formatDate(selected.completed_at)}</div>
-        <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-          <span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>{selected.total_molecules} {fr?"molécules":"molecules"}</span>
-          <span style={{background:selected.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:selected.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20}}>
-            {selected.total_discrepancies>0?"⚠️ "+selected.total_discrepancies+" "+(fr?"écart(s)":"discrepancy(ies)"):"✅ "+(fr?"Tout équilibré":"All balanced")}
-          </span>
-        </div>
+        <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:12}}>📋 {fd(selected.completed_at)}</div>
         <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
-            <thead>
-              <tr style={{background:"#F8FAFC"}}>
-                {[fr?"Molécule":"Molecule",fr?"Force":"Strength",fr?"Fabricant":"Manufacturer","Format","DIN",fr?"Ouverture":"Opening",fr?"Reçu CSP":"Received CSP",fr?"Dispensé":"Dispensed",fr?"Théorique":"Theoretical",fr?"Inventaire physique":"Physical count",fr?"Écart":"Discrepancy",fr?"Notes":"Notes"].map(h=>(
-                  <th key={h} style={{padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",borderBottom:"2px solid #E2E8F0",whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+            <thead><tr style={{background:"#F8FAFC"}}>
+              {["Description","Format","DIN",fr?"Ouverture":"Opening",fr?"Reçu":"Received",fr?"Dispensé":"Dispensed",fr?"Théorique":"Theoretical",fr?"Physique":"Physical",fr?"Écart":"Diff"].map(h=>(
+                <th key={h} style={{padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",borderBottom:"2px solid #E2E8F0"}}>{h}</th>
+              ))}
+            </tr></thead>
             <tbody>
               {mols.map((m,i)=>{
                 const theo=(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);
                 const disc=m.physical!==""?theo-(Number(m.physical)||0):null;
-                return(
-                  <tr key={i} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
-                    {[m.name,m.strength,m.manufacturer,m.format,m.din,m.opening,m.received,m.dispensed,theo].map((v,j)=>(
-                      <td key={j} style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.navy}}>{v||"—"}</td>
-                    ))}
-                    <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.sky,fontWeight:700}}>{m.physical!==""?m.physical:"—"}</td>
-                    <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",fontWeight:700,color:disc===null?"#D1D5DB":disc===0?C.green:C.red}}>
-                      {disc===null?"—":disc===0?"✓ 0":"⚠️ "+(disc>0?"+":"")+disc}
-                    </td>
-                    <td style={{padding:"6px 10px",fontSize:11,borderBottom:"1px solid #F3F4F6",color:C.grey}}>{m.notes||"—"}</td>
-                  </tr>
-                );
+                return(<tr key={i} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
+                  {[m.name,m.format,m.din,m.opening,m.received,m.dispensed,theo].map((v,j)=>(
+                    <td key={j} style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.navy}}>{v||"—"}</td>
+                  ))}
+                  <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.sky,fontWeight:700}}>{m.physical!==""?m.physical:"—"}</td>
+                  <td style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",fontWeight:700,color:disc===null?"#D1D5DB":disc===0?C.green:C.red}}>
+                    {disc===null?"—":disc===0?"✓ 0":"⚠️ "+(disc>0?"+":"")+disc}
+                  </td>
+                </tr>);
               })}
             </tbody>
           </table>
@@ -1320,35 +1487,25 @@ function HistoryPage({session,fr,t}){
 
   return(
     <div style={{padding:"28px 32px"}}>
-      <div style={{marginBottom:24}}>
-        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📝 {fr?"Historique des cycles":"Reconciliation History"}</div>
-        <div style={{color:C.grey,fontSize:13,marginTop:4}}>{fr?"Tous vos cycles de réconciliation sauvegardés":"All your saved reconciliation cycles"}</div>
-      </div>
-      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>Loading…</div>:
+      <div style={{fontWeight:900,fontSize:22,color:C.navy,marginBottom:20}}>📝 {fr?"Historique":"History"}</div>
+      {loading?<div style={{textAlign:"center",padding:60,color:C.grey}}>…</div>:
        cycles.length===0?(
         <div style={{background:"#fff",borderRadius:14,padding:60,textAlign:"center",boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
           <div style={{fontSize:48,marginBottom:16}}>📋</div>
-          <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:8}}>{fr?"Aucun cycle pour l'instant":"No cycles yet"}</div>
-          <div style={{fontSize:13,color:C.grey}}>{fr?"Complétez votre première réconciliation pour voir l'historique ici.":"Complete your first reconciliation to see history here."}</div>
+          <div style={{fontWeight:800,fontSize:16,color:C.navy}}>{fr?"Aucun cycle":"No cycles yet"}</div>
         </div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {cycles.map((c,i)=>(
-            <div key={i} onClick={()=>setSelected(c)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer",border:"1.5px solid transparent"}}
-              onMouseEnter={e=>e.currentTarget.style.border="1.5px solid "+C.sky}
-              onMouseLeave={e=>e.currentTarget.style.border="1.5px solid transparent"}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div key={i} onClick={()=>setSelected(c)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
-                  <div style={{fontWeight:800,fontSize:15,color:C.navy}}>📋 {formatDate(c.completed_at)}</div>
-                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.pharmacy_name} · {c.dispensing_system}</div>
+                  <div style={{fontWeight:800,fontSize:15,color:C.navy}}>📋 {fd(c.completed_at)}</div>
+                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"produits":"products"}</div>
                 </div>
                 <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
-                  {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies+" "+(fr?"écart(s)":"disc."):"✅ "+(fr?"Équilibré":"Balanced")}
+                  {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
                 </span>
-              </div>
-              <div style={{display:"flex",gap:16}}>
-                <span style={{fontSize:11,color:C.grey}}>💊 {c.total_molecules} {fr?"molécules":"molecules"}</span>
-                <span style={{fontSize:11,color:C.grey}}>→ {fr?"Cliquer pour voir le détail":"Click to view details"}</span>
               </div>
             </div>
           ))}
@@ -1361,41 +1518,27 @@ function HistoryPage({session,fr,t}){
 function HomePage({onNewReco,email,t,profile,session}){
   const [cycles,setCycles]=useState([]);
   const pharmacyName=profile?.pharmacy_name||"";
-  const dispensing=profile?.dispensing_system||"";
-  const inventory=profile?.inventory_system||"";
   const fr=getLang(profile?.language)==="fr";
-
   useEffect(()=>{
     const {url,key}=SB.get();
     fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc&limit=5",{
       headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
-    }).then(r=>r.json()).then(data=>{if(Array.isArray(data))setCycles(data);}).catch(()=>{});
+    }).then(r=>r.json()).then(d=>{if(Array.isArray(d))setCycles(d);}).catch(()=>{});
   },[]);
-
-  const totalCycles=cycles.length;
+  const total=cycles.length;
   const lastDisc=cycles[0]?.total_discrepancies||0;
-
   return(
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
         <div style={{fontWeight:900,fontSize:22,color:C.navy}}>{t("welcomeMsg")}</div>
         <div style={{color:C.grey,fontSize:13,marginTop:4}}>{email}</div>
         {pharmacyName&&<div style={{color:C.sky,fontSize:12,fontWeight:600,marginTop:2}}>🏥 {pharmacyName}</div>}
-        {(dispensing||inventory)&&(
-          <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
-            {dispensing&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6}}>💊 {dispensing}</span>}
-            {inventory&&<span style={{background:"#F0FDF4",color:C.green,fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6}}>📦 {inventory}</span>}
-          </div>
-        )}
       </div>
-
-      {totalCycles>0?(
+      {total>0?(
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
-          {[
-            {icon:"📋",label:fr?"Cycles complétés":"Cycles completed",val:totalCycles,col:C.sky},
-            {icon:lastDisc>0?"⚠️":"✅",label:fr?"Écarts dernier cycle":"Last cycle discrepancies",val:lastDisc,col:lastDisc>0?C.red:C.green},
-            {icon:"💊",label:fr?"Molécules dernier cycle":"Last cycle molecules",val:cycles[0]?.total_molecules||0,col:"#7C3AED"},
-          ].map(s=>(
+          {[{icon:"📋",label:fr?"Cycles":"Cycles",val:total,col:C.sky},
+            {icon:lastDisc>0?"⚠️":"✅",label:fr?"Écarts dernier cycle":"Last discrepancies",val:lastDisc,col:lastDisc>0?C.red:C.green},
+            {icon:"💊",label:fr?"Produits":"Products",val:cycles[0]?.total_molecules||0,col:"#7C3AED"}].map(s=>(
             <div key={s.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",borderTop:"4px solid "+s.col}}>
               <div style={{fontSize:22,marginBottom:6}}>{s.icon}</div>
               <div style={{fontSize:28,fontWeight:900,color:s.col}}>{s.val}</div>
@@ -1409,32 +1552,6 @@ function HomePage({onNewReco,email,t,profile,session}){
           <div style={{fontSize:12,color:C.grey,marginTop:2}}>{t("liveSubMsg")}</div>
         </div>
       )}
-
-      {totalCycles===0&&(
-        <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center",marginBottom:24}}>
-          <div style={{fontSize:40,marginBottom:12}}>📊</div>
-          <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:6}}>{t("emptyState")}</div>
-          <div style={{fontSize:13,color:C.grey,maxWidth:300,margin:"0 auto"}}>{t("emptyStateSub")}</div>
-        </div>
-      )}
-
-      {totalCycles>0&&(
-        <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",marginBottom:24}}>
-          <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:14}}>🕐 {fr?"Cycles récents":"Recent cycles"}</div>
-          {cycles.slice(0,3).map((c,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<Math.min(cycles.length,3)-1?"1px solid #F3F4F6":"none"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:C.navy}}>{new Date(c.completed_at).toLocaleDateString(fr?"fr-CA":"en-CA",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
-                <div style={{fontSize:11,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"molécules":"molecules"}</div>
-              </div>
-              <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:20}}>
-                {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <button onClick={onNewReco} style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:900,fontSize:15,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)",boxShadow:"0 6px 20px rgba(46,134,222,.35)"}}>
         {t("newReco")}
       </button>
@@ -1442,145 +1559,100 @@ function HomePage({onNewReco,email,t,profile,session}){
   );
 }
 
-function RecoTable({session,profile,onComplete,lang}){
-  const [molecules,setMolecules]=useState(DEFAULT_MOLECULES.map(m=>({...m})));
+function RecoTable({session,profile,onComplete,lang,onGoInv}){
+  const uid=session.user.id;
+  const [molecules,setMolecules]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
-  const [nextId,setNextId]=useState(DEFAULT_MOLECULES.length+1);
-  const [importing,setImporting]=useState(false);
-  const [importProgress,setImportProgress]=useState("");
-  const [importErr,setImportErr]=useState("");
-  const [paused,setPaused]=useState(false);
-  const [showAISetup,setShowAISetup]=useState(false);
-  const [aiKeyInput,setAiKeyInput]=useState("");
-  const importRef=useRef();
-  const ctrlRef=useRef({paused:false,cancelled:false});
+  const [nextId,setNextId]=useState(1);
+  const [err,setErr]=useState("");
   const fr=lang==="fr";
 
-  function update(id,field,value){setMolecules(prev=>prev.map(m=>m.id===id?{...m,[field]:value}:m));}
-  function addRow(){setMolecules(prev=>[...prev,{id:nextId,name:"",strength:"",manufacturer:"",format:"",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
-  function removeRow(id){setMolecules(prev=>prev.filter(m=>m.id!==id));}
-  function getTheoretical(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
-  function getDiscrepancy(m){if(m.physical==="")return null;return getTheoretical(m)-(Number(m.physical)||0);}
-  const totalDisc=molecules.filter(m=>getDiscrepancy(m)!==null&&getDiscrepancy(m)!==0).length;
-  const allFilled=molecules.length>0&&molecules.every(m=>m.physical!=="");
-
-  function saveAIKey(){SB.saveAIKey(aiKeyInput);setShowAISetup(false);importRef.current?.click();}
-
-  async function handleImport(e){
-    const files=Array.from(e.target.files);
-    if(!files.length) return;
-    const key=SB.getAIKey();
-    if(!key){setShowAISetup(true);e.target.value="";return;}
-    setImporting(true);setImportErr("");setPaused(false);
-    ctrlRef.current={paused:false,cancelled:false};
-    let allMeds=[];let bad="";
-    for(let i=0;i<files.length;i++){
+  useEffect(()=>{
+    (async()=>{
       try{
-        const label=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
-        const meds=await extractCatalogFromFile(files[i],key,(p)=>setImportProgress(label+p),ctrlRef.current);
-        if(Array.isArray(meds)) allMeds=allMeds.concat(meds);
-      }
-      catch(err){bad=files[i].name+" - "+(err.message||String(err));}
-      if(ctrlRef.current.cancelled) break;
-    }
-    if(allMeds.length>0){
-      let id=nextId;
-      const newMols=allMeds.map(m=>({id:id++,name:m.description||m.molecule||"",strength:"",manufacturer:"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:m.cup?"CUP "+m.cup:""}));
-      setMolecules(prev=>[...prev,...newMols]);setNextId(id);
-    }
-    if(bad) setImportErr(bad);
-    else if(allMeds.length===0) setImportErr(fr?"Aucun médicament trouvé.":"No medications found.");
-    setImporting(false);setImportProgress("");e.target.value="";
-  }
+        const inv=await INV.list(uid,"");
+        let id=1;
+        setMolecules(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""})));
+        setNextId(id);
+      }catch(e){setErr(e.message||String(e));}
+      setLoading(false);
+    })();
+  },[]);
+
+  function update(id,f,v){setMolecules(p=>p.map(m=>m.id===id?{...m,[f]:v}:m));}
+  function addRow(){setMolecules(p=>[...p,{id:nextId,name:"",strength:"",cup:"",format:"",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
+  function removeRow(id){setMolecules(p=>p.filter(m=>m.id!==id));}
+  function theo(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
+  function diff(m){if(m.physical==="")return null;return theo(m)-(Number(m.physical)||0);}
+  const totalDisc=molecules.filter(m=>diff(m)!==null&&diff(m)!==0).length;
 
   async function save(){
     setSaving(true);
     const {url,key}=SB.get();
-    const cycle={pharmacy_id:session?.user?.id,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
+    const cycle={pharmacy_id:uid,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
     try{await fetch(url+"/rest/v1/reconciliations",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(cycle)});}catch{}
     setSaving(false);onComplete({totalDisc,totalMolecules:molecules.length});
   }
 
   const th={padding:"7px 8px",fontSize:10,fontWeight:800,color:C.grey,textAlign:"left",whiteSpace:"nowrap",borderBottom:"2px solid #E2E8F0",background:"#F8FAFC"};
-  const td={padding:"4px 6px",fontSize:12,verticalAlign:"middle",borderBottom:"1px solid #F3F4F6"};
+  const td={padding:"4px 6px",fontSize:12,borderBottom:"1px solid #F3F4F6"};
   const ni={padding:"4px 6px",borderRadius:6,border:"1.5px solid #E2E8F0",fontSize:11,fontFamily:"inherit",boxSizing:"border-box"};
-  const pi={padding:"4px 6px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,fontFamily:"inherit",textAlign:"center",fontWeight:700,background:"#EFF6FF",boxSizing:"border-box",width:64};
+  const pi={padding:"4px 6px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,textAlign:"center",fontWeight:700,background:"#EFF6FF",width:64,fontFamily:"inherit"};
+
+  if(loading) return <div style={{padding:40,color:C.grey}}>{fr?"Chargement de votre inventaire…":"Loading inventory…"}</div>;
+
+  if(molecules.length===0){
+    return(
+      <div style={{background:"#FFFBEB",border:"2px solid #FCD34D",borderRadius:14,padding:32,textAlign:"center"}}>
+        <div style={{fontSize:40,marginBottom:12}}>📦</div>
+        <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:8}}>{fr?"Votre inventaire est vide":"Your inventory is empty"}</div>
+        <div style={{fontSize:13,color:C.grey,marginBottom:18,maxWidth:380,margin:"0 auto 18px"}}>
+          {fr?"Ajoutez d'abord vos produits dans « Mon inventaire » — la réconciliation partira de cette liste.":"Add your products in \"My inventory\" first."}
+        </div>
+        <button onClick={onGoInv} style={{padding:"11px 22px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:C.sky}}>
+          📦 {fr?"Aller à Mon inventaire":"Go to My inventory"}
+        </button>
+      </div>
+    );
+  }
 
   return(
     <div>
-      {showAISetup&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"90%",boxShadow:"0 24px 64px rgba(0,0,0,.3)"}}>
-            <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🤖 Clé API Claude</div>
-            <div style={{fontSize:12,color:C.grey,marginBottom:16}}>{fr?"Votre clé reste dans votre navigateur uniquement.":"Your key stays in your browser only."}</div>
-            <input value={aiKeyInput} onChange={e=>setAiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{...inputStyle,marginBottom:12,fontFamily:"monospace",fontSize:11}}/>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowAISetup(false)} style={{flex:1,padding:10,borderRadius:9,border:"1.5px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{fr?"Annuler":"Cancel"}</button>
-              <button onClick={saveAIKey} disabled={!aiKeyInput.startsWith("sk-")} style={{flex:2,padding:10,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#1E4D8C)",opacity:aiKeyInput.startsWith("sk-")?1:.4}}>
-                {fr?"Enregistrer et importer":"Save & import"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
-          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{fr?"Saisissez les quantités · Écarts calculés automatiquement":"Enter quantities · Discrepancies calculated automatically"}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{molecules.length} {fr?"produits de votre inventaire":"products from your inventory"}</div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"discrepancy(ies)"}</span>}
-          {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
-          <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}} multiple/>
-          <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
-            {importing?<span>⏳ {fr?"Import…":"Importing…"}</span>:<span>🤖 {fr?"Importer scans":"Import scans"}</span>}
-          </button>
-        </div>
+        {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"diff"}</span>}
       </div>
-
-      {importErr&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{importErr}</div>}
-      {importing&&(
-        <div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,color:"#7C3AED",fontWeight:600}}>🤖 {importProgress||"…"}</span>
-          <span style={{display:"flex",gap:8}}>
-            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #C4B5FD",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#5B21B6"}}>{paused?"▶️ Reprendre":"⏸ Pause"}</button>
-            <button onClick={()=>{ctrlRef.current.cancelled=true;}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #FCA5A5",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:C.red}}>✕ Arrêter</button>
-          </span>
-        </div>
-      )}
+      {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{err}</div>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
-          <thead>
-            <tr>
-              {[fr?"Molécule":"Molecule",fr?"Force":"Strength","🏭 "+( fr?"Fabricant":"Manufacturer"),"📦 Format","DIN","📦 "+(fr?"Ouverture":"Opening"),"+ "+(fr?"Reçu CSP":"Received CSP"),"− "+(fr?"Dispensé":"Dispensed"),"= "+(fr?"Théorique":"Theoretical"),"🔵 "+(fr?"Inventaire physique":"Physical count"),fr?"Écart":"Discrepancy",fr?"Notes":"Notes",""].map((h,i)=>(
-                <th key={i} style={{...th,color:i>=2&&i<=4?"#7C3AED":i===5?C.grey:i===6?C.orange:i===7?C.red:i===8?"#7C3AED":i===9?C.sky:C.grey,background:i===9?"#EFF6FF":"#F8FAFC"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+          <thead><tr>
+            {["CUP",fr?"Description":"Description",fr?"Force":"Strength","Format","DIN",fr?"Ouverture":"Opening","+ "+(fr?"Reçu":"Received"),"− "+(fr?"Dispensé":"Dispensed"),"= "+(fr?"Théorique":"Theo"),"🔵 "+(fr?"Physique":"Physical"),fr?"Écart":"Diff",""].map((h,i)=>(
+              <th key={i} style={{...th,background:i===9?"#EFF6FF":"#F8FAFC",color:i===6?C.orange:i===7?C.red:i===8?"#7C3AED":i===9?C.sky:C.grey}}>{h}</th>
+            ))}
+          </tr></thead>
           <tbody>
             {molecules.map((m,i)=>{
-              const theo=getTheoretical(m);
-              const disc=getDiscrepancy(m);
+              const th2=theo(m);const d=diff(m);
               return(
                 <tr key={m.id} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
-                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:110}} placeholder={fr?"Molécule":"Molecule"}/></td>
-                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:68}} placeholder="mg"/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.manufacturer} onChange={e=>update(m.id,"manufacturer",e.target.value)} style={{...ni,width:88,borderColor:"#C4B5FD"}} placeholder="Purdue…"/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80,borderColor:"#C4B5FD"}} placeholder="100 comp."/></td>
-                  <td style={{...td,background:"#FAFAFF"}}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,borderColor:"#C4B5FD"}} placeholder="00000000"/></td>
+                  <td style={td}><input value={m.cup} onChange={e=>update(m.id,"cup",e.target.value)} style={{...ni,width:90,fontFamily:"monospace"}}/></td>
+                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:180}}/></td>
+                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:62}}/></td>
+                  <td style={td}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80}}/></td>
+                  <td style={td}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,fontFamily:"monospace"}}/></td>
                   <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={{...ni,width:54,textAlign:"center"}} min="0"/></td>
                   <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.orange}} min="0"/></td>
                   <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.red}} min="0"/></td>
-                  <td style={{...td,textAlign:"center"}}><span style={{fontWeight:900,fontSize:15,color:"#7C3AED"}}>{theo}</span></td>
+                  <td style={{...td,textAlign:"center"}}><span style={{fontWeight:900,fontSize:15,color:"#7C3AED"}}>{th2}</span></td>
                   <td style={{...td,background:"#EFF6FF"}}><input type="number" value={m.physical} onChange={e=>update(m.id,"physical",e.target.value)} style={pi} placeholder="—" min="0"/></td>
                   <td style={{...td,textAlign:"center"}}>
-                    {disc===null?<span style={{color:"#D1D5DB",fontSize:11}}>—</span>:
-                     disc===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:
-                     <span style={{color:C.red,fontWeight:800}}>⚠️ {disc>0?"+":""}{disc}</span>}
+                    {d===null?<span style={{color:"#D1D5DB",fontSize:11}}>—</span>:d===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:<span style={{color:C.red,fontWeight:800}}>⚠️ {d>0?"+":""}{d}</span>}
                   </td>
-                  <td style={td}><input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} style={{...ni,width:100}} placeholder={fr?"Justif…":"Notes…"}/></td>
                   <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18}}>×</button></td>
                 </tr>
               );
@@ -1590,52 +1662,21 @@ function RecoTable({session,profile,onComplete,lang}){
       </div>
 
       <button onClick={addRow} style={{padding:"8px 16px",borderRadius:9,border:"1.5px dashed #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey,fontWeight:600,marginBottom:20}}>
-        + {fr?"Ajouter une molécule":"Add molecule"}
+        + {fr?"Ajouter une ligne":"Add row"}
       </button>
 
-      <div style={{background:"#fff",borderRadius:12,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",marginBottom:20}}>
-        <div style={{fontWeight:800,fontSize:13,color:C.navy,marginBottom:12}}>{fr?"Résumé":"Summary"}</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-          {[{label:fr?"Molécules":"Molecules",val:molecules.length,col:C.sky},{label:fr?"Inventaires saisis":"Counts entered",val:molecules.filter(m=>m.physical!=="").length,col:"#7C3AED"},{label:fr?"Écarts":"Discrepancies",val:totalDisc,col:totalDisc>0?C.red:C.green}].map(s=>(
-            <div key={s.label} style={{background:C.light,borderRadius:10,padding:"12px 16px",borderLeft:"4px solid "+s.col}}>
-              <div style={{fontSize:24,fontWeight:900,color:s.col}}>{s.val}</div>
-              <div style={{fontSize:11,color:C.grey,marginTop:2}}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <button onClick={save} disabled={saving||molecules.length===0} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving||molecules.length===0?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving||molecules.length===0?.5:1}}>
-        {saving?"Saving…":fr?"💾 Sauvegarder ce cycle":"💾 Save this reconciliation cycle"}
+      <button onClick={save} disabled={saving} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving?.5:1}}>
+        {saving?"…":fr?"💾 Sauvegarder ce cycle":"💾 Save this cycle"}
       </button>
     </div>
   );
 }
 
-function RecoPage({onBack,t,profile,session}){
-  const [step,setStep]=useState("upload");
-  const [files,setFiles]=useState({disp:null,inv:null,csp:null,cmd:null});
+function RecoPage({onBack,t,profile,session,onGoInv}){
+  const [step,setStep]=useState("table");
   const [result,setResult]=useState(null);
-  const dispensing=profile?.dispensing_system||"";
-  const inventory=profile?.inventory_system||"";
   const lang=getLang(profile?.language);
   const fr=lang==="fr";
-
-  const sections=[
-    {k:"disp",label:t("salesLabel"),desc:dispensing?dispensing+" · CSV · Excel · Tout format":t("salesDesc"),color:"#EFF6FF",border:C.sky},
-    {k:"inv",label:t("inventoryLabel"),desc:inventory?inventory+" · CSV · Excel · Tout format":t("inventoryDesc"),color:"#F0FDF4",border:C.green},
-    {k:"csp",label:t("cspLabel"),desc:t("cspDesc"),color:"#FFF7ED",border:C.orange},
-    {k:"cmd",label:t("regularOrderLabel"),desc:t("regularOrderDesc"),color:"#F5F3FF",border:"#7C3AED"},
-  ];
-
-  if(step==="table"){
-    return(
-      <div style={{padding:"28px 32px"}}>
-        <button onClick={()=>setStep("upload")} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
-        <RecoTable session={session} profile={profile} lang={lang} onComplete={r=>{setResult(r);setStep("done");}}/>
-      </div>
-    );
-  }
 
   if(step==="done"){
     return(
@@ -1643,11 +1684,11 @@ function RecoPage({onBack,t,profile,session}){
         <div style={{background:"#fff",borderRadius:14,padding:32,boxShadow:"0 2px 10px rgba(0,0,0,.06)",textAlign:"center"}}>
           <div style={{fontSize:48,marginBottom:12}}>{result?.totalDisc>0?"⚠️":"✅"}</div>
           <div style={{fontWeight:800,fontSize:20,color:C.navy,marginBottom:8}}>{t("recoComplete")}</div>
-          <div style={{fontSize:13,color:C.grey,marginBottom:6}}>{result?.totalMolecules} {fr?"molécules":"molecules"}</div>
+          <div style={{fontSize:13,color:C.grey,marginBottom:6}}>{result?.totalMolecules} {fr?"produits":"products"}</div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:result?.totalDisc>0?C.red:C.green}}>
-            {result?.totalDisc>0?"⚠️ "+result.totalDisc+" "+(fr?"écart(s) détecté(s)":"discrepancy(ies) found"):"✅ "+(fr?"Tout équilibré":"All balanced")}
+            {result?.totalDisc>0?"⚠️ "+result.totalDisc+" "+(fr?"écart(s)":"discrepancies"):"✅ "+(fr?"Tout équilibré":"All balanced")}
           </div>
-          <button onClick={()=>{setStep("upload");setFiles({disp:null,inv:null,csp:null,cmd:null});setResult(null);}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>
+          <button onClick={()=>{setStep("table");setResult(null);}} style={{padding:"10px 24px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky}}>
             {t("newRecoBtn")}
           </button>
         </div>
@@ -1658,28 +1699,7 @@ function RecoPage({onBack,t,profile,session}){
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
-      <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:4}}>{t("newRecoTitle")}</div>
-      <div style={{color:C.grey,fontSize:12,marginBottom:16}}>{t("newRecoSub")}</div>
-      {(dispensing||inventory)&&(
-        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-          {dispensing&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>💊 {dispensing}</span>}
-          {inventory&&<span style={{background:"#F0FDF4",color:C.green,fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8}}>📦 {inventory}</span>}
-        </div>
-      )}
-      {sections.map(f=>(
-        <div key={f.k} style={{background:f.color,borderRadius:14,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)",border:"2px dashed "+(files[f.k]?C.green:f.border)}}>
-          <div style={{fontWeight:700,fontSize:14,color:C.navy,marginBottom:4}}>{f.label}</div>
-          <div style={{fontSize:12,color:C.grey,marginBottom:12}}>{f.desc}</div>
-          <input type="file" accept=".csv,.xlsx,.xls,.pdf,.jpg,.png" onChange={e=>setFiles(v=>({...v,[f.k]:e.target.files[0]}))} style={{fontSize:12}}/>
-          {files[f.k]&&<div style={{color:C.green,fontWeight:700,fontSize:12,marginTop:8}}>✓ {files[f.k].name}</div>}
-        </div>
-      ))}
-      <div style={{background:"#F0FDF4",border:"1px solid "+C.green,borderRadius:10,padding:"12px 16px",fontSize:12,color:"#166534",marginBottom:16}}>
-        💡 {fr?"Procédez directement à la réconciliation — utilisez 🤖 dans le tableau pour importer vos scans.":"Proceed directly to reconciliation — use 🤖 in the table to import your scans."}
-      </div>
-      <button onClick={()=>setStep("table")} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#2E86DE,#0F2744)"}}>
-        {t("reconcileNow")}
-      </button>
+      <RecoTable session={session} profile={profile} lang={lang} onGoInv={onGoInv} onComplete={r=>{setResult(r);setStep("done");}}/>
     </div>
   );
 }
@@ -1698,7 +1718,7 @@ export default function App(){
       const {url,key}=SB.get();
       fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
         .then(r=>r.json())
-        .then(data=>{if(Array.isArray(data)&&data.length>0){SB.saveProfile(data[0]);setProfile(data[0]);}setLoading(false);})
+        .then(d=>{if(Array.isArray(d)&&d.length>0){SB.saveProfile(d[0]);setProfile(d[0]);}setLoading(false);})
         .catch(()=>setLoading(false));
     }
   },[session]);
