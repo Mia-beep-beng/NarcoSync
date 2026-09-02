@@ -241,7 +241,7 @@ function isDiscontinued(v){
 
 const CAT={
   async list(search){
-    let q="drug_catalog?select=*&order=molecule.asc&limit=2000";
+    let q="drug_catalog?select=*&order=molecule.asc&limit=5000";
     if(search&&search.trim()){
       const s=encodeURIComponent("*"+search.trim()+"*");
       q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
@@ -301,6 +301,8 @@ function b64FromBytes(bytes){
   return btoa(bin);
 }
 
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
 const CAT_PROMPT="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
   +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
   +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
@@ -324,7 +326,20 @@ async function callClaude(block,aiKey){
   return JSON.parse(clean.slice(a,b+1));
 }
 
-async function extractCatalogFromFile(file,aiKey,onProgress){
+async function callClaudeRetry(block,aiKey){
+  const max=4;
+  for(let a=0;a<max;a++){
+    try{ return await callClaude(block,aiKey); }
+    catch(e){
+      const msg=String(e.message||"");
+      const retryable=msg.indexOf("429")>=0||msg.indexOf("529")>=0||msg.indexOf("500")>=0||msg.indexOf("503")>=0||msg.indexOf("illisible")>=0;
+      if(retryable&&a<max-1){ await sleep(2000*Math.pow(2,a)); continue; }
+      throw e;
+    }
+  }
+}
+
+async function extractCatalogFromFile(file,aiKey,onProgress,ctrl){
   const isPDF=file.type==="application/pdf"||/\.pdf$/i.test(file.name);
 
   if(!isPDF){
@@ -334,8 +349,10 @@ async function extractCatalogFromFile(file,aiKey,onProgress){
       reader.onerror=rej;
       reader.readAsDataURL(file);
     });
-    const rows=await callClaude({type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},aiKey);
-    return rows.filter(r=>!isDiscontinued(r.status));
+    const rows=await callClaudeRetry({type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},aiKey);
+    const r1=rows.filter(r=>!isDiscontinued(r.status));
+    r1.failedRanges="";
+    return r1;
   }
 
   const PDFLib=await loadPdfLib();
@@ -343,28 +360,64 @@ async function extractCatalogFromFile(file,aiKey,onProgress){
   const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
   const total=src.getPageCount();
   const CHUNK=4;
+  const PARALLEL=3;
+
+  const blocks=[];
+  for(let s=0;s<total;s+=CHUNK) blocks.push([s,Math.min(s+CHUNK,total)]);
+
   let all=[];
   const failed=[];
+  let done=0;
+  const t0=Date.now();
+  let cursor=0;
 
-  for(let start=0;start<total;start+=CHUNK){
-    const end=Math.min(start+CHUNK,total);
-    if(onProgress) onProgress("Pages "+(start+1)+"-"+end+" / "+total);
+  async function buildB64(start,end){
     const out=await PDFLib.PDFDocument.create();
     const idx=[];
     for(let p=start;p<end;p++) idx.push(p);
     const copied=await out.copyPages(src,idx);
     copied.forEach(pg=>out.addPage(pg));
     const bytes=await out.save();
-    const b64=b64FromBytes(bytes);
-    try{
-      const rows=await callClaude({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},aiKey);
-      if(Array.isArray(rows)) all=all.concat(rows);
-    }catch(e){
-      failed.push((start+1)+"-"+end);
+    return b64FromBytes(bytes);
+  }
+
+  function report(){
+    if(!onProgress) return;
+    const pct=Math.round(done/blocks.length*100);
+    const elapsed=(Date.now()-t0)/1000;
+    const rate=done>0?done/elapsed:0;
+    const left=rate>0?Math.round((blocks.length-done)/rate):0;
+    const mins=Math.floor(left/60), secs=left%60;
+    const pagesDone=Math.min(done*CHUNK,total);
+    onProgress(pct+"% · "+pagesDone+"/"+total+" pages"+(left>0?" · ~"+(mins?mins+"m ":"")+secs+"s restant":"")+(failed.length?" · "+failed.length+" bloc(s) manqué(s)":""));
+  }
+
+  async function worker(){
+    while(true){
+      if(ctrl&&ctrl.cancelled) return;
+      while(ctrl&&ctrl.paused){ await sleep(400); if(ctrl.cancelled) return; }
+      const my=cursor++;
+      if(my>=blocks.length) return;
+      const start=blocks[my][0], end=blocks[my][1];
+      try{
+        let b64=await buildB64(start,end);
+        const rows=await callClaudeRetry({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},aiKey);
+        b64=null;
+        if(Array.isArray(rows)) all=all.concat(rows);
+      }catch(e){
+        failed.push((start+1)+"-"+end);
+      }
+      done++;
+      report();
     }
   }
 
-  if(failed.length===Math.ceil(total/CHUNK)) throw new Error("Toutes les pages ont echoue");
+  report();
+  const workers=[];
+  for(let w=0;w<Math.min(PARALLEL,blocks.length);w++) workers.push(worker());
+  await Promise.all(workers);
+
+  if(failed.length===blocks.length) throw new Error("Toutes les pages ont echoue");
   const res=all.filter(r=>!isDiscontinued(r.status));
   res.failedRanges=failed.join(", ");
   return res;
@@ -377,10 +430,12 @@ function AdminCatalogPage(){
   const [err,setErr]=useState("");
   const [warn,setWarn]=useState("");
   const [busy,setBusy]=useState("");
+  const [paused,setPaused]=useState(false);
   const [pending,setPending]=useState(null);
   const [showAISetup,setShowAISetup]=useState(false);
   const [aiKeyInput,setAiKeyInput]=useState("");
   const fileRef=useRef();
+  const ctrlRef=useRef({paused:false,cancelled:false});
 
   async function load(s){
     setLoading(true);setErr("");
@@ -396,14 +451,17 @@ function AdminCatalogPage(){
     if(!files.length) return;
     const key=SB.getAIKey();
     if(!key){setShowAISetup(true);e.target.value="";return;}
-    setErr("");setWarn("");
+    setErr("");setWarn("");setPaused(false);
+    ctrlRef.current={paused:false,cancelled:false};
     let all=[];let bad="";let skippedRanges="";
     for(let i=0;i<files.length;i++){
       try{
-        const meds=await extractCatalogFromFile(files[i],key,(p)=>setBusy(p));
+        const label=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
+        const meds=await extractCatalogFromFile(files[i],key,(p)=>setBusy(label+p),ctrlRef.current);
         if(Array.isArray(meds)) all=all.concat(meds);
         if(meds.failedRanges) skippedRanges+=(skippedRanges?" · ":"")+files[i].name+": "+meds.failedRanges;
       }catch(e2){bad=files[i].name+" - "+(e2.message||String(e2));}
+      if(ctrlRef.current.cancelled) break;
     }
     setBusy("");e.target.value="";
     if(bad)setErr(bad);
@@ -454,14 +512,23 @@ function AdminCatalogPage(){
         <div>
           <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
           <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
-            {busy?"⏳ "+busy:"🤖 Import scan"}
+            {busy?"⏳ Import en cours…":"🤖 Import scan"}
           </button>
         </div>
       </div>
 
       <input value={search} placeholder="Chercher description, DIN, CUP…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
 
-      {busy&&<div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#5B21B6",fontWeight:600,marginBottom:14}}>🤖 {busy}</div>}
+      {busy&&(
+        <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,color:"#5B21B6",fontWeight:600}}>🤖 {busy}</span>
+          <span style={{display:"flex",gap:8}}>
+            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #C4B5FD",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#5B21B6"}}>{paused?"▶️ Reprendre":"⏸ Pause"}</button>
+            <button onClick={()=>{ctrlRef.current.cancelled=true;}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #FCA5A5",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:C.red}}>✕ Arrêter</button>
+          </span>
+        </div>
+      )}
+
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
       {warn&&<div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#92400E",marginBottom:14}}>⚠️ {warn}</div>}
 
@@ -470,11 +537,11 @@ function AdminCatalogPage(){
           <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>
             {pending.length} lignes actives détectées — vérifier avant d'enregistrer
           </div>
-          <div style={{maxHeight:300,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
+          <div style={{maxHeight:320,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th></tr></thead>
               <tbody>
-                {pending.map((r,i)=>(
+                {pending.slice(0,500).map((r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontFamily:"monospace"}}>{r.cup}</td>
                     <td style={td}>{r.description}</td>
@@ -484,6 +551,7 @@ function AdminCatalogPage(){
                 ))}
               </tbody>
             </table>
+            {pending.length>500&&<div style={{padding:"8px 12px",fontSize:12,color:C.grey}}>… et {pending.length-500} autres lignes</div>}
           </div>
           <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Enregistrer</button>
           <button onClick={()=>setPending(null)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Annuler</button>
@@ -1381,9 +1449,11 @@ function RecoTable({session,profile,onComplete,lang}){
   const [importing,setImporting]=useState(false);
   const [importProgress,setImportProgress]=useState("");
   const [importErr,setImportErr]=useState("");
+  const [paused,setPaused]=useState(false);
   const [showAISetup,setShowAISetup]=useState(false);
   const [aiKeyInput,setAiKeyInput]=useState("");
   const importRef=useRef();
+  const ctrlRef=useRef({paused:false,cancelled:false});
   const fr=lang==="fr";
 
   function update(id,field,value){setMolecules(prev=>prev.map(m=>m.id===id?{...m,[field]:value}:m));}
@@ -1401,14 +1471,17 @@ function RecoTable({session,profile,onComplete,lang}){
     if(!files.length) return;
     const key=SB.getAIKey();
     if(!key){setShowAISetup(true);e.target.value="";return;}
-    setImporting(true);setImportErr("");
+    setImporting(true);setImportErr("");setPaused(false);
+    ctrlRef.current={paused:false,cancelled:false};
     let allMeds=[];let bad="";
     for(let i=0;i<files.length;i++){
       try{
-        const meds=await extractCatalogFromFile(files[i],key,(p)=>setImportProgress(p));
+        const label=files.length>1?"["+(i+1)+"/"+files.length+"] ":"";
+        const meds=await extractCatalogFromFile(files[i],key,(p)=>setImportProgress(label+p),ctrlRef.current);
         if(Array.isArray(meds)) allMeds=allMeds.concat(meds);
       }
       catch(err){bad=files[i].name+" - "+(err.message||String(err));}
+      if(ctrlRef.current.cancelled) break;
     }
     if(allMeds.length>0){
       let id=nextId;
@@ -1461,13 +1534,21 @@ function RecoTable({session,profile,onComplete,lang}){
           {totalDisc===0&&allFilled&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout équilibré":"All balanced"}</span>}
           <input ref={importRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleImport} style={{display:"none"}} multiple/>
           <button onClick={()=>{if(!SB.getAIKey()){setShowAISetup(true);}else{importRef.current?.click();}}} disabled={importing} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)",display:"flex",alignItems:"center",gap:6}}>
-            {importing?<span>⏳ {importProgress||"IA…"}</span>:<span>🤖 {fr?"Importer scans":"Import scans"}</span>}
+            {importing?<span>⏳ {fr?"Import…":"Importing…"}</span>:<span>🤖 {fr?"Importer scans":"Import scans"}</span>}
           </button>
         </div>
       </div>
 
       {importErr&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{importErr}</div>}
-      {importing&&<div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#7C3AED",fontWeight:600}}>🤖 {importProgress} {fr?"Claude lit vos scans…":"Claude is reading your scans…"}</div>}
+      {importing&&(
+        <div style={{background:"#F5F3FF",border:"1px solid #C4B5FD",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,color:"#7C3AED",fontWeight:600}}>🤖 {importProgress||"…"}</span>
+          <span style={{display:"flex",gap:8}}>
+            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #C4B5FD",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#5B21B6"}}>{paused?"▶️ Reprendre":"⏸ Pause"}</button>
+            <button onClick={()=>{ctrlRef.current.cancelled=true;}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #FCA5A5",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,color:C.red}}>✕ Arrêter</button>
+          </span>
+        </div>
+      )}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
