@@ -279,9 +279,10 @@ async function extractCatalogFromFile(file,aiKey){
   const prompt="Ce document est un catalogue de medicaments d'une pharmacie canadienne. Extrais TOUTES les lignes de medicaments. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"molecule\":\"nom de la molecule\",\"strength\":\"force ex: 10mg\",\"manufacturer\":\"fabricant\",\"format\":\"format ex: 100 comp.\",\"din\":\"numero DIN a 8 chiffres ou chaine vide\"}.";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
+    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
     body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:8000,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
   });
+  if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,200));}
   const data=await response.json();
   const text=data.content?.[0]?.text||"[]";
   const clean=text.replace(/```json|```/g,"").trim();
@@ -1229,9 +1230,10 @@ async function extractMedsFromFile(file,aiKey,fr){
     :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01"},
+    headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
     body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4096,messages:[{role:"user",content:[contentBlock,{type:"text",text:prompt}]}]})
   });
+  if(!response.ok){const t=await response.text();throw new Error("API "+response.status+" - "+t.slice(0,200));}
   const data=await response.json();
   const text=data.content?.[0]?.text||"[]";
   const clean=text.replace(/```json|```/g,"").trim();
@@ -1266,17 +1268,19 @@ function RecoTable({session,profile,onComplete,lang}){
     const key=SB.getAIKey();
     if(!key){setShowAISetup(true);e.target.value="";return;}
     setImporting(true);setImportErr("");
-    let allMeds=[];
+    let allMeds=[];let bad="";
     for(let i=0;i<files.length;i++){
       setImportProgress(fr?"Lecture "+(i+1)+"/"+files.length+"…":"Reading "+(i+1)+"/"+files.length+"…");
       try{const meds=await extractMedsFromFile(files[i],key,fr);if(Array.isArray(meds))allMeds=[...allMeds,...meds];}
-      catch(err){console.error(err);}
+      catch(err){bad=files[i].name+" - "+(err.message||String(err));}
     }
     if(allMeds.length>0){
       let id=nextId;
       const newMols=allMeds.map(m=>({id:id++,name:m.name||"",strength:m.strength||"",manufacturer:m.manufacturer||"",format:m.format||"",din:m.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""}));
       setMolecules(prev=>[...prev,...newMols]);setNextId(id);
-    } else setImportErr(fr?"Aucun médicament trouvé.":"No medications found.");
+    }
+    if(bad) setImportErr(bad);
+    else if(allMeds.length===0) setImportErr(fr?"Aucun médicament trouvé.":"No medications found.");
     setImporting(false);setImportProgress("");e.target.value="";
   }
 
