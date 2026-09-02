@@ -195,7 +195,6 @@ const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado"
 const inputStyle={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",background:"#fff"};
 const PLAN_COLORS={basic:{bg:"#EFF6FF",color:"#1E4D8C"},pro:{bg:"#F0FDF4",color:"#1A9E5F"},enterprise:{bg:"#FFF7ED",color:"#C2410C"}};
 const PLAN_PRICE={basic:49,pro:99,enterprise:249};
-const CATEGORIES=[{v:"narco",l:"Narcotique"},{v:"benzo",l:"Benzo / Ciblé"},{v:"cible",l:"Ciblé"},{v:"autre",l:"Autre"}];
 
 function PlanBadge({plan}){
   if(!plan) return null;
@@ -299,6 +298,7 @@ const INV={
         molecule:String(r.molecule||r.description||"").trim(),
         strength:String(r.strength||"").trim()||null,
         format:String(r.format||"").trim()||null,
+        qty:Number(r.qty)||0,
         active:true
       });
     });
@@ -449,7 +449,7 @@ function AIKeyModal({onClose,onSaved}){
   );
 }
 
-/* ===== VALIDATION TABLE (pharmacist confirms OCR) ===== */
+/* ===== VALIDATION TABLE ===== */
 function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr}){
   function up(i,f,v){ setRows(rows.map((r,j)=>j===i?{...r,[f]:v}:r)); }
   function del(i){ setRows(rows.filter((r,j)=>j!==i)); }
@@ -513,7 +513,7 @@ function InventoryPage({session,fr}){
   const [pending,setPending]=useState(null);
   const [showKey,setShowKey]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
-  const [nw,setNw]=useState({cup:"",molecule:"",strength:"",format:"",din:""});
+  const [nw,setNw]=useState({cup:"",molecule:"",strength:"",format:"",din:"",qty:""});
   const [catQuery,setCatQuery]=useState("");
   const [catRes,setCatRes]=useState([]);
   const fileRef=useRef();
@@ -534,7 +534,7 @@ function InventoryPage({session,fr}){
 
   async function addFromCatalog(d){
     try{
-      await INV.addMany(uid,[{drug_id:d.id,din:d.din,cup:d.cup,molecule:d.molecule,strength:d.strength,format:d.format}]);
+      await INV.addMany(uid,[{drug_id:d.id,din:d.din,cup:d.cup,molecule:d.molecule,strength:d.strength,format:d.format,qty:0}]);
       setCatQuery("");setCatRes([]);setInfo(fr?"Ajouté à votre inventaire.":"Added.");
       await load(search);
     }catch(e){setErr(e.message||String(e));}
@@ -548,8 +548,8 @@ function InventoryPage({session,fr}){
         const hit=await CAT.byDins([din]);
         if(!hit.length) await CAT.upsertMany([{din:din,description:nw.molecule,strength:nw.strength,format:nw.format,cup:nw.cup}]);
       }
-      await INV.addMany(uid,[{din:din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format}]);
-      setNw({cup:"",molecule:"",strength:"",format:"",din:""});setShowAdd(false);
+      await INV.addMany(uid,[{din:din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format,qty:nw.qty}]);
+      setNw({cup:"",molecule:"",strength:"",format:"",din:"",qty:""});setShowAdd(false);
       setInfo(fr?"Produit ajouté.":"Product added.");
       await load(search);
     }catch(e){setErr(e.message||String(e));}
@@ -588,12 +588,20 @@ function InventoryPage({session,fr}){
       const nAdded=await INV.addMany(uid,pending.map(r=>{
         const d=cleanDin(r.din);
         const hit=map[d];
-        return {drug_id:hit?hit.id:null,din:d,cup:r.cup||(hit?hit.cup:""),molecule:r.description||r.molecule||(hit?hit.molecule:""),strength:r.strength||(hit?hit.strength:""),format:r.format||(hit?hit.format:"")};
+        return {drug_id:hit?hit.id:null,din:d,cup:r.cup||(hit?hit.cup:""),molecule:r.description||r.molecule||(hit?hit.molecule:""),strength:r.strength||(hit?hit.strength:""),format:r.format||(hit?hit.format:""),qty:r.qty};
       }));
       setPending(null);setBusy("");
       setInfo((fr?"Inventaire mis à jour : ":"Inventory updated: ")+nAdded+(newOnes.length?(fr?" · nouveaux au catalogue : ":" · new to catalog: ")+newOnes.length:""));
       await load(search);
     }catch(e){setBusy("");setErr(e.message||String(e));}
+  }
+
+  async function saveQty(r,v){
+    const val=Number(v)||0;
+    try{
+      await INV.update(r.id,{qty:val,last_count_at:new Date().toISOString()});
+      setInfo((fr?"Quantité mise à jour : ":"Qty updated: ")+(r.molecule||"")+" → "+val);
+    }catch(e){setErr(e.message||String(e));}
   }
 
   async function del(id){
@@ -639,11 +647,11 @@ function InventoryPage({session,fr}){
             </div>
           )}
           <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:10,marginTop:6}}>✍️ {fr?"Ou saisir un produit absent du catalogue":"Or enter a product not in the catalog"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:10}}>
-            {[["cup","CUP"],["molecule",fr?"Description *":"Description *"],["strength",fr?"Force":"Strength"],["format","Format"],["din","DIN"]].map(([k,l])=>(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
+            {[["cup","CUP"],["molecule",fr?"Description *":"Description *"],["strength",fr?"Force":"Strength"],["format","Format"],["din","DIN"],["qty",fr?"Qté reçue":"Qty"]].map(([k,l])=>(
               <div key={k}>
                 <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{l}</label>
-                <input value={nw[k]} onChange={e=>setNw({...nw,[k]:e.target.value})} style={{...inputStyle,fontSize:12,padding:"8px 10px"}}/>
+                <input value={nw[k]} onChange={e=>setNw({...nw,[k]:e.target.value})} style={{...inputStyle,fontSize:12,padding:"8px 10px",...(k==="qty"?{textAlign:"center",borderColor:C.sky}:{})}}/>
               </div>
             ))}
           </div>
@@ -670,13 +678,14 @@ function InventoryPage({session,fr}){
       {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={true} onConfirm={confirmPending} onCancel={()=>setPending(null)} busy={!!busy} fr={fr}/>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
           <thead><tr>
-            <th style={th}>CUP</th><th style={th}>Description</th><th style={th}>{fr?"Force":"Strength"}</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th>
+            <th style={th}>CUP</th><th style={th}>Description</th><th style={th}>{fr?"Force":"Strength"}</th><th style={th}>Format</th><th style={th}>DIN</th>
+            <th style={{...th,background:"#EFF6FF",color:C.sky}}>🔵 {fr?"Qté actuelle":"Current qty"}</th><th style={th}></th>
           </tr></thead>
           <tbody>
-            {loading&&<tr><td style={td} colSpan={6}>{fr?"Chargement…":"Loading…"}</td></tr>}
-            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>{fr?"Inventaire vide — scannez votre inventaire ou ajoutez manuellement.":"Empty — scan your inventory or add manually."}</td></tr>}
+            {loading&&<tr><td style={td} colSpan={7}>{fr?"Chargement…":"Loading…"}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={7}>{fr?"Inventaire vide — scannez votre inventaire ou ajoutez manuellement.":"Empty — scan your inventory or add manually."}</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
                 <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
@@ -684,12 +693,17 @@ function InventoryPage({session,fr}){
                 <td style={td}>{r.strength||"—"}</td>
                 <td style={td}>{r.format||"—"}</td>
                 <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
+                <td style={{...td,background:"#EFF6FF"}}>
+                  <input type="number" defaultValue={r.qty||0} onBlur={e=>saveQty(r,e.target.value)}
+                    style={{padding:"5px 7px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,textAlign:"center",fontWeight:700,background:"#fff",width:72,fontFamily:"inherit"}}/>
+                </td>
                 <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {rows.length>0&&<div style={{fontSize:11,color:C.grey,marginTop:8}}>💡 {fr?"Modifiez la quantité et cliquez ailleurs — l'ajustement s'enregistre automatiquement.":"Edit the qty and click away — it saves automatically."}</div>}
     </div>
   );
 }
@@ -1451,6 +1465,14 @@ function HistoryPage({session,fr}){
   },[]);
   function fd(d){ if(!d) return "—"; return new Date(d).toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
 
+  async function delCycle(c){
+    if(!window.confirm(fr?"Supprimer ce cycle?":"Delete this cycle?")) return;
+    try{
+      await sbFetch("reconciliations?id=eq."+c.id,{method:"DELETE"});
+      setCycles(cycles.filter(x=>x.id!==c.id));
+    }catch(e){alert(e.message||String(e));}
+  }
+
   if(selected){
     const mols=typeof selected.molecules==="string"?JSON.parse(selected.molecules||"[]"):selected.molecules||[];
     return(
@@ -1497,14 +1519,17 @@ function HistoryPage({session,fr}){
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {cycles.map((c,i)=>(
-            <div key={i} onClick={()=>setSelected(c)} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)",cursor:"pointer"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div>
+            <div key={i} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                <div onClick={()=>setSelected(c)} style={{cursor:"pointer",flex:1}}>
                   <div style={{fontWeight:800,fontSize:15,color:C.navy}}>📋 {fd(c.completed_at)}</div>
-                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"produits":"products"}</div>
+                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"produits":"products"} · {fr?"cliquer pour le détail":"click for detail"}</div>
                 </div>
-                <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
-                  {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
+                <span style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
+                    {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
+                  </span>
+                  <button onClick={()=>delCycle(c)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>🗑</button>
                 </span>
               </div>
             </div>
@@ -1573,7 +1598,7 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
       try{
         const inv=await INV.list(uid,"");
         let id=1;
-        setMolecules(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:0,received:0,dispensed:0,physical:"",notes:""})));
+        setMolecules(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:Number(r.qty)||0,received:0,dispensed:0,physical:"",notes:""})));
         setNextId(id);
       }catch(e){setErr(e.message||String(e));}
       setLoading(false);
@@ -1592,6 +1617,11 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
     const {url,key}=SB.get();
     const cycle={pharmacy_id:uid,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
     try{await fetch(url+"/rest/v1/reconciliations",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(cycle)});}catch{}
+    for(const m of molecules){
+      if(m.inv_id&&m.physical!==""){
+        try{await INV.update(m.inv_id,{qty:Number(m.physical)||0,last_count_at:new Date().toISOString()});}catch(e){}
+      }
+    }
     setSaving(false);onComplete({totalDisc,totalMolecules:molecules.length});
   }
 
@@ -1622,7 +1652,7 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
-          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{molecules.length} {fr?"produits de votre inventaire":"products from your inventory"}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{molecules.length} {fr?"produits · ouverture = qté de votre inventaire":"products · opening = your inventory qty"}</div>
         </div>
         {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"diff"}</span>}
       </div>
@@ -1668,6 +1698,9 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
       <button onClick={save} disabled={saving} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving?.5:1}}>
         {saving?"…":fr?"💾 Sauvegarder ce cycle":"💾 Save this cycle"}
       </button>
+      <div style={{fontSize:11,color:C.grey,marginTop:8,textAlign:"center"}}>
+        {fr?"Les quantités physiques saisies mettront à jour votre inventaire.":"Physical counts will update your inventory."}
+      </div>
     </div>
   );
 }
