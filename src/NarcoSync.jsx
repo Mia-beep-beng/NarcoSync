@@ -289,7 +289,7 @@ async function extractCatalogFromFile(file,aiKey){
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
   const prompt="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
     +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
-    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
+    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
     +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
     +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
     +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
@@ -821,41 +821,30 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
   );
 }
 
-function SetupScreen({onDone}){
-  const [url,setUrl]=useState(NS_URL);const [key,setKey]=useState(NS_KEY);const [err,setErr]=useState("");
-  function connect(){if(!url.trim()||!key.trim()){setErr("Both fields required.");return;}SB.save(url.replace(/\/+$/,""),key);onDone();}
-  const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
-  return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C,#2E86DE)"}}>
-      <div style={{width:"100%",maxWidth:440}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontSize:44,marginBottom:12}}>💊</div>
-          <div style={{color:"#fff",fontWeight:900,fontSize:28,marginBottom:6}}>NarcoSync</div>
-          <div style={{color:"rgba(255,255,255,.65)",fontSize:13}}>Pharmacy narcotics reconciliation</div>
-        </div>
-        <div style={{background:"#fff",borderRadius:20,padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.25)"}}>
-          <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🔌 Connect to Supabase</div>
-          <div style={{fontSize:12,color:C.grey,marginBottom:20}}>One-time setup · 2 minutes · Free</div>
-          {[{l:"Supabase Project URL",v:url,s:setUrl,ph:"https://xxxx.supabase.co"},{l:"Supabase anon key",v:key,s:setKey,ph:"eyJhbGciOiJIUzI1NiIs..."}].map(f=>(
-            <div key={f.l} style={{marginBottom:14}}>
-              <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:4}}>{f.l}</label>
-              <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} style={inp}/>
-            </div>
-          ))}
-          {err&&<div style={{color:C.red,fontSize:11,marginBottom:12}}>{err}</div>}
-          <button onClick={connect} style={{width:"100%",padding:13,borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1E4D8C,#2E86DE)"}}>Connect →</button>
-          <div style={{marginTop:14,fontSize:11,color:C.grey,textAlign:"center"}}>supabase.com → Settings → API Keys → Legacy</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AuthScreen({onAuth}){
-  const [mode,setMode]=useState("login");const [email,setEmail]=useState("");const [pwd,setPwd]=useState("");const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
+  const [mode,setMode]=useState("login");
+  const [email,setEmail]=useState("");
+  const [pwd,setPwd]=useState("");
+  const [err,setErr]=useState("");
+  const [msg,setMsg]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [recoveryToken,setRecoveryToken]=useState(null);
+  const [np1,setNp1]=useState("");
+  const [np2,setNp2]=useState("");
   const t=(k)=>T.en[k];
+
+  useEffect(()=>{
+    const h=window.location.hash||"";
+    if(h.indexOf("access_token")>=0&&h.indexOf("type=recovery")>=0){
+      const p=new URLSearchParams(h.replace(/^#/,""));
+      const tok=p.get("access_token");
+      if(tok){setRecoveryToken(tok);setMode("reset");}
+    }
+  },[]);
+
   async function submit(){
-    if(!email||!pwd){setErr(t("fillAllFields"));return;}setBusy(true);setErr("");
+    if(!email||!pwd){setErr(t("fillAllFields"));return;}
+    setBusy(true);setErr("");setMsg("");
     const {url,key}=SB.get();
     const ep=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
     try{
@@ -866,7 +855,38 @@ function AuthScreen({onAuth}){
     }catch(e){setErr(t("networkError")+" - "+(e.message||""));}
     setBusy(false);
   }
+
+  async function sendRecovery(){
+    if(!email){setErr("Entrez votre courriel / Enter your email first.");return;}
+    setBusy(true);setErr("");setMsg("");
+    const {url,key}=SB.get();
+    try{
+      const r=await fetch(url+"/auth/v1/recover",{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email:email,redirect_to:window.location.origin})});
+      if(r.ok) setMsg("Courriel envoyé à "+email+" — vérifiez votre boîte de réception.");
+      else{const d=await r.json();setErr((d.msg||d.message||"Could not send email")+" ["+r.status+"]");}
+    }catch(e){setErr("Network error - "+(e.message||""));}
+    setBusy(false);
+  }
+
+  async function applyNewPassword(){
+    if(np1.length<6){setErr("Minimum 6 caractères.");return;}
+    if(np1!==np2){setErr("Les deux mots de passe ne correspondent pas.");return;}
+    setBusy(true);setErr("");setMsg("");
+    const {url,key}=SB.get();
+    try{
+      const r=await fetch(url+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":key,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({password:np1})});
+      const d=await r.json();
+      if(r.ok){
+        setMsg("Mot de passe mis à jour. Connectez-vous maintenant.");
+        setRecoveryToken(null);setMode("login");setNp1("");setNp2("");setPwd("");
+        try{window.history.replaceState({},"",window.location.pathname);}catch(e){}
+      } else setErr((d.msg||d.message||"Could not update password")+" ["+r.status+"]");
+    }catch(e){setErr("Network error - "+(e.message||""));}
+    setBusy(false);
+  }
+
   const inp={width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid "+C.border,fontSize:12,fontFamily:"inherit",boxSizing:"border-box"};
+
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"linear-gradient(135deg,#0F2744,#1E4D8C)"}}>
       <div style={{width:"100%",maxWidth:400}}>
@@ -876,23 +896,75 @@ function AuthScreen({onAuth}){
           <div style={{color:"rgba(255,255,255,.5)",fontSize:12,marginTop:4}}>{t("restrictedAccess")}</div>
         </div>
         <div style={{background:"#fff",borderRadius:18,padding:26,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-          <div style={{display:"flex",marginBottom:20,borderRadius:10,overflow:"hidden",border:"1px solid "+C.border}}>
-            {["login","signup"].map(m=>(
-              <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,background:mode===m?C.navy:"#fff",color:mode===m?"#fff":C.grey}}>
-                {m==="login"?t("login"):t("createAccount")}
+
+          {mode==="reset"?(
+            <div>
+              <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🔑 Nouveau mot de passe</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Choisissez un nouveau mot de passe pour votre compte.</div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Nouveau mot de passe</label>
+                <input type="password" value={np1} onChange={e=>setNp1(e.target.value)} placeholder="Min. 6 caractères" style={inp} autoComplete="new-password"/>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Confirmer le mot de passe</label>
+                <input type="password" value={np2} onChange={e=>setNp2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&applyNewPassword()} placeholder="Retapez-le" style={{...inp,border:np2&&np1!==np2?"1.5px solid #FCA5A5":"1.5px solid "+C.border}} autoComplete="new-password"/>
+              </div>
+              {np2&&np1!==np2&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>Les mots de passe ne correspondent pas.</div>}
+              {np2&&np1===np2&&np1.length>=6&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>✓ Les mots de passe correspondent</div>}
+              {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
+              {msg&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>{msg}</div>}
+              <button onClick={applyNewPassword} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)"}}>
+                {busy?"…":"Enregistrer →"}
               </button>
-            ))}
-          </div>
-          {[{l:"Email",v:email,s:setEmail,t:"email",ph:"pharmacist@clinic.com"},{l:"Password",v:pwd,s:setPwd,t:"password",ph:"Min. 6 characters"}].map(f=>(
-            <div key={f.l} style={{marginBottom:13}}>
-              <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
-              <input type={f.t} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={inp} autoComplete="off"/>
+              <button onClick={()=>{setRecoveryToken(null);setMode("login");setErr("");}} style={{width:"100%",marginTop:10,padding:9,borderRadius:9,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,color:C.grey,background:"#fff"}}>
+                Annuler
+              </button>
             </div>
-          ))}
-          {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
-          <button onClick={submit} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")"}}>
-            {busy?"…":mode==="login"?t("signIn"):t("createMyAccount")}
-          </button>
+          ):mode==="forgot"?(
+            <div>
+              <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:4}}>🔓 Mot de passe oublié</div>
+              <div style={{fontSize:12,color:C.grey,marginBottom:18}}>Nous vous enverrons un lien pour en choisir un nouveau.</div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>Courriel / Email</label>
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendRecovery()} placeholder="pharmacien@pharmacie.com" style={inp}/>
+              </div>
+              {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
+              {msg&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>{msg}</div>}
+              <button onClick={sendRecovery} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")"}}>
+                {busy?"…":"Envoyer le lien →"}
+              </button>
+              <button onClick={()=>{setMode("login");setErr("");setMsg("");}} style={{width:"100%",marginTop:10,padding:9,borderRadius:9,border:"1.5px solid "+C.border,cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,color:C.grey,background:"#fff"}}>
+                ← Retour à la connexion
+              </button>
+            </div>
+          ):(
+            <div>
+              <div style={{display:"flex",marginBottom:20,borderRadius:10,overflow:"hidden",border:"1px solid "+C.border}}>
+                {["login","signup"].map(m=>(
+                  <button key={m} onClick={()=>{setMode(m);setErr("");setMsg("");}} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,background:mode===m?C.navy:"#fff",color:mode===m?"#fff":C.grey}}>
+                    {m==="login"?t("login"):t("createAccount")}
+                  </button>
+                ))}
+              </div>
+              {[{l:"Email",v:email,s:setEmail,ty:"email",ph:"pharmacist@clinic.com"},{l:"Password",v:pwd,s:setPwd,ty:"password",ph:"Min. 6 characters"}].map(f=>(
+                <div key={f.l} style={{marginBottom:13}}>
+                  <label style={{fontSize:11,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{f.l}</label>
+                  <input type={f.ty} value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={inp} autoComplete="off"/>
+                </div>
+              ))}
+              {err&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>{err}</div>}
+              {msg&&<div style={{color:C.green,fontSize:11,marginBottom:10}}>{msg}</div>}
+              <button onClick={submit} disabled={busy} style={{width:"100%",padding:12,borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:"linear-gradient(135deg,"+C.navy+","+C.sky+")"}}>
+                {busy?"…":mode==="login"?t("signIn"):t("createMyAccount")}
+              </button>
+              {mode==="login"&&(
+                <button onClick={()=>{setMode("forgot");setErr("");setMsg("");}} style={{width:"100%",marginTop:12,padding:6,border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.sky,fontWeight:600}}>
+                  Mot de passe oublié? · Forgot password?
+                </button>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -1495,8 +1567,11 @@ function RecoPage({onBack,t,profile,session}){
 }
 
 export default function App(){
-  const [configured,setConfigured]=useState(true);
-  const [session,setSession]=useState(SB.getSession());
+  const [session,setSession]=useState(()=>{
+    const h=window.location.hash||"";
+    if(h.indexOf("type=recovery")>=0) return null;
+    return SB.getSession();
+  });
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
   useEffect(()=>{
@@ -1510,7 +1585,6 @@ export default function App(){
     }
   },[session]);
   const logout=()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);};
-  if(!configured) return <SetupScreen onDone={()=>setConfigured(true)}/>;
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
   if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
   if(loading) return(
