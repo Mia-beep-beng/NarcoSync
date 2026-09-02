@@ -230,24 +230,31 @@ async function catFetch(path,opts){
   return txt?JSON.parse(txt):[];
 }
 
+function isDiscontinued(v){
+  const s=String(v||"").toLowerCase();
+  return s.indexOf("disc")>=0||s.indexOf("discontinu")>=0||s.indexOf("cesse")>=0||s.indexOf("retir")>=0;
+}
+
 const CAT={
   async list(search){
-    let q="drug_catalog?select=*&order=molecule.asc&limit=500";
+    let q="drug_catalog?select=*&order=molecule.asc&limit=1000";
     if(search&&search.trim()){
       const s=encodeURIComponent("*"+search.trim()+"*");
-      q+="&or=(molecule.ilike."+s+",din.ilike."+s+",manufacturer.ilike."+s+")";
+      q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
     }
     return await catFetch(q);
   },
   async upsertMany(rows){
-    const clean=rows.filter(r=>r&&r.molecule).map(r=>({
-      molecule:String(r.molecule||"").trim(),
-      strength:String(r.strength||"").trim()||null,
-      manufacturer:String(r.manufacturer||"").trim()||null,
-      format:String(r.format||"").trim()||null,
-      din:String(r.din||"").replace(/\D/g,"").trim()||null,
-      is_narcotic:r.is_narcotic!==false
-    }));
+    const clean=rows
+      .filter(r=>r&&(r.description||r.molecule))
+      .filter(r=>!isDiscontinued(r.status||r.command||r.commande))
+      .map(r=>({
+        cup:String(r.cup||"").trim()||null,
+        molecule:String(r.description||r.molecule||"").trim(),
+        format:String(r.format||"").trim()||null,
+        din:String(r.din||"").replace(/\D/g,"").trim()||null,
+        is_narcotic:true
+      }));
     const withDin=clean.filter(r=>r.din);
     const noDin=clean.filter(r=>!r.din);
     let n=0;
@@ -276,7 +283,12 @@ async function extractCatalogFromFile(file,aiKey){
   const contentBlock=isPDF
     ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
-  const prompt="Ce document est un catalogue de medicaments d'une pharmacie canadienne. Extrais TOUTES les lignes de medicaments. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"molecule\":\"nom de la molecule\",\"strength\":\"force ex: 10mg\",\"manufacturer\":\"fabricant\",\"format\":\"format ex: 100 comp.\",\"din\":\"numero DIN a 8 chiffres ou chaine vide\"}.";
+  const prompt="Ce document est une liste de produits d'une pharmacie canadienne. Les colonnes sont: CUP, description, format, commande (statut), DIN. "
+    +"Pour CHAQUE ligne du tableau, extrais exactement ces cinq valeurs. "
+    +"IMPORTANT: n'inclus PAS les lignes dont la colonne commande indique discontinue, discontinué, DISC, cesse ou retire. Garde uniquement les lignes normales/actives. "
+    +"Le CUP est le code produit, le DIN est un numero a 8 chiffres. Si une valeur est absente ou illisible, mets une chaine vide. "
+    +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown, sans explication, sans backticks. "
+    +"Format exact: [{\"cup\":\"\",\"description\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
@@ -286,7 +298,11 @@ async function extractCatalogFromFile(file,aiKey){
   const data=await response.json();
   const text=data.content?.[0]?.text||"[]";
   const clean=text.replace(/```json|```/g,"").trim();
-  return JSON.parse(clean);
+  const a=clean.indexOf("[");
+  const b=clean.lastIndexOf("]");
+  if(a===-1||b===-1) throw new Error("Reponse IA illisible");
+  const arr=JSON.parse(clean.slice(a,b+1));
+  return arr.filter(r=>!isDiscontinued(r.status));
 }
 
 function AdminCatalogPage(){
@@ -296,6 +312,7 @@ function AdminCatalogPage(){
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState("");
   const [pending,setPending]=useState(null);
+  const [skipped,setSkipped]=useState(0);
   const [showAISetup,setShowAISetup]=useState(false);
   const [aiKeyInput,setAiKeyInput]=useState("");
   const fileRef=useRef();
@@ -322,7 +339,11 @@ function AdminCatalogPage(){
     }
     setBusy("");e.target.value="";
     if(bad)setErr(bad);
-    if(all.length)setPending(all);
+    if(all.length){
+      const keep=all.filter(r=>!isDiscontinued(r.status));
+      setSkipped(all.length-keep.length);
+      setPending(keep);
+    }
     else if(!bad)setErr("No drug detected.");
   }
 
@@ -363,7 +384,7 @@ function AdminCatalogPage(){
       <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
         <div>
           <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📚 Drug catalog</div>
-          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} molecules · readable by all pharmacies</div>
+          <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} products · discontinued lines excluded</div>
         </div>
         <div>
           <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
@@ -373,44 +394,48 @@ function AdminCatalogPage(){
         </div>
       </div>
 
-      <input value={search} placeholder="Search molecule, DIN, manufacturer…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
+      <input value={search} placeholder="Search description, DIN, CUP…" onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load(search);}} style={{...inputStyle,maxWidth:420,marginBottom:16}}/>
 
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
 
       {pending&&(
         <div style={{background:"#F5F3FF",border:"1.5px solid #C4B5FD",borderRadius:12,padding:16,marginBottom:18}}>
-          <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>{pending.length} rows detected — review before saving</div>
-          <div style={{maxHeight:260,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
+          <div style={{fontWeight:800,fontSize:14,color:"#5B21B6",marginBottom:8}}>
+            {pending.length} active rows detected{skipped>0?" · "+skipped+" discontinued skipped":""} — review before saving
+          </div>
+          <div style={{maxHeight:280,overflowY:"auto",background:"#fff",borderRadius:8,marginBottom:12}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>Molecule</th><th style={th}>Strength</th><th style={th}>Manufacturer</th><th style={th}>Format</th><th style={th}>DIN</th></tr></thead>
+              <thead><tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}>Status</th></tr></thead>
               <tbody>
                 {pending.map((r,i)=>(
                   <tr key={i}>
-                    <td style={td}>{r.molecule}</td><td style={td}>{r.strength}</td>
-                    <td style={td}>{r.manufacturer}</td><td style={td}>{r.format}</td><td style={td}>{r.din}</td>
+                    <td style={{...td,fontFamily:"monospace"}}>{r.cup}</td>
+                    <td style={td}>{r.description}</td>
+                    <td style={td}>{r.format}</td>
+                    <td style={{...td,fontFamily:"monospace"}}>{r.din}</td>
+                    <td style={{...td,color:C.green,fontSize:11}}>{r.status||"—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <button onClick={confirmImport} disabled={busy?true:false} style={{padding:"9px 16px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.green,marginRight:8}}>✅ Save</button>
-          <button onClick={()=>setPending(null)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Cancel</button>
+          <button onClick={()=>{setPending(null);setSkipped(0);}} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid #E2E8F0",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:"#fff",color:C.grey}}>Cancel</button>
         </div>
       )}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
           <thead>
-            <tr><th style={th}>Molecule</th><th style={th}>Strength</th><th style={th}>Manufacturer</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr>
+            <tr><th style={th}>CUP</th><th style={th}>Description</th><th style={th}>Format</th><th style={th}>DIN</th><th style={th}></th></tr>
           </thead>
           <tbody>
-            {loading&&<tr><td style={td} colSpan={6}>Loading…</td></tr>}
-            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>Empty catalog — import your scanned pages.</td></tr>}
+            {loading&&<tr><td style={td} colSpan={5}>Loading…</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={5}>Empty catalog — import your scanned pages.</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
+                <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
                 <td style={{...td,fontWeight:700}}>{r.molecule}</td>
-                <td style={td}>{r.strength||"—"}</td>
-                <td style={td}>{r.manufacturer||"—"}</td>
                 <td style={td}>{r.format||"—"}</td>
                 <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
                 <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
@@ -1226,8 +1251,8 @@ async function extractMedsFromFile(file,aiKey,fr){
     ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
     :{type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
   const prompt=fr
-    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}."
-    :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
+    ?"Ce document est une liste de médicaments contrôlés/stupéfiants d'une pharmacie canadienne. Extrais TOUS les médicaments listés. Ignore les lignes marquées discontinue/discontinué. Retourne UNIQUEMENT un tableau JSON valide (sans markdown, sans explication) avec des objets: {\"name\":\"nom du médicament\",\"strength\":\"dose ex: 10mg\",\"manufacturer\":\"fabricant ex: Purdue\",\"format\":\"format ex: 100 comp.\",\"din\":\"numéro DIN à 8 chiffres ou chaîne vide\"}."
+    :"This document is a Canadian pharmacy controlled substance list. Extract ALL medications. Skip lines marked discontinued. Return ONLY a valid JSON array with objects: {\"name\":\"medication name\",\"strength\":\"dose\",\"manufacturer\":\"company\",\"format\":\"package\",\"din\":\"8-digit DIN or empty string\"}.";
   const response=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
