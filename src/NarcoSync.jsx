@@ -2442,7 +2442,6 @@ function RecoTable({session,profile,member,onComplete,onGoInv,lang}){
       </div>}
     </div>
   );
-}
 
 function RecoPage({onBack,lang,profile,session,member,onGoInv}){
   const fr=lang==="fr";
