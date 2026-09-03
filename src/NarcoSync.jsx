@@ -2163,6 +2163,156 @@ function RecoTable({session,profile,member,onComplete,onGoInv,lang}){
       try{
         const inv=await INV.list(pid,"");
         let id=1;
+        setMols(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:Number(r.qty)||0,received:0,dispensed:0,prepared:0,physical:"",notes:""})));
+        setNextId(id);
+      }catch(e){setErr(e.message);}
+      setLoading(false);
+    })();
+  },[]);
+  function upd(id,f,v){setMols(p=>p.map(m=>m.id===id?{...m,[f]:v}:m));}
+  function addRow(){setMols(p=>[...p,{id:nextId,name:"",strength:"",cup:"",format:"",din:"",opening:0,received:0,dispensed:0,prepared:0,physical:"",notes:""}]);setNextId(n=>n+1);}
+  function delRow(id){setMols(p=>p.filter(m=>m.id!==id));}
+  function theo(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0)+(Number(m.prepared)||0);}
+  function diff(m){if(m.physical==="")return null;return theo(m)-(Number(m.physical)||0);}
+  const totalDisc=mols.filter(m=>diff(m)!==null&&diff(m)!==0).length;
+  const filled=mols.filter(m=>m.physical!=="").length;
+  const gaps=mols.filter(m=>diff(m)!==null&&diff(m)!==0);
+  const shown=printMode==="gaps"?gaps:mols;
+  function doPrint(mode){setPrintMode(mode);setTimeout(()=>{window.print();setTimeout(()=>setPrintMode("all"),500);},120);}
+  async function save(){
+    setSaving(true);
+    const cycle={pharmacy_id:pid,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,
+      inventory_system:profile?.inventory_system,molecules:JSON.stringify(mols),
+      total_molecules:mols.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
+    try{await sbFetch("reconciliations",{method:"POST",body:[cycle],prefer:"return=minimal"});}catch(e){}
+    for(const m of mols){
+      if(m.inv_id&&m.physical!==""){try{await INV.update(m.inv_id,{qty:Number(m.physical)||0,last_count_at:new Date().toISOString()});}catch(e){}}
+    }
+    await AUDIT.log(member,"save_cycle","reconciliations",null,mols.length+(fr?" produits, ":" products, ")+totalDisc+(fr?" écarts":" variances"));
+    setSaving(false);onComplete({totalDisc,totalMolecules:mols.length});
+  }
+  if(loading) return <div style={{padding:40,color:C.text3}}>{fr?"Chargement":"Loading"}</div>;
+  if(mols.length===0){
+    return(
+      <div className="ns-panel" style={{padding:30,maxWidth:520}}>
+        <div style={{fontSize:15,fontWeight:650,marginBottom:6}}>{fr?"L'inventaire est vide":"The inventory is empty"}</div>
+        <div style={{fontSize:13.5,color:C.text2,marginBottom:18,lineHeight:1.55}}>
+          {fr?"La réconciliation part de votre inventaire. Ajoutez vos produits d'abord.":"Reconciliation starts from your inventory. Add your products first."}
+        </div>
+        <button onClick={onGoInv} className="ns-btn ns-btn-primary">{fr?"Aller à l'inventaire":"Go to inventory"}</button>
+      </div>
+    );
+  }
+  return(
+    <div>
+      <div className="ns-print-only" style={{marginBottom:13}}>
+        <div style={{fontSize:15,fontWeight:650}}>{profile?.pharmacy_name||""} — {printMode==="gaps"?(fr?"Écarts à recompter":"Variances to recount"):(fr?"Feuille de décompte":"Count sheet")}</div>
+        <div style={{fontSize:11,marginTop:3}}>{new Date().toLocaleDateString(fr?"fr-CA":"en-CA")} · {shown.length} {fr?"produits":"products"} · {fr?"Compté par":"Counted by"} ____________________</div>
+      </div>
+      <div className="ns-noprint" style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:24,fontWeight:650,letterSpacing:"-.021em"}}>{mols.length} {fr?"produits à compter":"products to count"}</div>
+          <div style={{fontSize:13.5,color:C.text2,marginTop:5}}>
+            {filled>0?(filled+"/"+mols.length+(fr?" comptés":" counted")):(fr?"L'ouverture vient de votre inventaire.":"Opening comes from your inventory.")}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={()=>doPrint("all")} className="ns-btn ns-btn-quiet">{fr?"Feuille de décompte":"Count sheet"}</button>
+          {gaps.length>0&&<button onClick={()=>doPrint("gaps")} className="ns-btn ns-btn-quiet" style={{color:C.flag,borderColor:C.flagLine}}>
+            {fr?"Écarts à recompter":"Variances to recount"} ({gaps.length})</button>}
+          {totalDisc>0&&<Tag tone="flag">{totalDisc} {fr?(totalDisc===1?"écart":"écarts"):(totalDisc===1?"variance":"variances")}</Tag>}
+          {totalDisc===0&&filled===mols.length&&<Tag tone="ok">{fr?"Tout balance":"All balanced"}</Tag>}
+        </div>
+      </div>
+      <div className="ns-noprint"><Note tone="teal">
+        {fr?"« Préparé » = déjà déduit au système mais encore dans la bouteille : dispills montés, renouvellements datés d'avance, ordonnances prêtes non ramassées."
+           :"\"Prepared\" = already deducted in the system but still in the bottle: made-up blister packs, future-dated refills, filled prescriptions not picked up."}
+      </Note></div>
+      {err&&<div className="ns-noprint"><Note tone="flag">{err}</Note></div>}
+      <div className="ns-panel" style={{overflowX:"auto",marginBottom:15}}>
+        <table style={{width:"100%",minWidth:1280}}>
+          <thead><tr>
+            <th>CUP</th><th>Description</th><th>{fr?"Force":"Strength"}</th><th>Format</th><th>DIN</th>
+            <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Ouverture":"Opening"}</th>
+            <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Reçu":"Received"}</th>
+            <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Dispensé":"Dispensed"}</th>
+            <th className="ns-noprint" style={{textAlign:"right",background:C.warnBg,color:C.warn}}>{fr?"Préparé":"Prepared"}</th>
+            <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Théorique":"Expected"}</th>
+            {printMode==="gaps"&&<th className="ns-print-only" style={{textAlign:"right"}}>{fr?"Écart":"Variance"}</th>}
+            <th style={{textAlign:"right",background:C.tealSoft,color:C.teal2}}>{fr?"Compté":"Counted"}</th>
+            <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Écart":"Variance"}</th>
+            <th>{fr?"Note":"Note"}</th><th className="ns-noprint"></th>
+          </tr></thead>
+          <tbody>
+            {shown.map((m)=>{
+              const t2=theo(m);const d=diff(m);
+              return(
+                <tr key={m.id} style={{background:d!==null&&d!==0?C.flagBg:"transparent"}}>
+                  <td><input value={m.cup} onChange={e=>upd(m.id,"cup",e.target.value)} className="ns-cell ns-num" style={{width:84,fontSize:12}}/></td>
+                  <td><input value={m.name} onChange={e=>upd(m.id,"name",e.target.value)} className="ns-cell" style={{width:166,fontWeight:600}}/></td>
+                  <td><input value={m.strength} onChange={e=>upd(m.id,"strength",e.target.value)} className="ns-cell" style={{width:54}}/></td>
+                  <td><input value={m.format} onChange={e=>upd(m.id,"format",e.target.value)} className="ns-cell" style={{width:68}}/></td>
+                  <td><input value={m.din} onChange={e=>upd(m.id,"din",e.target.value)} className="ns-cell ns-num" style={{width:70,fontSize:12}}/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.opening} onChange={e=>upd(m.id,"opening",e.target.value)} className="ns-cell ns-num" style={{width:56,textAlign:"right"}} min="0"/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.received} onChange={e=>upd(m.id,"received",e.target.value)} className="ns-cell ns-num" style={{width:52,textAlign:"right"}} min="0"/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.dispensed} onChange={e=>upd(m.id,"dispensed",e.target.value)} className="ns-cell ns-num" style={{width:52,textAlign:"right"}} min="0"/></td>
+                  <td className="ns-noprint" style={{textAlign:"right",background:"#FFFCF3"}}><input type="number" value={m.prepared} onChange={e=>upd(m.id,"prepared",e.target.value)} className="ns-cell ns-num" style={{width:52,textAlign:"right",borderColor:C.warnLine}} min="0"/></td>
+                  <td className="ns-noprint ns-num" style={{textAlign:"right",fontWeight:650}}>{t2}</td>
+                  {printMode==="gaps"&&<td className="ns-print-only ns-num" style={{textAlign:"right",fontWeight:650,color:C.flag}}>{d>0?"+":""}{d}</td>}
+                  <td style={{textAlign:"right",background:"#F4FAFA"}}>
+                    <input type="number" value={m.physical} onChange={e=>upd(m.id,"physical",e.target.value)}
+                      className="ns-cell ns-num ns-noprint" placeholder="—" min="0"
+                      style={{width:64,textAlign:"right",fontWeight:650,borderColor:C.teal}}/>
+                    <span className="ns-print-only ns-writebox"></span>
+                  </td>
+                  <td className="ns-noprint ns-num" style={{textAlign:"right",fontWeight:650,color:d===null?C.text3:d===0?C.ok:C.flag}}>
+                    {d===null?"—":d===0?"0":(d>0?"+":"")+d}</td>
+                  <td>
+                    <input value={m.notes} onChange={e=>upd(m.id,"notes",e.target.value)} className="ns-cell ns-noprint"
+                      placeholder={d!==null&&d!==0?(fr?"Justification":"Reason"):""}
+                      style={{width:116,borderColor:(d!==null&&d!==0&&!m.notes)?C.flagLine:C.line}}/>
+                    <span className="ns-print-only ns-writebox" style={{width:"130px"}}></span>
+                  </td>
+                  <td className="ns-noprint"><button onClick={()=>delRow(m.id)} className="ns-x">×</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button className="ns-noprint ns-btn ns-btn-quiet" onClick={addRow} style={{marginBottom:20,fontSize:12.5,padding:"8px 14px"}}>
+        {fr?"Ajouter une ligne":"Add a row"}</button>
+      {totalDisc>0&&<div className="ns-noprint"><Note tone="flag">
+        {fr?"Imprimez la liste des écarts, recomptez, puis inscrivez une justification. Les écarts qui persistent après recomptage doivent être approuvés par un pharmacien.":"Print the variance list, recount, then write a reason. Variances that persist after a recount need pharmacist approval."}
+      </Note></div>}
+      {can(role,"edit")?(
+        <button className="ns-noprint ns-btn ns-btn-primary" onClick={save} disabled={saving} style={{padding:"13px 26px",fontSize:14}}>
+          {saving?(fr?"Enregistrement":"Saving"):(fr?"Valider et enregistrer ce cycle":"Validate and save this cycle")}
+        </button>
+      ):(
+        <div className="ns-noprint"><Note tone="warn">{fr?"Un pharmacien doit valider et enregistrer ce cycle.":"A pharmacist must validate and save this cycle."}</Note></div>
+      )}
+      {member&&can(role,"edit")&&<div className="ns-noprint" style={{fontSize:12.5,color:C.text2,marginTop:10}}>
+        {fr?"Sera signé par":"Will be signed by"} {member.full_name||member.email}
+        {member.licence&&<span className="ns-num"> · {member.licence}</span>}
+      </div>}
+    </div>
+  );
+}
+  const fr=lang==="fr";
+  const pid=member?member.pharmacy_id:session.user.id;
+  const role=member?member.role:"owner";
+  const [mols,setMols]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [nextId,setNextId]=useState(1);
+  const [err,setErr]=useState("");
+  const [printMode,setPrintMode]=useState("all");
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const inv=await INV.list(pid,"");
+        let id=1;
         setMols(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:Number(r.qty)||0,received:0,dispensed:0,physical:"",notes:""})));
         setNextId(id);
       }catch(e){setErr(e.message);}
