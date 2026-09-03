@@ -5,53 +5,47 @@ const NS_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 try{localStorage.setItem("ns_url",NS_URL);localStorage.setItem("ns_key",NS_KEY);}catch(e){}
 
 const IDLE_MS=5*60*1000;
+const ADMIN_EMAIL="mtrofin@icloud.com";
+const CLINICAL_PRICE=39;
 
-/* ===== DESIGN TOKENS ===== */
 const C={
-  ink:"#12161C",        // structure
-  ink2:"#1C222B",
-  ink3:"#2A323E",
-  line:"#DFE3E8",
-  line2:"#EEF1F4",
-  paper:"#FFFFFF",
-  bg:"#F7F8FA",
-  text:"#12161C",
-  text2:"#5B646F",
-  text3:"#8A929C",
-  accent:"#0B5FFF",     // interaction only
-  flag:"#C81E1E",       // variance only
-  flagBg:"#FEF2F2",
-  ok:"#0F7B45",
-  okBg:"#F1F8F3",
-  warn:"#A15C00",
-  warnBg:"#FFFBEB",
+  ink:"#0E1A1C", ink2:"#16262A",
+  teal:"#0C6B6B", teal2:"#0A5757", tealSoft:"#E6F2F1", tealLine:"#B4D9D6",
+  line:"#DDE3E3", line2:"#EDF1F1",
+  paper:"#FFFFFF", bg:"#F6F8F8",
+  text:"#0E1A1C", text2:"#566368", text3:"#8B979B",
+  flag:"#C0392B", flagBg:"#FDF1EF", flagLine:"#EFC3BC",
+  ok:"#0B6E3F", okBg:"#EEF6F0", okLine:"#B9DCC6",
+  warn:"#8A5A00", warnBg:"#FDF7E8", warnLine:"#E8D49B",
 };
 const F="'Inter','SF Pro Text',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
 const NUM="'SF Mono','Roboto Mono',ui-monospace,monospace";
 
-const ADMIN_EMAIL="mtrofin@icloud.com";
+const LANGS=[
+  {c:"fr",n:"Français"},{c:"en",n:"English"},
+  {c:"es",n:"Español"},{c:"pt",n:"Português"},{c:"ar",n:"العربية"},
+];
+const READY=["fr","en"];
 
 const ROLES={
   owner:{fr:"Pharmacien-propriétaire",en:"Pharmacist-owner"},
   pharmacist:{fr:"Pharmacien",en:"Pharmacist"},
   technician:{fr:"Chef technicien",en:"Chief technician"},
 };
-function can(role,action){
+function can(role,a){
   if(role==="owner") return true;
-  if(role==="pharmacist") return action!=="manage_team";
-  if(role==="technician") return action==="view"||action==="count"||action==="print";
+  if(role==="pharmacist") return a!=="manage_team";
+  if(role==="technician") return a==="view"||a==="count"||a==="print";
   return false;
 }
-
-function unitsPerPack(format){
-  const s=String(format||"").toUpperCase().replace(/,/g,"");
-  const m=s.match(/(\d+(?:\.\d+)?)/);
+function unitsPerPack(f){
+  const m=String(f||"").toUpperCase().replace(/,/g,"").match(/(\d+(?:\.\d+)?)/);
   if(!m) return 1;
   const n=parseFloat(m[1]);
   return (isFinite(n)&&n>0)?n:1;
 }
-function packLabel(format,fr){
-  const s=String(format||"").toUpperCase();
+function packLabel(f,fr){
+  const s=String(f||"").toUpperCase();
   if(s.indexOf("ML")>=0) return "mL";
   if(s.indexOf("CAP")>=0) return "caps";
   if(s.indexOf("PATCH")>=0||s.indexOf("TIMBRE")>=0) return fr?"timbres":"patches";
@@ -59,96 +53,102 @@ function packLabel(format,fr){
 }
 
 const T={
-  en:{login:"Sign in",createAccount:"Create account",signIn:"Sign in",createMyAccount:"Create account",
-    restrictedAccess:"Controlled substance records",fillAllFields:"Fill in all fields.",
-    authFailed:"Those credentials didn't work.",networkError:"Connection failed.",
-    language:"Language",searchLanguage:"Working language",langSubtitle:"You can change this later",
-    langPlaceholder:"Start typing…",next:"Continue",back:"Back",
-    launch:"Open NarcoSync",saving:"Saving",location:"Location",locationSubtitle:"Where is the pharmacy?",
+  en:{signIn:"Sign in",createAccount:"Create account",back:"Back",next:"Continue",saving:"Saving",
+    dashboard:"Overview",inventory:"Inventory",reconciliation:"Reconcile",history:"Records",
+    team:"Team",audit:"Audit log",clinical:"Clinical",plans:"Plan",signOut:"Sign out",
+    language:"Language",langSubtitle:"You can change this any time",searchLanguage:"Working language",
+    langPlaceholder:"Start typing",location:"Location",locationSubtitle:"Where is the pharmacy?",
     country:"Country",province:"Province",state:"State",regionCity:"Region or city",
     selectProvince:"Choose a province",selectState:"Choose a state",enterRegion:"Region or city",
     yourPharmacy:"Pharmacy details",pharmacyInfoSection:"Pharmacy",teamSection:"Responsible pharmacist",
-    planSection:"Plan",softwareSection:"Software in use",
-    pharmacyName:"Banner or chain",permitNumber:"Permit number",
-    pharmacyAddress:"Address",pharmacyPhone:"Phone",pharmacyEmail:"Pharmacy email",
-    dispensingSystem:"Dispensing software",dispensingSystemPlaceholder:"Start typing…",
-    inventorySystem:"Ordering system",inventorySystemPlaceholder:"Start typing…",
-    pharmacistOwner:"Pharmacist-owner",pharmacistEmail:"Their email",
-    managerName:"Team lead",pharmacyPlaceholder:"Start typing…",
-    permitPlaceholder:"OPQ-12345",addressPlaceholder:"Street number and name",
-    addressHint:"Pick from the list to fill the rest",emailPlaceholder:"info@pharmacy.com",
-    ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",managerPlaceholder:"Your name",
-    requiredNote:"Required",welcomeToNarco:"Set up your pharmacy",stepOf:"Step",ofTotal:"of",
-    dashboard:"Overview",reconciliation:"Reconcile",history:"Records",inventory:"Inventory",
-    team:"Team",clinical:"Clinical",plans:"Plan",signOut:"Sign out",loggedInAs:"Signed in",
-    welcomeMsg:"Overview",liveMsg:"Nothing counted yet",
-    liveSubMsg:"Add your products, then run your first count.",
+    planSection:"Plan",softwareSection:"Software in use",requiredNote:"Required",
+    pharmacyName:"Banner or chain",permitNumber:"Permit number",pharmacyAddress:"Address",
+    pharmacyPhone:"Phone",pharmacyEmail:"Pharmacy email",dispensingSystem:"Dispensing software",
+    inventorySystem:"Ordering system",pharmacistOwner:"Pharmacist-owner",pharmacistEmail:"Their email",
+    managerName:"Team lead",startTyping:"Start typing",permitPlaceholder:"OPQ-12345",
+    emailPlaceholder:"info@pharmacy.com",ownerPlaceholder:"Full name",ownerEmailPlaceholder:"owner@pharmacy.com",
+    managerPlaceholder:"Your name",addressHint:"Pick from the list to fill the rest",
+    launch:"Open NarcoSync",stepOf:"Step",ofTotal:"of",
+    welcomeMsg:"Overview",liveMsg:"Nothing counted yet",liveSubMsg:"Add your products, then run your first count.",
     newReco:"Start a reconciliation",recoComplete:"Cycle saved",newRecoBtn:"Start another",
-    clinicalDesc:"Dose calculators and billing guides are next on the roadmap.",
-    plansDesc:"Basic $49 · Pro $99 · Enterprise $249 CAD per month.",
     basicLabel:"Basic",basicDesc:"One pharmacy",basicPrice:"$49",
     proLabel:"Pro",proDesc:"Up to three pharmacies",proPrice:"$99",
     enterpriseLabel:"Enterprise",enterpriseDesc:"Unlimited, with API",enterprisePrice:"$249",
   },
-  fr:{login:"Connexion",createAccount:"Créer un compte",signIn:"Se connecter",createMyAccount:"Créer le compte",
-    restrictedAccess:"Registre des substances contrôlées",fillAllFields:"Remplissez tous les champs.",
-    authFailed:"Ces identifiants ne fonctionnent pas.",networkError:"Connexion échouée.",
-    language:"Langue",searchLanguage:"Langue de travail",langSubtitle:"Vous pourrez la changer plus tard",
-    langPlaceholder:"Commencez à taper…",next:"Continuer",back:"Retour",
-    launch:"Ouvrir NarcoSync",saving:"Enregistrement",location:"Localisation",locationSubtitle:"Où est la pharmacie?",
+  fr:{signIn:"Se connecter",createAccount:"Créer un compte",back:"Retour",next:"Continuer",saving:"Enregistrement",
+    dashboard:"Vue d'ensemble",inventory:"Inventaire",reconciliation:"Réconcilier",history:"Registres",
+    team:"Équipe",audit:"Journal",clinical:"Clinique",plans:"Forfait",signOut:"Se déconnecter",
+    language:"Langue",langSubtitle:"Vous pourrez la changer en tout temps",searchLanguage:"Langue de travail",
+    langPlaceholder:"Commencez à taper",location:"Localisation",locationSubtitle:"Où est la pharmacie?",
     country:"Pays",province:"Province",state:"État",regionCity:"Région ou ville",
     selectProvince:"Choisir une province",selectState:"Choisir un état",enterRegion:"Région ou ville",
     yourPharmacy:"Détails de la pharmacie",pharmacyInfoSection:"Pharmacie",teamSection:"Pharmacien responsable",
-    planSection:"Forfait",softwareSection:"Logiciels utilisés",
-    pharmacyName:"Bannière ou chaîne",permitNumber:"Numéro de permis",
-    pharmacyAddress:"Adresse",pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",
-    dispensingSystem:"Logiciel de dispensation",dispensingSystemPlaceholder:"Commencez à taper…",
-    inventorySystem:"Système de commande",inventorySystemPlaceholder:"Commencez à taper…",
-    pharmacistOwner:"Pharmacien-propriétaire",pharmacistEmail:"Son courriel",
-    managerName:"Chef d'équipe",pharmacyPlaceholder:"Commencez à taper…",
-    permitPlaceholder:"OPQ-12345",addressPlaceholder:"Numéro et rue",
-    addressHint:"Choisissez dans la liste pour remplir le reste",emailPlaceholder:"info@pharmacie.com",
-    ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",managerPlaceholder:"Votre nom",
-    requiredNote:"Obligatoire",welcomeToNarco:"Configurez votre pharmacie",stepOf:"Étape",ofTotal:"sur",
-    dashboard:"Vue d'ensemble",reconciliation:"Réconcilier",history:"Registres",inventory:"Inventaire",
-    team:"Équipe",clinical:"Clinique",plans:"Forfait",signOut:"Se déconnecter",loggedInAs:"Connecté",
-    welcomeMsg:"Vue d'ensemble",liveMsg:"Aucun décompte encore",
-    liveSubMsg:"Ajoutez vos produits, puis lancez votre premier décompte.",
+    planSection:"Forfait",softwareSection:"Logiciels utilisés",requiredNote:"Obligatoire",
+    pharmacyName:"Bannière ou chaîne",permitNumber:"Numéro de permis",pharmacyAddress:"Adresse",
+    pharmacyPhone:"Téléphone",pharmacyEmail:"Courriel de la pharmacie",dispensingSystem:"Logiciel de dispensation",
+    inventorySystem:"Système de commande",pharmacistOwner:"Pharmacien-propriétaire",pharmacistEmail:"Son courriel",
+    managerName:"Chef d'équipe",startTyping:"Commencez à taper",permitPlaceholder:"OPQ-12345",
+    emailPlaceholder:"info@pharmacie.com",ownerPlaceholder:"Nom complet",ownerEmailPlaceholder:"proprio@pharmacie.com",
+    managerPlaceholder:"Votre nom",addressHint:"Choisissez dans la liste pour remplir le reste",
+    launch:"Ouvrir NarcoSync",stepOf:"Étape",ofTotal:"sur",
+    welcomeMsg:"Vue d'ensemble",liveMsg:"Aucun décompte encore",liveSubMsg:"Ajoutez vos produits, puis lancez votre premier décompte.",
     newReco:"Lancer une réconciliation",recoComplete:"Cycle enregistré",newRecoBtn:"En lancer un autre",
-    clinicalDesc:"Calculateurs de doses et guides de facturation à venir.",
-    plansDesc:"Basique 49$ · Pro 99$ · Entreprise 249$ CAD par mois.",
     basicLabel:"Basique",basicDesc:"Une pharmacie",basicPrice:"49$",
     proLabel:"Pro",proDesc:"Jusqu'à trois pharmacies",proPrice:"99$",
     enterpriseLabel:"Entreprise",enterpriseDesc:"Illimité, avec API",enterprisePrice:"249$",
   }
 };
+function tr(lang,k){const L=READY.indexOf(lang)>=0?lang:"en";return (T[L]&&T[L][k])||T.en[k]||k;}
 
-function getLang(l){
-  try{const o=localStorage.getItem("ns_lang");if(o==="fr"||o==="en")return o;}catch(e){}
-  if(!l) return "en";
-  if(l.startsWith("Français")||l.includes("Bilingual")||l.includes("Bilingue")) return "fr";
-  return "en";
+function getLang(profileLang){
+  try{const o=localStorage.getItem("ns_lang");if(o)return o;}catch(e){}
+  if(!profileLang) return "en";
+  if(profileLang.startsWith("Français")||profileLang.includes("Bilingue")||profileLang.includes("Bilingual")) return "fr";
+  const hit=LANGS.find(l=>profileLang.toLowerCase().indexOf(l.n.toLowerCase())>=0);
+  return hit?hit.c:"en";
 }
 
 const DISPENSING_SYSTEMS={
   "Canada":["AssiStRx","RxPro","Gespar","Ubik","Reflex","Kroll","Datascan","Logibec","Purkinje","WinRx","Fillware","Nexxsys","Prodigy RX","Propel Rx","Pharmaserv","Other"],
   "United States":["QS/1 (NRx)","PioneerRx","Liberty Software","Rx30","ScriptPro","PDX","Computer-Rx","BestRx","McKesson EnterpriseRx","Epic Willow","Other"],
   "France":["Winpharma","Lgpi (Pharmagest)","Isipharm","Pharmonet","Caducée","Other"],
+  "Spain":["Farmatic","Nixfarma","Unycop Win","Farmagestión","Other"],
   "United Kingdom":["Rx Web (Cegedim)","Pharmacy Manager (EMIS)","SystmOne","Titan","Other"],
   "Australia":["Fred Dispense","Minfos","Corum Clear Dispense","Toniq","Other"],
 };
-const DEFAULT_DISPENSING=["Other"];
 const INVENTORY_SYSTEMS={
   "Canada":["Matrix (Pharmaprix / Shoppers)","PharmaClik (McKesson / Proxim / IDA)","Gespar","MMS","Logibec","Kroll Inventory","McKesson Connect","Cardinal Health","SAP","Other"],
   "United States":["McKesson Connect","Cardinal Health","AmerisourceBergen","PioneerRx Inventory","SAP","Other"],
   "France":["Pharmagest Inventory","Winpharma Stock","CERP","OCP","Alliance Healthcare","Other"],
+  "Spain":["Cofares","Bidafarma","Hefame","Other"],
   "United Kingdom":["AAH Pharmaceuticals","Phoenix Medical","EMIS Inventory","Other"],
   "Australia":["Fred Office","Minfos Inventory","LOTS","API","Other"],
 };
-const DEFAULT_INVENTORY=["Other"];
-const COUNTRY_ISO={"Canada":"ca","United States":"us","France":"fr","Australia":"au","Belgium":"be","Germany":"de","Switzerland":"ch","United Kingdom":"gb"};
-const COUNTRY_CODES={"Canada":"+1","United States":"+1","France":"+33","United Kingdom":"+44","Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41","Other":"+"};
+const PHARMACY_CHAINS_BY_COUNTRY={
+  "Canada":["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Rexall","Guardian","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","London Drugs","PharmaChoice","Independent"],
+  "United States":["CVS Pharmacy","Walgreens","Rite Aid","Walmart Pharmacy","Costco Pharmacy","Kroger Pharmacy","Health Mart","Independent"],
+  "France":["Pharmacie Lafayette","Pharmavie","Giropharm","Independent"],
+  "Spain":["Farmacias Trébol","Farmavizcaya","Independent"],
+  "United Kingdom":["Boots","Lloyds Pharmacy","Well Pharmacy","Independent"],
+  "Australia":["Chemist Warehouse","Priceline Pharmacy","Terry White Chemmart","Independent"],
+};
+const DEFAULT_LIST=["Other"];
+const DEFAULT_CHAINS=["Independent"];
+const COUNTRY_ISO={"Canada":"ca","United States":"us","France":"fr","Spain":"es","Australia":"au","Belgium":"be","Germany":"de","Switzerland":"ch","United Kingdom":"gb"};
+const COUNTRY_CODES={"Canada":"+1","United States":"+1","France":"+33","Spain":"+34","United Kingdom":"+44","Australia":"+61","Belgium":"+32","Germany":"+49","Switzerland":"+41","Other":"+"};
+const COUNTRIES=["Canada","United States","France","Spain","Australia","Belgium","Germany","Switzerland","United Kingdom","Other"];
+const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
+const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
 const PROVINCE_COORDS={"Québec":{lat:46.8,lon:-71.2},"Ontario":{lat:51.2,lon:-85.3},"British Columbia":{lat:53.7,lon:-127.6},"Alberta":{lat:53.9,lon:-116.6},"Manitoba":{lat:56.4,lon:-98.7},"Saskatchewan":{lat:55.0,lon:-106.0},"Nova Scotia":{lat:44.7,lon:-63.7},"New Brunswick":{lat:46.5,lon:-66.5}};
+const PLAN_PRICE={basic:49,pro:99,enterprise:249};
+const CLIN_CATS=[
+  {v:"minor",fr:"Affections mineures",en:"Minor ailments"},
+  {v:"protocol",fr:"Protocoles",en:"Protocols"},
+  {v:"billing",fr:"Facturation",en:"Billing"},
+  {v:"calc",fr:"Calculateurs",en:"Calculators"},
+  {v:"training",fr:"Formation",en:"Training"},
+  {v:"other",fr:"Autre",en:"Other"},
+];
 
 const SB={
   get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
@@ -166,64 +166,46 @@ const SB={
   setLang:(l)=>{try{localStorage.setItem("ns_lang",l);}catch{}},
 };
 
-const ALL_LANGUAGES=["Français","English","Bilingue / Bilingual","Arabic","Spanish","Portuguese","Italian","German","Russian","Ukrainian","Vietnamese","Other"];
-const PHARMACY_CHAINS_BY_COUNTRY={
-  "Canada":["Pharmaprix","Jean Coutu","Uniprix","Familiprix","Brunet","Proxim","IDA","Pharmasave","Rexall","Guardian","Shoppers Drug Mart","Walmart Pharmacy","Costco Pharmacy","London Drugs","PharmaChoice","Independent"],
-  "United States":["CVS Pharmacy","Walgreens","Rite Aid","Walmart Pharmacy","Costco Pharmacy","Kroger Pharmacy","Health Mart","Independent"],
-  "France":["Pharmacie Lafayette","Pharmavie","Giropharm","Independent"],
-  "United Kingdom":["Boots","Lloyds Pharmacy","Well Pharmacy","Independent"],
-  "Australia":["Chemist Warehouse","Priceline Pharmacy","Terry White Chemmart","Independent"],
-};
-const DEFAULT_CHAINS=["Independent"];
-const COUNTRIES=["Canada","United States","France","Australia","Belgium","Germany","Switzerland","United Kingdom","Other"];
-const CA_PROVINCES=["Québec","Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland & Labrador","Nova Scotia","Ontario","Prince Edward Island","Saskatchewan","Northwest Territories","Nunavut","Yukon"];
-const US_STATES=["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
-
-const PLAN_PRICE={basic:49,pro:99,enterprise:249};
-
-const GLOBAL_CSS=`
+const CSS=`
 *{box-sizing:border-box;}
-body{margin:0;font-family:${F};color:${C.text};background:${C.bg};
-  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body{margin:0;font-family:${F};color:${C.text};background:${C.bg};-webkit-font-smoothing:antialiased;}
 input,select,button,textarea{font-family:${F};}
-input:focus-visible,select:focus-visible,button:focus-visible{
-  outline:2px solid ${C.accent};outline-offset:1px;}
+input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid ${C.teal};outline-offset:1px;}
 .ns-num{font-family:${NUM};font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
-.ns-nav{display:flex;align-items:center;width:100%;padding:8px 12px;border:none;
-  border-radius:7px;cursor:pointer;font-size:13.5px;text-align:left;margin-bottom:1px;
-  background:transparent;color:rgba(255,255,255,.62);transition:background .12s,color .12s;}
-.ns-nav:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.9);}
-.ns-nav[data-on="1"]{background:rgba(255,255,255,.11);color:#fff;font-weight:600;}
-.ns-btn{border:none;border-radius:7px;cursor:pointer;font-size:13.5px;font-weight:600;
-  padding:10px 16px;transition:opacity .12s,background .12s;}
-.ns-btn:hover{opacity:.88;}
-.ns-btn:disabled{opacity:.42;cursor:not-allowed;}
-.ns-btn-primary{background:${C.ink};color:#fff;}
+.ns-nav{display:flex;align-items:center;width:100%;padding:8px 12px;border:none;border-radius:7px;
+  cursor:pointer;font-size:13.5px;text-align:left;margin-bottom:1px;background:transparent;
+  color:rgba(255,255,255,.6);transition:background .12s,color .12s;}
+.ns-nav:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.92);}
+.ns-nav[data-on="1"]{background:${C.teal};color:#fff;font-weight:600;}
+.ns-btn{border:none;border-radius:7px;cursor:pointer;font-size:13.5px;font-weight:600;padding:10px 17px;transition:opacity .12s;}
+.ns-btn:hover{opacity:.88;} .ns-btn:disabled{opacity:.4;cursor:not-allowed;}
+.ns-btn-primary{background:${C.teal};color:#fff;}
+.ns-btn-dark{background:${C.ink};color:#fff;}
 .ns-btn-quiet{background:${C.paper};color:${C.text};border:1px solid ${C.line};}
 .ns-btn-quiet:hover{background:${C.bg};opacity:1;}
-.ns-in{width:100%;padding:9px 11px;border-radius:6px;border:1px solid ${C.line};
-  font-size:13.5px;background:${C.paper};color:${C.text};transition:border-color .12s;}
-.ns-in:focus{border-color:${C.accent};}
+.ns-in{width:100%;padding:9px 11px;border-radius:6px;border:1px solid ${C.line};font-size:13.5px;
+  background:${C.paper};color:${C.text};transition:border-color .12s;}
+.ns-in:focus{border-color:${C.teal};}
 .ns-in::placeholder{color:${C.text3};}
-.ns-cell{padding:5px 6px;border-radius:5px;border:1px solid ${C.line};font-size:12.5px;
-  background:${C.paper};color:${C.text};}
-.ns-cell:focus{border-color:${C.accent};}
+.ns-cell{padding:5px 6px;border-radius:5px;border:1px solid ${C.line};font-size:12.5px;background:${C.paper};color:${C.text};}
+.ns-cell:focus{border-color:${C.teal};}
 .ns-panel{background:${C.paper};border:1px solid ${C.line};border-radius:10px;}
 table{border-collapse:separate;border-spacing:0;}
-th{font-size:11px;font-weight:600;color:${C.text2};text-align:left;
-  padding:9px 10px;background:${C.bg};border-bottom:1px solid ${C.line};white-space:nowrap;}
+th{font-size:11px;font-weight:600;color:${C.text2};text-align:left;padding:9px 10px;
+  background:${C.bg};border-bottom:1px solid ${C.line};white-space:nowrap;}
 td{padding:6px 10px;border-bottom:1px solid ${C.line2};font-size:13px;}
 tbody tr:last-child td{border-bottom:none;}
-.ns-x{border:none;background:none;cursor:pointer;color:${C.text3};font-size:16px;
-  line-height:1;padding:2px 6px;border-radius:4px;}
+.ns-x{border:none;background:none;cursor:pointer;color:${C.text3};font-size:16px;line-height:1;padding:2px 6px;border-radius:4px;}
 .ns-x:hover{color:${C.flag};background:${C.flagBg};}
+.ns-link{border:none;background:none;cursor:pointer;color:${C.teal};font-size:13px;font-weight:600;padding:0;}
+.ns-link:hover{text-decoration:underline;}
 @media print{
   @page{size:landscape;margin:11mm;}
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff;}
   .ns-noprint,.ns-sidebar{display:none !important;}
   .ns-main{overflow:visible !important;background:#fff !important;}
   .ns-print-only{display:block !important;}
-  input,select{border:none !important;background:transparent !important;padding:0 !important;
+  input,select,textarea{border:none !important;background:transparent !important;padding:0 !important;
     font-size:10pt !important;color:#000 !important;-webkit-appearance:none;appearance:none;width:auto !important;}
   table{width:100% !important;font-size:9pt !important;}
   tr{page-break-inside:avoid;} thead{display:table-header-group;}
@@ -235,26 +217,42 @@ tbody tr:last-child td{border-bottom:none;}
 `;
 
 function Tag({children,tone}){
-  const m={ok:[C.okBg,C.ok],flag:[C.flagBg,C.flag],warn:[C.warnBg,C.warn],quiet:[C.bg,C.text2]};
+  const m={ok:[C.okBg,C.ok],flag:[C.flagBg,C.flag],warn:[C.warnBg,C.warn],teal:[C.tealSoft,C.teal2],quiet:[C.bg,C.text2]};
   const [bg,fg]=m[tone||"quiet"];
   return <span style={{background:bg,color:fg,fontSize:11.5,fontWeight:600,padding:"3px 9px",borderRadius:5,whiteSpace:"nowrap"}}>{children}</span>;
 }
-function RoleTag({role,fr}){
+function RoleTag({role,lang}){
   const r=ROLES[role]||ROLES.pharmacist;
-  return <Tag tone="quiet">{fr?r.fr:r.en}</Tag>;
+  return <Tag tone="quiet">{lang==="fr"?r.fr:r.en}</Tag>;
 }
 function H1({children,sub}){
   return(
     <div style={{marginBottom:22}}>
       <div style={{fontSize:24,fontWeight:650,letterSpacing:"-.021em",lineHeight:1.15}}>{children}</div>
-      {sub&&<div style={{fontSize:13.5,color:C.text2,marginTop:5,lineHeight:1.5}}>{sub}</div>}
+      {sub&&<div style={{fontSize:13.5,color:C.text2,marginTop:5,lineHeight:1.5,maxWidth:640}}>{sub}</div>}
     </div>
   );
 }
 function Note({tone,children}){
-  const m={flag:[C.flagBg,C.flag,"#F5C2C2"],ok:[C.okBg,C.ok,"#BFE0CB"],warn:[C.warnBg,C.warn,"#F0DFA8"]};
+  const m={flag:[C.flagBg,C.flag,C.flagLine],ok:[C.okBg,C.ok,C.okLine],warn:[C.warnBg,C.warn,C.warnLine],teal:[C.tealSoft,C.teal2,C.tealLine]};
   const [bg,fg,bd]=m[tone||"warn"];
   return <div style={{background:bg,border:"1px solid "+bd,borderRadius:8,padding:"11px 14px",fontSize:13,color:fg,marginBottom:14,lineHeight:1.5}}>{children}</div>;
+}
+function FieldLabel({children,required}){
+  return <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>{children}{required&&<span style={{color:C.flag}}> *</span>}</label>;
+}
+function Field({label,value,onChange,placeholder,type="text",hint,required,num}){
+  return(
+    <div style={{marginBottom:14}}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        className={"ns-in"+(num?" ns-num":"")} style={{borderColor:required&&!value.trim()?C.flagLine:C.line}}/>
+      {hint&&<div style={{fontSize:11.5,color:C.text3,marginTop:4}}>{hint}</div>}
+    </div>
+  );
+}
+function SectionLabel({children}){
+  return <div style={{fontSize:13,fontWeight:650,marginTop:24,marginBottom:12,paddingBottom:7,borderBottom:"1px solid "+C.line2}}>{children}</div>;
 }
 
 async function sbFetch(path,opts){
@@ -281,13 +279,36 @@ const MEM={
   async linkUser(id,uid){await sbFetch("pharmacy_members?id=eq."+id,{method:"PATCH",body:{user_id:uid}});}
 };
 const AUDIT={
-  async log(member,action,entity,entityId,details){
-    if(!member) return;
-    try{await sbFetch("audit_log",{method:"POST",body:[{user_id:member.user_id,action,entity,
-      entity_id:entityId?String(entityId):null,details:details||null,
-      pharmacist_licence:member.licence||"—",pharmacist_name:member.full_name||member.email}],prefer:"return=minimal"});}catch(e){}
+  async log(m,action,entity,eid,details){
+    if(!m||!m.user_id) return;
+    try{await sbFetch("audit_log",{method:"POST",body:[{user_id:m.user_id,action,entity,
+      entity_id:eid?String(eid):null,details:details||null,
+      pharmacist_licence:m.licence||"—",pharmacist_name:m.full_name||m.email}],prefer:"return=minimal"});}catch(e){}
   },
   async list(ids){if(!ids||!ids.length)return[];return await sbFetch("audit_log?select=*&user_id=in.("+ids.join(",")+")&order=created_at.desc&limit=500");}
+};
+const CLIN={
+  async listPublished(lang){
+    let q="clinical_content?select=*&published=eq.true&order=created_at.desc&limit=300";
+    if(lang) q+="&lang=eq."+lang;
+    return await sbFetch(q);
+  },
+  async listAll(){return await sbFetch("clinical_content?select=*&order=created_at.desc&limit=300");},
+  async add(row){return await sbFetch("clinical_content",{method:"POST",body:[row],prefer:"return=representation"});},
+  async update(id,p){await sbFetch("clinical_content?id=eq."+id,{method:"PATCH",body:{...p,updated_at:new Date().toISOString()}});},
+  async remove(id){await sbFetch("clinical_content?id=eq."+id,{method:"DELETE"});},
+  async upload(file){
+    const g=SB.get();const s=SB.getSession();
+    const safe=file.name.replace(/[^\w.\-]/g,"_");
+    const path=Date.now()+"_"+safe;
+    const r=await fetch(g.url+"/storage/v1/object/clinical/"+path,{
+      method:"POST",
+      headers:{"apikey":g.key,"Authorization":"Bearer "+(s?s.access_token:g.key),"Content-Type":file.type||"application/octet-stream"},
+      body:file
+    });
+    if(!r.ok){const t=await r.text();throw new Error("Upload "+r.status+" — "+t.slice(0,160));}
+    return {url:g.url+"/storage/v1/object/public/clinical/"+path,name:file.name};
+  }
 };
 const CAT={
   async list(search){
@@ -388,7 +409,6 @@ function shrinkImage(file,maxW){
     rd.readAsDataURL(file);
   });
 }
-
 const PROMPT_CATALOG="Ce document est une liste de produits d'une pharmacie canadienne. Colonnes: CUP, description, format, commande (statut), DIN. "
   +"Pour CHAQUE ligne extrais ces valeurs. N'inclus PAS les lignes dont la commande indique discontinue, DISC, cesse ou retire. "
   +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown ni backticks. "
@@ -442,8 +462,7 @@ async function scanFiles(files,aiKey,prompt,onProgress,ctrl){
     const isPDF=f.type==="application/pdf"||/\.pdf$/i.test(f.name);
     if(!isPDF){tasks.push({kind:"img",file:f,label:f.name});continue;}
     const PDFLib=await loadPdfLib();
-    const buf=await f.arrayBuffer();
-    const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
+    const src=await PDFLib.PDFDocument.load(await f.arrayBuffer(),{ignoreEncryption:true});
     const total=src.getPageCount();
     for(let s=0;s<total;s+=4) tasks.push({kind:"pdf",src,PDFLib,start:s,end:Math.min(s+4,total),label:f.name+" p."+(s+1)});
   }
@@ -472,8 +491,7 @@ async function scanFiles(files,aiKey,prompt,onProgress,ctrl){
         }else{
           const out=await t.PDFLib.PDFDocument.create();
           const idx=[];for(let p=t.start;p<t.end;p++) idx.push(p);
-          const cp=await out.copyPages(t.src,idx);
-          cp.forEach(pg=>out.addPage(pg));
+          (await out.copyPages(t.src,idx)).forEach(pg=>out.addPage(pg));
           block={type:"document",source:{type:"base64",media_type:"application/pdf",data:b64FromBytes(await out.save())}};
         }
         const rows=await callClaudeRetry(block,aiKey,prompt);
@@ -492,11 +510,82 @@ async function scanFiles(files,aiKey,prompt,onProgress,ctrl){
   return res;
 }
 
-function AIKeyModal({onClose,onSaved,fr}){
-  const [k,setK]=useState("");
+function LangPicker({lang,setLang}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef();
+  useEffect(()=>{
+    function out(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener("mousedown",out);return()=>document.removeEventListener("mousedown",out);
+  },[]);
+  const cur=LANGS.find(l=>l.c===lang)||LANGS[1];
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(18,22,28,.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div className="ns-panel" style={{padding:26,maxWidth:430,width:"100%",boxShadow:"0 24px 60px rgba(18,22,28,.24)"}}>
+    <div ref={ref} style={{position:"relative",marginBottom:9}}>
+      <button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"6px 9px",borderRadius:6,border:"none",
+        cursor:"pointer",background:"transparent",color:"rgba(255,255,255,.5)",fontSize:12.5,textAlign:"left",
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>{cur.n}</span>
+        <span style={{fontSize:9,opacity:.6}}>▾</span>
+      </button>
+      {open&&(
+        <div style={{position:"absolute",bottom:"100%",left:0,right:0,marginBottom:4,background:C.paper,
+          border:"1px solid "+C.line,borderRadius:8,boxShadow:"0 10px 30px rgba(14,26,28,.25)",overflow:"hidden",zIndex:60}}>
+          {LANGS.map(l=>{
+            const ready=READY.indexOf(l.c)>=0;
+            return(
+              <button key={l.c} onClick={()=>{if(ready){SB.setLang(l.c);setLang(l.c);}setOpen(false);}}
+                disabled={!ready}
+                style={{width:"100%",padding:"9px 12px",border:"none",borderBottom:"1px solid "+C.line2,
+                  cursor:ready?"pointer":"not-allowed",background:l.c===lang?C.tealSoft:C.paper,
+                  color:ready?(l.c===lang?C.teal2:C.text):C.text3,fontSize:13,textAlign:"left",
+                  display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                <span>{l.n}</span>
+                {!ready&&<span style={{fontSize:10,color:C.text3}}>soon</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Shell({items,page,setPage,tag,name,sub,lang,setLang,onLogout,children,signOutLabel}){
+  return(
+    <div style={{display:"flex",height:"100vh"}}>
+      <div className="ns-sidebar" style={{width:218,background:C.ink,display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{padding:"22px 16px 15px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:7,height:19,background:C.teal,borderRadius:2}}/>
+            <div style={{color:"#fff",fontSize:16,fontWeight:650,letterSpacing:"-.02em"}}>NarcoSync</div>
+          </div>
+          {tag&&<div style={{marginTop:10}}>{tag}</div>}
+        </div>
+        <div style={{padding:"0 16px 14px",margin:"0 0 6px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+          <div style={{color:"rgba(255,255,255,.88)",fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+          {sub&&<div style={{color:"rgba(255,255,255,.4)",fontSize:11.5,marginTop:3}}>{sub}</div>}
+        </div>
+        <div style={{flex:1,padding:"6px 8px",overflowY:"auto"}}>
+          {items.map(i=>(
+            <button key={i.id} className="ns-nav" data-on={page===i.id?"1":"0"} onClick={()=>setPage(i.id)}>{i.label}</button>
+          ))}
+        </div>
+        <div style={{padding:"12px 12px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
+          {setLang&&<LangPicker lang={lang} setLang={setLang}/>}
+          <button onClick={onLogout} style={{width:"100%",padding:"6px 9px",borderRadius:6,border:"none",cursor:"pointer",
+            background:"transparent",color:"rgba(255,255,255,.4)",fontSize:12.5,textAlign:"left"}}>{signOutLabel}</button>
+        </div>
+      </div>
+      <div className="ns-main" style={{flex:1,overflowY:"auto",background:C.bg}}>{children}</div>
+    </div>
+  );
+}
+
+function AIKeyModal({onClose,onSaved,lang}){
+  const [k,setK]=useState("");
+  const fr=lang==="fr";
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(14,26,28,.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div className="ns-panel" style={{padding:26,maxWidth:430,width:"100%",boxShadow:"0 24px 60px rgba(14,26,28,.24)"}}>
         <div style={{fontSize:16,fontWeight:650,marginBottom:6}}>{fr?"Clé API Claude":"Claude API key"}</div>
         <div style={{fontSize:13,color:C.text2,marginBottom:16,lineHeight:1.5}}>
           {fr?"Elle reste dans ce navigateur et ne quitte jamais votre appareil.":"It stays in this browser and never leaves your device."}
@@ -511,12 +600,13 @@ function AIKeyModal({onClose,onSaved,fr}){
   );
 }
 
-function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member,unitMode,setUnitMode}){
+function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,lang,member,unitMode,setUnitMode}){
+  const fr=lang==="fr";
   function up(i,f,v){setRows(rows.map((r,j)=>j===i?{...r,[f]:v}:r));}
   function del(i){setRows(rows.filter((r,j)=>j!==i));}
   const bad=rows.filter(r=>cleanDin(r.din).length!==8).length;
   return(
-    <div className="ns-noprint" style={{background:C.warnBg,border:"1px solid #F0DFA8",borderRadius:10,padding:18,marginBottom:22}}>
+    <div className="ns-noprint" style={{background:C.warnBg,border:"1px solid "+C.warnLine,borderRadius:10,padding:18,marginBottom:22}}>
       <div style={{fontSize:15,fontWeight:650,color:C.warn,marginBottom:5}}>
         {fr?"À valider par le pharmacien":"Pharmacist validation needed"}
       </div>
@@ -524,19 +614,16 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member
         {rows.length} {fr?"lignes lues. Corrigez ce qui a été mal lu avant d'enregistrer.":"rows read. Fix anything misread before saving."}
         {bad>0&&<span style={{fontWeight:600}}> {bad} DIN {fr?"n'ont pas 8 chiffres.":"aren't 8 digits."}</span>}
       </div>
-
       {showQty&&(
         <div className="ns-panel" style={{padding:14,marginBottom:14}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:9}}>
-            {fr?"Ces quantités sont en":"These quantities are in"}
-          </div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:9}}>{fr?"Ces quantités sont en":"These quantities are in"}</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {[{v:"pack",l:fr?"Bouteilles ou contenants":"Bottles or packs",d:fr?"converties en unités":"converted to units"},
               {v:"unit",l:fr?"Unités":"Units",d:fr?"gardées telles quelles":"kept as-is"}].map(o=>(
               <button key={o.v} onClick={()=>setUnitMode(o.v)} style={{flex:"1 1 200px",padding:"11px 14px",borderRadius:7,
-                border:"1px solid "+(unitMode===o.v?C.ink:C.line),background:unitMode===o.v?C.ink:C.paper,cursor:"pointer",textAlign:"left"}}>
+                border:"1px solid "+(unitMode===o.v?C.teal:C.line),background:unitMode===o.v?C.teal:C.paper,cursor:"pointer",textAlign:"left"}}>
                 <div style={{fontSize:13,fontWeight:600,color:unitMode===o.v?"#fff":C.text}}>{o.l}</div>
-                <div style={{fontSize:11.5,color:unitMode===o.v?"rgba(255,255,255,.65)":C.text3,marginTop:2}}>{o.d}</div>
+                <div style={{fontSize:11.5,color:unitMode===o.v?"rgba(255,255,255,.7)":C.text3,marginTop:2}}>{o.d}</div>
               </button>
             ))}
           </div>
@@ -547,12 +634,10 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member
           )}
         </div>
       )}
-
       {member&&<div style={{fontSize:12.5,color:C.warn,marginBottom:13}}>
         {fr?"Signé par":"Signed by"} {member.full_name||member.email}
         {member.licence&&<span className="ns-num"> · {member.licence}</span>}
       </div>}
-
       <div className="ns-panel" style={{maxHeight:400,overflowY:"auto",marginBottom:14}}>
         <table style={{width:"100%",minWidth:860}}>
           <thead><tr>
@@ -566,13 +651,13 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member
               const ok=cleanDin(r.din).length===8;
               return(
                 <tr key={i}>
-                  <td><input value={r.cup||""} onChange={e=>up(i,"cup",e.target.value)} className="ns-cell ns-num" style={{width:106}}/></td>
-                  <td><input value={r.description||r.molecule||""} onChange={e=>up(i,"description",e.target.value)} className="ns-cell" style={{width:190}}/></td>
-                  <td><input value={r.strength||""} onChange={e=>up(i,"strength",e.target.value)} className="ns-cell" style={{width:62}}/></td>
-                  <td><input value={r.format||""} onChange={e=>up(i,"format",e.target.value)} className="ns-cell" style={{width:82}}/></td>
+                  <td><input value={r.cup||""} onChange={e=>up(i,"cup",e.target.value)} className="ns-cell ns-num" style={{width:104}}/></td>
+                  <td><input value={r.description||r.molecule||""} onChange={e=>up(i,"description",e.target.value)} className="ns-cell" style={{width:186}}/></td>
+                  <td><input value={r.strength||""} onChange={e=>up(i,"strength",e.target.value)} className="ns-cell" style={{width:60}}/></td>
+                  <td><input value={r.format||""} onChange={e=>up(i,"format",e.target.value)} className="ns-cell" style={{width:80}}/></td>
                   <td><input value={r.din||""} onChange={e=>up(i,"din",e.target.value)} className="ns-cell ns-num"
-                    style={{width:86,borderColor:ok?C.line:"#E9A3A3",background:ok?C.paper:C.flagBg}}/></td>
-                  {showQty&&<td><input type="number" value={r.qty||0} onChange={e=>up(i,"qty",e.target.value)} className="ns-cell ns-num" style={{width:60,textAlign:"center"}}/></td>}
+                    style={{width:84,borderColor:ok?C.line:C.flagLine,background:ok?C.paper:C.flagBg}}/></td>
+                  {showQty&&<td><input type="number" value={r.qty||0} onChange={e=>up(i,"qty",e.target.value)} className="ns-cell ns-num" style={{width:58,textAlign:"center"}}/></td>}
                   {showQty&&unitMode==="pack"&&<td className="ns-num" style={{textAlign:"center",fontWeight:600,color:C.ok}}>{(Number(r.qty)||0)*unitsPerPack(r.format)}</td>}
                   <td><button onClick={()=>del(i)} className="ns-x">×</button></td>
                 </tr>
@@ -582,16 +667,297 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member
         </table>
       </div>
       <div style={{display:"flex",gap:8}}>
-        <button onClick={onConfirm} disabled={busy||rows.length===0} className="ns-btn ns-btn-primary">
-          {fr?"Valider et enregistrer":"Validate and save"}
-        </button>
+        <button onClick={onConfirm} disabled={busy||rows.length===0} className="ns-btn ns-btn-primary">{fr?"Valider et enregistrer":"Validate and save"}</button>
         <button onClick={onCancel} className="ns-btn ns-btn-quiet">{fr?"Annuler":"Cancel"}</button>
       </div>
     </div>
   );
 }
 
-function TeamPage({session,member,fr}){
+/* ===== CLINICAL — pharmacy side ===== */
+function ClinicalPage({profile,member,lang,session}){
+  const fr=lang==="fr";
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [cat,setCat]=useState("all");
+  const [open,setOpen]=useState(null);
+  const [err,setErr]=useState("");
+  const [asking,setAsking]=useState(false);
+  const has=!!(profile&&profile.clinical_addon);
+  const pid=member?member.pharmacy_id:session.user.id;
+
+  useEffect(()=>{
+    if(!has){setLoading(false);return;}
+    (async()=>{
+      try{setRows(await CLIN.listPublished(lang));}catch(e){setErr(e.message);}
+      setLoading(false);
+    })();
+  },[has,lang]);
+
+  async function requestAddon(){
+    setAsking(true);
+    try{
+      await sbFetch("profiles?id=eq."+pid,{method:"PATCH",body:{clinical_addon:true}});
+      await AUDIT.log(member,"clinical_addon","profiles",pid,fr?"Module clinique activé":"Clinical module enabled");
+      SB.saveProfile({...profile,clinical_addon:true});
+      window.location.reload();
+    }catch(e){setErr(e.message);setAsking(false);}
+  }
+
+  if(!has){
+    return(
+      <div style={{padding:"30px 34px",maxWidth:680}}>
+        <H1 sub={fr?"Protocoles, affections mineures, guides de facturation et formation, maintenus à jour et publiés dans NarcoSync.":"Protocols, minor ailments, billing guides and training, kept current and published inside NarcoSync."}>
+          {fr?"Module clinique":"Clinical module"}
+        </H1>
+        <div className="ns-panel" style={{padding:26,marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:18}}>
+            <span className="ns-num" style={{fontSize:38,fontWeight:650,letterSpacing:"-.03em",color:C.teal}}>{CLINICAL_PRICE}$</span>
+            <span style={{fontSize:13.5,color:C.text2}}>{fr?"CAD par mois, en supplément de votre forfait":"CAD per month, on top of your plan"}</span>
+          </div>
+          <div style={{borderTop:"1px solid "+C.line2,paddingTop:18,marginBottom:20}}>
+            {(fr?["Protocoles cliniques prêts à appliquer","Fiches d'affections mineures","Guides de facturation à jour","Matériel de formation pour l'équipe","Nouveau contenu ajouté en continu"]
+                :["Ready-to-apply clinical protocols","Minor ailment reference sheets","Current billing guides","Training material for the team","New content added continuously"]).map((x,i)=>(
+              <div key={i} style={{fontSize:13.5,color:C.text2,marginBottom:8,lineHeight:1.5}}>{x}</div>
+            ))}
+          </div>
+          {err&&<Note tone="flag">{err}</Note>}
+          {can(member?member.role:"owner","edit")
+            ?<button onClick={requestAddon} disabled={asking} className="ns-btn ns-btn-primary" style={{padding:"12px 24px",fontSize:14}}>
+              {asking?(fr?"Activation":"Enabling"):(fr?"Activer le module clinique":"Enable the clinical module")}
+            </button>
+            :<Note tone="warn">{fr?"Un pharmacien doit activer ce module.":"A pharmacist must enable this module."}</Note>}
+          <div style={{fontSize:12,color:C.text3,marginTop:12,lineHeight:1.5}}>
+            {fr?"Facturé avec votre abonnement. Annulable en tout temps.":"Billed with your subscription. Cancel any time."}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const cats=[{v:"all",l:fr?"Tout":"All"}].concat(CLIN_CATS.map(c=>({v:c.v,l:fr?c.fr:c.en})));
+  const shown=cat==="all"?rows:rows.filter(r=>r.category===cat);
+
+  if(open){
+    return(
+      <div style={{padding:"30px 34px",maxWidth:760}}>
+        <button className="ns-btn ns-btn-quiet ns-noprint" onClick={()=>setOpen(null)} style={{marginBottom:20,padding:"6px 13px",fontSize:12.5}}>{fr?"Retour":"Back"}</button>
+        <div style={{marginBottom:8}}>
+          {open.category&&<Tag tone="teal">{(()=>{const c=CLIN_CATS.find(x=>x.v===open.category);return c?(fr?c.fr:c.en):open.category;})()}</Tag>}
+        </div>
+        <div style={{fontSize:26,fontWeight:650,letterSpacing:"-.022em",lineHeight:1.2,marginBottom:18}}>{open.title}</div>
+        {open.file_url&&(
+          <a href={open.file_url} target="_blank" rel="noreferrer" className="ns-btn ns-btn-primary"
+            style={{display:"inline-block",textDecoration:"none",marginBottom:20}}>
+            {fr?"Ouvrir le document":"Open the document"}{open.file_name?" — "+open.file_name:""}
+          </a>
+        )}
+        {open.body&&(
+          <div className="ns-panel" style={{padding:26,fontSize:14.5,lineHeight:1.7,whiteSpace:"pre-wrap",color:C.text}}>
+            {open.body}
+          </div>
+        )}
+        <button onClick={()=>window.print()} className="ns-btn ns-btn-quiet ns-noprint" style={{marginTop:18}}>{fr?"Imprimer":"Print"}</button>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:"30px 34px",maxWidth:900}}>
+      <H1 sub={fr?"Contenu maintenu par NarcoSync et mis à jour au fil des changements réglementaires.":"Maintained by NarcoSync and updated as regulations change."}>
+        {rows.length} {fr?(rows.length===1?"document":"documents"):(rows.length===1?"document":"documents")}
+      </H1>
+      {err&&<Note tone="flag">{err}</Note>}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20}}>
+        {cats.map(c=>(
+          <button key={c.v} onClick={()=>setCat(c.v)} style={{padding:"6px 13px",borderRadius:20,cursor:"pointer",
+            border:"1px solid "+(cat===c.v?C.teal:C.line),background:cat===c.v?C.teal:C.paper,
+            color:cat===c.v?"#fff":C.text2,fontSize:12.5,fontWeight:600}}>{c.l}</button>
+        ))}
+      </div>
+      {loading?<div style={{color:C.text3}}>{fr?"Chargement":"Loading"}</div>:
+       shown.length===0?(
+        <div className="ns-panel" style={{padding:30,fontSize:13.5,color:C.text2,lineHeight:1.6}}>
+          {fr?"Aucun document dans cette catégorie pour l'instant.":"Nothing in this category yet."}
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {shown.map(r=>{
+            const c=CLIN_CATS.find(x=>x.v===r.category);
+            return(
+              <div key={r.id} onClick={()=>setOpen(r)} className="ns-panel" style={{padding:"17px 20px",cursor:"pointer"}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:14.5,fontWeight:650,marginBottom:4}}>{r.title}</div>
+                    <div style={{fontSize:12.5,color:C.text2}}>
+                      {r.file_url?(fr?"Document PDF":"PDF document"):(fr?"Texte":"Article")}
+                      {" · "}{new Date(r.created_at).toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric"})}
+                    </div>
+                  </div>
+                  {c&&<Tag tone="teal">{fr?c.fr:c.en}</Tag>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== CLINICAL — admin editor ===== */
+function AdminClinicalPage(){
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [err,setErr]=useState("");
+  const [info,setInfo]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({title:"",category:"protocol",lang:"fr",body:"",file_url:"",file_name:"",published:false});
+  const fileRef=useRef();
+
+  async function load(){
+    setLoading(true);setErr("");
+    try{setRows(await CLIN.listAll());}catch(e){setErr(e.message);}
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  function reset(){setForm({title:"",category:"protocol",lang:"fr",body:"",file_url:"",file_name:"",published:false});setEditing(null);}
+  function startEdit(r){
+    setEditing(r.id);
+    setForm({title:r.title||"",category:r.category||"protocol",lang:r.lang||"fr",body:r.body||"",
+      file_url:r.file_url||"",file_name:r.file_name||"",published:!!r.published});
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+  async function pickFile(e){
+    const f=e.target.files&&e.target.files[0];
+    e.target.value="";
+    if(!f) return;
+    setBusy(true);setErr("");
+    try{const up=await CLIN.upload(f);setForm(p=>({...p,file_url:up.url,file_name:up.name}));setInfo("Uploaded: "+up.name);}
+    catch(e2){setErr(e2.message);}
+    setBusy(false);
+  }
+  async function save(){
+    if(!form.title.trim()){setErr("A title is required.");return;}
+    if(!form.body.trim()&&!form.file_url){setErr("Add text or attach a document.");return;}
+    setBusy(true);setErr("");setInfo("");
+    try{
+      const row={title:form.title.trim(),category:form.category,lang:form.lang,
+        body:form.body.trim()||null,file_url:form.file_url||null,file_name:form.file_name||null,published:form.published};
+      if(editing) await CLIN.update(editing,row);
+      else await CLIN.add(row);
+      setInfo(editing?"Updated.":"Created.");
+      reset();await load();
+    }catch(e){setErr(e.message);}
+    setBusy(false);
+  }
+  async function togglePub(r){
+    try{await CLIN.update(r.id,{published:!r.published});await load();}catch(e){setErr(e.message);}
+  }
+  async function del(r){
+    if(!window.confirm("Delete \""+r.title+"\"? Pharmacies will lose access to it.")) return;
+    try{await CLIN.remove(r.id);setRows(rows.filter(x=>x.id!==r.id));}catch(e){setErr(e.message);}
+  }
+
+  const pub=rows.filter(r=>r.published).length;
+
+  return(
+    <div style={{padding:"30px 34px",maxWidth:1080}}>
+      <H1 sub="Anything you publish here appears immediately for pharmacies subscribed to the clinical module.">
+        {rows.length} {rows.length===1?"item":"items"}{pub>0?" · "+pub+" live":""}
+      </H1>
+
+      {err&&<Note tone="flag">{err}</Note>}
+      {info&&<Note tone="ok">{info}</Note>}
+
+      <div className="ns-panel" style={{padding:22,marginBottom:24}}>
+        <div style={{fontSize:14.5,fontWeight:650,marginBottom:16}}>{editing?"Edit item":"New item"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:11,marginBottom:14}}>
+          <div>
+            <FieldLabel required>Title</FieldLabel>
+            <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className="ns-in" placeholder="Urinary tract infection — prescribing protocol"/>
+          </div>
+          <div>
+            <FieldLabel>Category</FieldLabel>
+            <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="ns-in" style={{cursor:"pointer"}}>
+              {CLIN_CATS.map(c=><option key={c.v} value={c.v}>{c.en}</option>)}
+            </select>
+          </div>
+          <div>
+            <FieldLabel>Language</FieldLabel>
+            <select value={form.lang} onChange={e=>setForm({...form,lang:e.target.value})} className="ns-in" style={{cursor:"pointer"}}>
+              {LANGS.map(l=><option key={l.c} value={l.c}>{l.n}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <FieldLabel>Text</FieldLabel>
+        <textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} className="ns-in"
+          rows={9} style={{resize:"vertical",lineHeight:1.6,marginBottom:14}}
+          placeholder="Write the content here. Line breaks are kept as you type them."/>
+
+        <FieldLabel>Attached document</FieldLabel>
+        <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap",marginBottom:16}}>
+          <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={pickFile} style={{display:"none"}}/>
+          <button onClick={()=>fileRef.current?.click()} disabled={busy} className="ns-btn ns-btn-quiet">
+            {busy?"Uploading":"Attach a file"}
+          </button>
+          {form.file_name&&(
+            <span style={{display:"flex",alignItems:"center",gap:8}}>
+              <Tag tone="teal">{form.file_name}</Tag>
+              <button onClick={()=>setForm({...form,file_url:"",file_name:""})} className="ns-x">×</button>
+            </span>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",paddingTop:16,borderTop:"1px solid "+C.line2}}>
+          <button onClick={()=>setForm({...form,published:!form.published})} style={{padding:"8px 15px",borderRadius:7,cursor:"pointer",
+            border:"1px solid "+(form.published?C.ok:C.line),background:form.published?C.okBg:C.paper,
+            color:form.published?C.ok:C.text2,fontSize:12.5,fontWeight:600}}>
+            {form.published?"Visible to pharmacies":"Draft — hidden"}
+          </button>
+          <button onClick={save} disabled={busy} className="ns-btn ns-btn-primary">{editing?"Save changes":"Create"}</button>
+          {editing&&<button onClick={reset} className="ns-btn ns-btn-quiet">Cancel</button>}
+        </div>
+      </div>
+
+      <div className="ns-panel" style={{overflowX:"auto"}}>
+        <table style={{width:"100%",minWidth:820}}>
+          <thead><tr><th>Title</th><th>Category</th><th>Lang</th><th>Type</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {loading&&<tr><td colSpan={6} style={{color:C.text3}}>Loading</td></tr>}
+            {!loading&&rows.length===0&&<tr><td colSpan={6} style={{color:C.text3,padding:"20px 10px"}}>Nothing published yet. Create your first item above.</td></tr>}
+            {rows.map(r=>{
+              const c=CLIN_CATS.find(x=>x.v===r.category);
+              return(
+                <tr key={r.id}>
+                  <td style={{fontWeight:600}}>{r.title}</td>
+                  <td style={{color:C.text2}}>{c?c.en:r.category||"—"}</td>
+                  <td className="ns-num" style={{fontSize:12,textTransform:"uppercase"}}>{r.lang||"fr"}</td>
+                  <td style={{color:C.text2}}>{r.file_url?(r.body?"Text + file":"File"):"Text"}</td>
+                  <td><button onClick={()=>togglePub(r)} style={{border:"none",background:"none",cursor:"pointer",padding:0}}>
+                    {r.published?<Tag tone="ok">Live</Tag>:<Tag>Draft</Tag>}
+                  </button></td>
+                  <td>
+                    <span style={{display:"flex",gap:6}}>
+                      <button onClick={()=>startEdit(r)} className="ns-btn ns-btn-quiet" style={{padding:"5px 12px",fontSize:12}}>Edit</button>
+                      <button onClick={()=>del(r)} className="ns-x">×</button>
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TeamPage({session,member,lang}){
+  const fr=lang==="fr";
   const pid=member?member.pharmacy_id:session.user.id;
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -651,21 +1017,19 @@ function TeamPage({session,member,fr}){
       <H1 sub={fr?"Chaque action posée dans NarcoSync porte le nom et la licence de la personne connectée.":"Every action carries the name and licence of the person signed in."}>
         {rows.length} {fr?(rows.length===1?"membre":"membres"):(rows.length===1?"member":"members")}
       </H1>
-
       {!isOwner&&<Note tone="warn">{fr?"Seul le pharmacien-propriétaire peut ajouter ou retirer des membres.":"Only the pharmacist-owner can add or remove members."}</Note>}
-
       {isOwner&&(
         <div className="ns-panel" style={{padding:20,marginBottom:22}}>
-          <div style={{fontSize:14.5,fontWeight:650,marginBottom:14}}>{fr?"Inviter un membre":"Invite someone"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1.4fr 1.2fr 1fr 1fr",gap:11,marginBottom:14}}>
+          <div style={{fontSize:14.5,fontWeight:650,marginBottom:14}}>{fr?"Inviter quelqu'un":"Invite someone"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:11,marginBottom:14}}>
             {[["email",fr?"Courriel":"Email","prenom@pharmacie.com"],["full_name",fr?"Nom complet":"Full name",fr?"Prénom Nom":"First Last"]].map(([k,l,p])=>(
               <div key={k}>
-                <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>{l}</label>
+                <FieldLabel>{l}</FieldLabel>
                 <input value={nw[k]} onChange={e=>setNw({...nw,[k]:e.target.value})} placeholder={p} className="ns-in"/>
               </div>
             ))}
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>{fr?"Rôle":"Role"}</label>
+              <FieldLabel>{fr?"Rôle":"Role"}</FieldLabel>
               <select value={nw.role} onChange={e=>setNw({...nw,role:e.target.value})} className="ns-in" style={{cursor:"pointer"}}>
                 <option value="pharmacist">{fr?ROLES.pharmacist.fr:ROLES.pharmacist.en}</option>
                 <option value="technician">{fr?ROLES.technician.fr:ROLES.technician.en}</option>
@@ -673,24 +1037,16 @@ function TeamPage({session,member,fr}){
               </select>
             </div>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>
-                {fr?"Licence":"Licence"}{nw.role==="technician"&&<span style={{color:C.text3,fontWeight:400}}> {fr?"(optionnel)":"(optional)"}</span>}
-              </label>
+              <FieldLabel>{fr?"Licence":"Licence"}{nw.role==="technician"&&<span style={{color:C.text3,fontWeight:400}}> {fr?"(optionnel)":"(optional)"}</span>}</FieldLabel>
               <input value={nw.licence} onChange={e=>setNw({...nw,licence:e.target.value})} placeholder="OPQ-12345" className="ns-in ns-num"/>
             </div>
           </div>
-          <button onClick={invite} disabled={busy} className="ns-btn ns-btn-primary">
-            {busy?(fr?"Envoi":"Sending"):(fr?"Envoyer l'invitation":"Send invitation")}
-          </button>
-          <div style={{fontSize:12.5,color:C.text2,marginTop:10,lineHeight:1.5}}>
-            {fr?"La personne reçoit un courriel pour choisir son mot de passe.":"They get an email to set their own password."}
-          </div>
+          <button onClick={invite} disabled={busy} className="ns-btn ns-btn-primary">{busy?(fr?"Envoi":"Sending"):(fr?"Envoyer l'invitation":"Send invitation")}</button>
+          <div style={{fontSize:12.5,color:C.text2,marginTop:10}}>{fr?"La personne reçoit un courriel pour choisir son mot de passe.":"They get an email to set their own password."}</div>
         </div>
       )}
-
       {err&&<Note tone="flag">{err}</Note>}
       {info&&<Note tone="ok">{info}</Note>}
-
       <div className="ns-panel" style={{overflowX:"auto"}}>
         <table style={{width:"100%",minWidth:840}}>
           <thead><tr>
@@ -703,17 +1059,17 @@ function TeamPage({session,member,fr}){
             {rows.map(r=>{
               const ed=editId===r.id;
               return(
-                <tr key={r.id} style={{opacity:r.active?1:.42,background:ed?C.bg:"transparent"}}>
-                  <td>{ed?<input value={edit.full_name} onChange={e=>setEdit({...edit,full_name:e.target.value})} className="ns-cell" style={{width:150}}/>:<span style={{fontWeight:600}}>{r.full_name||"—"}</span>}</td>
+                <tr key={r.id} style={{opacity:r.active?1:.42,background:ed?C.tealSoft:"transparent"}}>
+                  <td>{ed?<input value={edit.full_name} onChange={e=>setEdit({...edit,full_name:e.target.value})} className="ns-cell" style={{width:148}}/>:<span style={{fontWeight:600}}>{r.full_name||"—"}</span>}</td>
                   <td style={{color:C.text2}}>{r.email}</td>
-                  <td>{ed?<input value={edit.licence} onChange={e=>setEdit({...edit,licence:e.target.value})} placeholder="OPQ-12345" className="ns-cell ns-num" style={{width:106}}/>
+                  <td>{ed?<input value={edit.licence} onChange={e=>setEdit({...edit,licence:e.target.value})} placeholder="OPQ-12345" className="ns-cell ns-num" style={{width:104}}/>
                     :(r.licence?<span className="ns-num">{r.licence}</span>:<Tag tone="flag">{fr?"à ajouter":"missing"}</Tag>)}</td>
                   <td>{ed?(
                       <select value={edit.role} onChange={e=>setEdit({...edit,role:e.target.value})} className="ns-cell" style={{cursor:"pointer"}}>
                         <option value="owner">{fr?ROLES.owner.fr:ROLES.owner.en}</option>
                         <option value="pharmacist">{fr?ROLES.pharmacist.fr:ROLES.pharmacist.en}</option>
                         <option value="technician">{fr?ROLES.technician.fr:ROLES.technician.en}</option>
-                      </select>):<RoleTag role={r.role} fr={fr}/>}</td>
+                      </select>):<RoleTag role={r.role} lang={lang}/>}</td>
                   <td>{r.user_id?<Tag tone="ok">{fr?"Actif":"Active"}</Tag>:<Tag tone="warn">{fr?"Invité":"Invited"}</Tag>}</td>
                   <td>
                     {isOwner&&(
@@ -739,15 +1095,14 @@ function TeamPage({session,member,fr}){
           </tbody>
         </table>
       </div>
-
-      <div style={{marginTop:26,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
+      <div style={{marginTop:26,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(236px,1fr))",gap:14}}>
         {[
           {r:"owner",items:fr?["Accès complet","Gère l'équipe","Supprime et ajuste","Valide les écarts"]:["Full access","Manages the team","Deletes and adjusts","Approves variances"]},
           {r:"pharmacist",items:fr?["Inventaire et réconciliation","Valide les imports","Valide les écarts","Ne gère pas l'équipe"]:["Inventory and reconciliation","Validates imports","Approves variances","Can't manage the team"]},
           {r:"technician",items:fr?["Consulte l'inventaire","Saisit le décompte","Imprime les rapports","Ne supprime rien"]:["Views inventory","Enters counts","Prints reports","Deletes nothing"]},
         ].map(x=>(
           <div key={x.r} className="ns-panel" style={{padding:17}}>
-            <div style={{marginBottom:11}}><RoleTag role={x.r} fr={fr}/></div>
+            <div style={{marginBottom:11}}><RoleTag role={x.r} lang={lang}/></div>
             {x.items.map((it,i)=><div key={i} style={{fontSize:12.5,color:C.text2,marginBottom:6,lineHeight:1.45}}>{it}</div>)}
           </div>
         ))}
@@ -756,7 +1111,8 @@ function TeamPage({session,member,fr}){
   );
 }
 
-function AuditPage({session,member,fr}){
+function AuditPage({session,member,lang}){
+  const fr=lang==="fr";
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
   const [err,setErr]=useState("");
@@ -777,12 +1133,10 @@ function AuditPage({session,member,fr}){
     deactivate_member:fr?"Membre désactivé":"Member disabled",delete_drug:fr?"Produit supprimé":"Product deleted",
     adjust_qty:fr?"Quantité ajustée":"Quantity adjusted",import_inventory:fr?"Import validé":"Import validated",
     save_cycle:fr?"Cycle enregistré":"Cycle saved",delete_cycle:fr?"Cycle supprimé":"Cycle deleted",
-    add_drug:fr?"Produit ajouté":"Product added"};
+    add_drug:fr?"Produit ajouté":"Product added",clinical_addon:fr?"Module clinique activé":"Clinical module enabled"};
   return(
     <div style={{padding:"30px 34px",maxWidth:1180}}>
-      <div className="ns-print-only" style={{marginBottom:14}}>
-        <div style={{fontSize:15,fontWeight:650}}>{fr?"Journal d'audit":"Audit log"}</div>
-      </div>
+      <div className="ns-print-only" style={{marginBottom:14,fontSize:15,fontWeight:650}}>{fr?"Journal d'audit":"Audit log"}</div>
       <div className="ns-noprint" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:14,flexWrap:"wrap"}}>
         <H1 sub={fr?"Nom, licence, date et heure pour chaque action. Le journal ne peut être ni modifié ni effacé.":"Name, licence, date and time for every action. This log can't be edited or erased."}>
           {fr?"Journal d'audit":"Audit log"}
@@ -798,7 +1152,7 @@ function AuditPage({session,member,fr}){
           </tr></thead>
           <tbody>
             {loading&&<tr><td colSpan={5} style={{color:C.text3}}>{fr?"Chargement":"Loading"}</td></tr>}
-            {!loading&&rows.length===0&&<tr><td colSpan={5} style={{color:C.text3}}>{fr?"Rien encore. Les actions apparaîtront ici.":"Nothing yet. Actions will show up here."}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td colSpan={5} style={{color:C.text3,padding:"20px 10px"}}>{fr?"Rien encore. Les actions apparaîtront ici.":"Nothing yet. Actions will show up here."}</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
                 <td className="ns-num" style={{whiteSpace:"nowrap",color:C.text2,fontSize:12}}>{fd(r.created_at)}</td>
@@ -815,7 +1169,8 @@ function AuditPage({session,member,fr}){
   );
 }
 
-function InventoryPage({session,member,fr,profile}){
+function InventoryPage({session,member,lang,profile}){
+  const fr=lang==="fr";
   const pid=member?member.pharmacy_id:session.user.id;
   const role=member?member.role:"owner";
   const canEdit=can(role,"edit");
@@ -865,8 +1220,8 @@ function InventoryPage({session,member,fr,profile}){
       const fq=nw.mode==="pack"?q*unitsPerPack(nw.format):q;
       await INV.addMany(pid,[{din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format,qty:fq}]);
       await AUDIT.log(member,"add_drug","pharmacy_drugs",null,nw.molecule+" · "+fq+" "+packLabel(nw.format,fr));
-      setNw({cup:"",molecule:"",strength:"",format:"",din:"",qty:"",mode:"pack"});setShowAdd(false);
       setInfo((fr?"Ajouté : ":"Added: ")+nw.molecule+" · "+fq+" "+packLabel(nw.format,fr));
+      setNw({cup:"",molecule:"",strength:"",format:"",din:"",qty:"",mode:"pack"});setShowAdd(false);
       await load(search);
     }catch(e){setErr(e.message);}
   }
@@ -926,7 +1281,7 @@ function InventoryPage({session,member,fr,profile}){
       await AUDIT.log(member,"import_inventory","pharmacy_drugs",null,
         pending.length+(fr?" lignes, ":" lines, ")+res.added+(fr?" ajoutées, ":" added, ")+res.merged+(fr?" fusionnées":" merged"));
       setPending(null);setBusy("");
-      setInfo(res.added+(fr?" produits ajoutés":" products added")+(res.merged?(fr?", ":", ")+res.merged+(fr?" quantités mises à jour":" quantities updated"):"")+(newOnes.length?(fr?", ":", ")+newOnes.length+(fr?" nouveaux au catalogue":" new to the catalog"):""));
+      setInfo(res.added+(fr?" produits ajoutés":" products added")+(res.merged?", "+res.merged+(fr?" quantités mises à jour":" quantities updated"):"")+(newOnes.length?", "+newOnes.length+(fr?" nouveaux au catalogue":" new to the catalog"):""));
       await load(search);
     }catch(e){setBusy("");setErr(e.message);}
   }
@@ -950,13 +1305,11 @@ function InventoryPage({session,member,fr,profile}){
 
   return(
     <div style={{padding:"30px 34px",maxWidth:1320}}>
-      {showKey&&<AIKeyModal fr={fr} onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
-
+      {showKey&&<AIKeyModal lang={lang} onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
       <div className="ns-print-only" style={{marginBottom:14}}>
         <div style={{fontSize:15,fontWeight:650}}>{profile?.pharmacy_name||""} — {fr?"Inventaire des narcotiques":"Narcotics inventory"}</div>
         <div style={{fontSize:11,marginTop:3}}>{new Date().toLocaleDateString(fr?"fr-CA":"en-CA")} · {rows.length} {fr?"produits":"products"}</div>
       </div>
-
       <div className="ns-noprint" style={{display:"flex",flexWrap:"wrap",gap:14,alignItems:"flex-start",justifyContent:"space-between"}}>
         <H1 sub={fr?"Toutes les quantités sont en unités : comprimés, capsules ou millilitres.":"All quantities are in units: tablets, capsules or millilitres."}>
           {rows.length} {fr?(rows.length===1?"produit":"produits"):(rows.length===1?"product":"products")}
@@ -974,7 +1327,6 @@ function InventoryPage({session,member,fr,profile}){
           )}
         </div>
       </div>
-
       {!canEdit&&<Note tone="warn">{fr?"Vous pouvez consulter, imprimer et saisir un décompte. Les modifications d'inventaire sont réservées aux pharmaciens.":"You can view, print and enter counts. Inventory changes are reserved for pharmacists."}</Note>}
 
       {showAdd&&canEdit&&(
@@ -995,7 +1347,7 @@ function InventoryPage({session,member,fr,profile}){
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:13}}>
             {[["cup","CUP"],["molecule",fr?"Description":"Description"],["strength",fr?"Force":"Strength"],["format","Format"],["din","DIN"],["qty",fr?"Quantité":"Quantity"]].map(([k,l])=>(
               <div key={k}>
-                <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>{l}</label>
+                <FieldLabel>{l}</FieldLabel>
                 <input value={nw[k]} onChange={e=>setNw({...nw,[k]:e.target.value})} placeholder={k==="format"?"100 TAB":""}
                   className={"ns-in"+(k==="cup"||k==="din"||k==="qty"?" ns-num":"")} style={k==="qty"?{textAlign:"center"}:{}}/>
               </div>
@@ -1005,12 +1357,10 @@ function InventoryPage({session,member,fr,profile}){
             <span style={{fontSize:12.5,color:C.text2}}>{fr?"Cette quantité est en":"This quantity is in"}</span>
             {[{v:"pack",l:fr?"bouteilles":"bottles"},{v:"unit",l:fr?"unités":"units"}].map(o=>(
               <button key={o.v} onClick={()=>setNw({...nw,mode:o.v})} style={{padding:"6px 14px",borderRadius:6,
-                border:"1px solid "+(nw.mode===o.v?C.ink:C.line),background:nw.mode===o.v?C.ink:C.paper,
+                border:"1px solid "+(nw.mode===o.v?C.teal:C.line),background:nw.mode===o.v?C.teal:C.paper,
                 color:nw.mode===o.v?"#fff":C.text2,cursor:"pointer",fontSize:12.5,fontWeight:600}}>{o.l}</button>
             ))}
-            {nw.qty&&nw.format&&nw.mode==="pack"&&(
-              <Tag tone="ok"><span className="ns-num">{(Number(nw.qty)||0)*unitsPerPack(nw.format)}</span> {packLabel(nw.format,fr)}</Tag>
-            )}
+            {nw.qty&&nw.format&&nw.mode==="pack"&&<Tag tone="ok"><span className="ns-num">{(Number(nw.qty)||0)*unitsPerPack(nw.format)}</span> {packLabel(nw.format,fr)}</Tag>}
           </div>
           <button onClick={addManual} className="ns-btn ns-btn-primary">{fr?"Ajouter":"Add"}</button>
         </div>
@@ -1023,7 +1373,7 @@ function InventoryPage({session,member,fr,profile}){
         <div className="ns-noprint ns-panel" style={{padding:"13px 16px",marginBottom:15,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
           <span className="ns-num" style={{fontSize:13,fontWeight:600}}>{busy}</span>
           <span style={{display:"flex",gap:8}}>
-            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} className="ns-btn ns-btn-quiet" style={{padding:"5px 13px",fontSize:12}}>{paused?(fr?"Reprendre":"Resume"):(fr?"Pause":"Pause")}</button>
+            <button onClick={()=>{ctrlRef.current.paused=!ctrlRef.current.paused;setPaused(ctrlRef.current.paused);}} className="ns-btn ns-btn-quiet" style={{padding:"5px 13px",fontSize:12}}>{paused?(fr?"Reprendre":"Resume"):"Pause"}</button>
             <button onClick={()=>{ctrlRef.current.cancelled=true;}} className="ns-btn ns-btn-quiet" style={{padding:"5px 13px",fontSize:12,color:C.flag}}>{fr?"Arrêter":"Stop"}</button>
           </span>
         </div>
@@ -1032,7 +1382,7 @@ function InventoryPage({session,member,fr,profile}){
       {info&&<div className="ns-noprint"><Note tone="ok">{info}</Note></div>}
 
       {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={true} onConfirm={confirmPending}
-        onCancel={()=>setPending(null)} busy={!!busy} fr={fr} member={member} unitMode={unitMode} setUnitMode={setUnitMode}/>}
+        onCancel={()=>setPending(null)} busy={!!busy} lang={lang} member={member} unitMode={unitMode} setUnitMode={setUnitMode}/>}
 
       <div className="ns-panel" style={{overflowX:"auto"}}>
         <table style={{width:"100%",minWidth:880}}>
@@ -1054,8 +1404,7 @@ function InventoryPage({session,member,fr,profile}){
                 <td style={{color:C.text2}}>{r.format||"—"}</td>
                 <td className="ns-num" style={{fontSize:12}}>{r.din||"—"}</td>
                 <td style={{textAlign:"right"}}>
-                  {canEdit
-                    ?<input type="number" defaultValue={r.qty||0} onBlur={e=>saveQty(r,e.target.value)}
+                  {canEdit?<input type="number" defaultValue={r.qty||0} onBlur={e=>saveQty(r,e.target.value)}
                       className="ns-cell ns-num" style={{width:78,textAlign:"right",fontWeight:600}}/>
                     :<span className="ns-num" style={{fontWeight:600}}>{r.qty||0}</span>}
                 </td>
@@ -1083,7 +1432,6 @@ function AdminCatalogPage(){
   const [showKey,setShowKey]=useState(false);
   const fileRef=useRef();
   const ctrlRef=useRef({paused:false,cancelled:false});
-
   async function load(s){
     setLoading(true);setErr("");
     try{setRows(await CAT.list(s));}catch(e){setErr(e.message);}
@@ -1113,14 +1461,11 @@ function AdminCatalogPage(){
     if(!window.confirm("Delete this row?")) return;
     try{await CAT.remove(id);setRows(rows.filter(r=>r.id!==id));}catch(e){setErr(e.message);}
   }
-
   return(
     <div style={{padding:"30px 34px",maxWidth:1180}}>
-      {showKey&&<AIKeyModal fr={false} onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
+      {showKey&&<AIKeyModal lang="en" onClose={()=>setShowKey(false)} onSaved={()=>{setShowKey(false);fileRef.current?.click();}}/>}
       <div style={{display:"flex",flexWrap:"wrap",gap:14,alignItems:"flex-start",justifyContent:"space-between"}}>
-        <H1 sub="Shared across every pharmacy. Discontinued lines are excluded on import.">
-          {rows.length} products
-        </H1>
+        <H1 sub="Shared across every pharmacy. Discontinued lines are excluded on import.">{rows.length} products</H1>
         <div>
           <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
           <button onClick={()=>{if(!SB.getAIKey()){setShowKey(true);}else{fileRef.current?.click();}}} disabled={!!busy} className="ns-btn ns-btn-primary">
@@ -1141,7 +1486,7 @@ function AdminCatalogPage(){
       )}
       {err&&<Note tone="flag">{err}</Note>}
       {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={false} onConfirm={confirmImport}
-        onCancel={()=>setPending(null)} busy={!!busy} fr={false} unitMode="unit" setUnitMode={()=>{}}/>}
+        onCancel={()=>setPending(null)} busy={!!busy} lang="en" unitMode="unit" setUnitMode={()=>{}}/>}
       <div className="ns-panel" style={{overflowX:"auto"}}>
         <table style={{width:"100%",minWidth:820}}>
           <thead><tr><th>CUP</th><th>Description</th><th>Strength</th><th>Format</th><th>DIN</th><th></th></tr></thead>
@@ -1165,42 +1510,6 @@ function AdminCatalogPage(){
   );
 }
 
-function Shell({items,page,setPage,tag,name,sub,lang,setLang,onLogout,children,signOutLabel}){
-  return(
-    <div style={{display:"flex",height:"100vh"}}>
-      <div className="ns-sidebar" style={{width:216,background:C.ink,display:"flex",flexDirection:"column",flexShrink:0}}>
-        <div style={{padding:"22px 16px 16px"}}>
-          <div style={{color:"#fff",fontSize:16,fontWeight:650,letterSpacing:"-.02em"}}>NarcoSync</div>
-          {tag&&<div style={{marginTop:9}}>{tag}</div>}
-        </div>
-        <div style={{padding:"0 12px 14px",margin:"0 4px 6px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
-          <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
-          {sub&&<div style={{color:"rgba(255,255,255,.42)",fontSize:11.5,marginTop:3}}>{sub}</div>}
-        </div>
-        <div style={{flex:1,padding:"6px 8px",overflowY:"auto"}}>
-          {items.map(i=>(
-            <button key={i.id} className="ns-nav" data-on={page===i.id?"1":"0"} onClick={()=>setPage(i.id)}>{i.label}</button>
-          ))}
-        </div>
-        <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
-          {setLang&&(
-            <div style={{display:"flex",gap:5,marginBottom:11}}>
-              {[["fr","Français"],["en","English"]].map(([v,l])=>(
-                <button key={v} onClick={()=>{SB.setLang(v);setLang(v);}} style={{flex:1,padding:"6px 0",borderRadius:6,border:"none",cursor:"pointer",
-                  fontSize:11.5,fontWeight:600,background:lang===v?"rgba(255,255,255,.14)":"transparent",
-                  color:lang===v?"#fff":"rgba(255,255,255,.4)"}}>{l}</button>
-              ))}
-            </div>
-          )}
-          <button onClick={onLogout} style={{width:"100%",padding:"7px 0",borderRadius:6,border:"none",cursor:"pointer",
-            background:"transparent",color:"rgba(255,255,255,.42)",fontSize:12.5,textAlign:"left"}}>{signOutLabel}</button>
-        </div>
-      </div>
-      <div className="ns-main" style={{flex:1,overflowY:"auto",background:C.bg}}>{children}</div>
-    </div>
-  );
-}
-
 function AdminDashboard({session,onLogout}){
   const [page,setPage]=useState("overview");
   const [profiles,setProfiles]=useState([]);
@@ -1210,20 +1519,24 @@ function AdminDashboard({session,onLogout}){
     fetch(url+"/rest/v1/profiles?select=*&order=created_at.desc",{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
       .then(r=>r.json()).then(d=>{if(Array.isArray(d))setProfiles(d);setLoading(false);}).catch(()=>setLoading(false));
   },[]);
-  const mrr=profiles.reduce((s,p)=>s+(PLAN_PRICE[p.plan]||0),0);
-  const items=[{id:"overview",label:"Overview"},{id:"pharmacies",label:"Pharmacies"},{id:"catalog",label:"Drug catalog"}];
+  const base=profiles.reduce((s,p)=>s+(PLAN_PRICE[p.plan]||0),0);
+  const clin=profiles.filter(p=>p.clinical_addon).length*CLINICAL_PRICE;
+  const items=[{id:"overview",label:"Overview"},{id:"pharmacies",label:"Pharmacies"},
+    {id:"catalog",label:"Drug catalog"},{id:"clinical",label:"Clinical content"}];
   return(
     <Shell items={items} page={page} setPage={setPage} name={session.user.email} signOutLabel="Sign out"
-      tag={<span style={{background:"rgba(255,255,255,.12)",color:"rgba(255,255,255,.8)",fontSize:10.5,fontWeight:600,padding:"3px 8px",borderRadius:4}}>Admin</span>}
+      tag={<span style={{background:"rgba(255,255,255,.12)",color:"rgba(255,255,255,.82)",fontSize:10.5,fontWeight:600,padding:"3px 8px",borderRadius:4}}>Admin</span>}
       onLogout={onLogout}>
       {page==="overview"&&(
         <div style={{padding:"30px 34px",maxWidth:1000}}>
-          <H1 sub="Every pharmacy on NarcoSync.">Overview</H1>
+          <H1 sub="Pharmacy profiles and revenue. Their inventory and counts stay private to them.">Overview</H1>
           {loading?<div style={{color:C.text3}}>Loading</div>:(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14}}>
-              {[["Pharmacies",profiles.length],["Monthly revenue","$"+mrr],["Countries",[...new Set(profiles.map(p=>p.country).filter(Boolean))].length]].map(([l,v])=>(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(172px,1fr))",gap:14}}>
+              {[["Pharmacies",profiles.length,null],["Monthly revenue","$"+(base+clin),C.teal],
+                ["Clinical module",profiles.filter(p=>p.clinical_addon).length,null],
+                ["Countries",[...new Set(profiles.map(p=>p.country).filter(Boolean))].length,null]].map(([l,v,col])=>(
                 <div key={l} className="ns-panel" style={{padding:20}}>
-                  <div className="ns-num" style={{fontSize:32,fontWeight:650,letterSpacing:"-.03em"}}>{v}</div>
+                  <div className="ns-num" style={{fontSize:32,fontWeight:650,letterSpacing:"-.03em",color:col||C.text}}>{v}</div>
                   <div style={{fontSize:12.5,color:C.text2,marginTop:5}}>{l}</div>
                 </div>
               ))}
@@ -1242,7 +1555,10 @@ function AdminDashboard({session,onLogout}){
                   <div style={{fontSize:15,fontWeight:650}}>{p.pharmacy_name||"—"}</div>
                   <div style={{fontSize:12.5,color:C.text2,marginTop:2}}>{p.email}</div>
                 </div>
-                {p.plan&&<Tag>{p.plan}</Tag>}
+                <span style={{display:"flex",gap:6,alignItems:"center"}}>
+                  {p.clinical_addon&&<Tag tone="teal">Clinical</Tag>}
+                  {p.plan&&<Tag>{p.plan}</Tag>}
+                </span>
               </div>
               <div style={{fontSize:12.5,color:C.text2}}>
                 {[p.pharmacy_address,p.province,p.country].filter(Boolean).join(", ")||"—"}
@@ -1253,44 +1569,11 @@ function AdminDashboard({session,onLogout}){
         </div>
       )}
       {page==="catalog"&&<AdminCatalogPage/>}
+      {page==="clinical"&&<AdminClinicalPage/>}
     </Shell>
   );
 }
 
-function FieldLabel({children,required}){
-  return <label style={{fontSize:12,fontWeight:600,color:C.text2,display:"block",marginBottom:5}}>{children}{required&&<span style={{color:C.flag}}> *</span>}</label>;
-}
-function Field({label,value,onChange,placeholder,type="text",hint,required,num}){
-  return(
-    <div style={{marginBottom:14}}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        className={"ns-in"+(num?" ns-num":"")} style={{borderColor:required&&!value.trim()?"#E9A3A3":C.line}}/>
-      {hint&&<div style={{fontSize:11.5,color:C.text3,marginTop:4}}>{hint}</div>}
-    </div>
-  );
-}
-function SectionLabel({children}){
-  return <div style={{fontSize:13,fontWeight:650,marginTop:24,marginBottom:12,paddingBottom:7,borderBottom:"1px solid "+C.line2}}>{children}</div>;
-}
-function fmtPhone(d){
-  if(!d) return "";
-  if(d.length<=3) return d;
-  if(d.length<=6) return d.slice(0,3)+"-"+d.slice(3);
-  return d.slice(0,3)+"-"+d.slice(3,6)+"-"+d.slice(6,10);
-}
-function PhoneField({label,value,onChange,countryCode,required}){
-  return(
-    <div style={{marginBottom:14}}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <div style={{display:"flex",gap:8}}>
-        <div className="ns-num" style={{padding:"9px 12px",borderRadius:6,border:"1px solid "+C.line,fontSize:13.5,background:C.bg,color:C.text2,flexShrink:0}}>{countryCode||"+1"}</div>
-        <input type="tel" value={value} onChange={e=>onChange(fmtPhone(e.target.value.replace(/\D/g,"").slice(0,10)))}
-          placeholder="514-000-0000" className="ns-in ns-num" style={{flex:1,borderColor:required&&!value.trim()?"#E9A3A3":C.line}}/>
-      </div>
-    </div>
-  );
-}
 function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,province,required}){
   const [q,setQ]=useState(value||"");
   const [res,setRes]=useState([]);
@@ -1308,7 +1591,7 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     upd();
     tRef.current=setTimeout(async()=>{
       try{
-        const p=new URLSearchParams({q:v,limit:7,lang:"fr"});
+        const p=new URLSearchParams({q:v,limit:7});
         if(countryIso) p.set("countrycode",countryIso);
         const co=PROVINCE_COORDS[province];
         if(co){p.set("lat",co.lat);p.set("lon",co.lon);}
@@ -1331,9 +1614,9 @@ function AddressAutocomplete({value,onChange,placeholder,hint,countryIso,provinc
     <div style={{marginBottom:14}}>
       <FieldLabel required={required}>{placeholder}</FieldLabel>
       <input ref={iRef} value={q} onChange={e=>handle(e.target.value)} onFocus={()=>{if(res.length){upd();setOpen(true);}}}
-        placeholder={placeholder} className="ns-in" style={{borderColor:required&&!value.trim()?"#E9A3A3":C.line}} autoComplete="off"/>
+        className="ns-in" style={{borderColor:required&&!value.trim()?C.flagLine:C.line}} autoComplete="off"/>
       {open&&res.length>0&&(
-        <div ref={dRef} className="ns-panel" style={{position:"fixed",top:pos.top,left:pos.left,width:pos.width,zIndex:9999,maxHeight:240,overflowY:"auto",boxShadow:"0 12px 32px rgba(18,22,28,.14)"}}>
+        <div ref={dRef} className="ns-panel" style={{position:"fixed",top:pos.top,left:pos.left,width:pos.width,zIndex:9999,maxHeight:240,overflowY:"auto",boxShadow:"0 12px 32px rgba(14,26,28,.14)"}}>
           {res.map((f,i)=>{const p=f.properties;const main=(p.housenumber?p.housenumber+" ":"")+(p.street||p.name||"");const sub=[p.city||p.locality,p.state,p.postcode].filter(Boolean).join(", ");
             return(<div key={i} onClick={()=>sel(f)} style={{padding:"10px 13px",cursor:"pointer",borderBottom:"1px solid "+C.line2}}>
               <div style={{fontSize:13,fontWeight:600}}>{main}</div>
@@ -1360,12 +1643,12 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
     <div>
       <input ref={iRef} value={q} onChange={e=>{setQ(e.target.value);onChange(e.target.value);upd();setOpen(true);}}
         onFocus={()=>{upd();setOpen(true);}} placeholder={placeholder} className="ns-in"
-        style={{borderColor:required&&!value.trim()?"#E9A3A3":C.line}} autoComplete="off"/>
+        style={{borderColor:required&&!value.trim()?C.flagLine:C.line}} autoComplete="off"/>
       {open&&f.length>0&&(
-        <div ref={dRef} className="ns-panel" style={{position:"fixed",top:pos.top,left:pos.left,width:pos.width,zIndex:9999,maxHeight:230,overflowY:"auto",boxShadow:"0 12px 32px rgba(18,22,28,.14)"}}>
+        <div ref={dRef} className="ns-panel" style={{position:"fixed",top:pos.top,left:pos.left,width:pos.width,zIndex:9999,maxHeight:230,overflowY:"auto",boxShadow:"0 12px 32px rgba(14,26,28,.14)"}}>
           {f.map(o=>(
             <div key={o} onClick={()=>{onChange(o);setQ(o);setOpen(false);}}
-              style={{padding:"10px 13px",cursor:"pointer",fontSize:13,borderBottom:"1px solid "+C.line2,background:value===o?C.bg:C.paper}}>{o}</div>
+              style={{padding:"10px 13px",cursor:"pointer",fontSize:13,borderBottom:"1px solid "+C.line2,background:value===o?C.tealSoft:C.paper}}>{o}</div>
           ))}
         </div>
       )}
@@ -1373,7 +1656,8 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
   );
 }
 
-function AuthScreen({onAuth}){
+function AuthScreen({onAuth,lang,setLang}){
+  const fr=lang==="fr";
   const [mode,setMode]=useState("login");
   const [email,setEmail]=useState("");
   const [pwd,setPwd]=useState("");
@@ -1394,7 +1678,7 @@ function AuthScreen({onAuth}){
   },[]);
 
   async function submit(){
-    if(!email||!pwd){setErr("Entrez votre courriel et votre mot de passe.");return;}
+    if(!email||!pwd){setErr(fr?"Entrez votre courriel et votre mot de passe.":"Enter your email and password.");return;}
     setBusy(true);setErr("");setMsg("");
     const {url,key}=SB.get();
     const ep=mode==="login"?url+"/auth/v1/token?grant_type=password":url+"/auth/v1/signup";
@@ -1402,94 +1686,106 @@ function AuthScreen({onAuth}){
       const r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,password:pwd})});
       const d=await r.json();
       if(d.access_token){SB.saveSession(d);onAuth(d);}
-      else setErr(d.error_description||d.msg||d.message||"Ces identifiants ne fonctionnent pas.");
-    }catch(e){setErr("Connexion échouée.");}
+      else setErr(d.error_description||d.msg||d.message||(fr?"Ces identifiants ne fonctionnent pas.":"Those credentials didn't work."));
+    }catch(e){setErr(fr?"Connexion échouée.":"Connection failed.");}
     setBusy(false);
   }
   async function sendRecovery(){
-    if(!email){setErr("Entrez votre courriel.");return;}
+    if(!email){setErr(fr?"Entrez votre courriel.":"Enter your email.");return;}
     setBusy(true);setErr("");setMsg("");
     const {url,key}=SB.get();
     try{
       const r=await fetch(url+"/auth/v1/recover",{method:"POST",headers:{"Content-Type":"application/json","apikey":key},body:JSON.stringify({email,redirect_to:window.location.origin})});
-      if(r.ok) setMsg("Un lien vient d'être envoyé à "+email+".");
-      else{const d=await r.json();setErr(d.msg||d.message||"Envoi impossible.");}
-    }catch(e){setErr("Connexion échouée.");}
+      if(r.ok) setMsg((fr?"Un lien vient d'être envoyé à ":"A link was just sent to ")+email+".");
+      else{const d=await r.json();setErr(d.msg||d.message||(fr?"Envoi impossible.":"Couldn't send."));}
+    }catch(e){setErr(fr?"Connexion échouée.":"Connection failed.");}
     setBusy(false);
   }
   async function applyNew(){
-    if(np1.length<6){setErr("Choisissez au moins 6 caractères.");return;}
-    if(np1!==np2){setErr("Les deux mots de passe diffèrent.");return;}
+    if(np1.length<6){setErr(fr?"Choisissez au moins 6 caractères.":"Use at least 6 characters.");return;}
+    if(np1!==np2){setErr(fr?"Les deux mots de passe diffèrent.":"The passwords don't match.");return;}
     setBusy(true);setErr("");
     const {url,key}=SB.get();
     try{
       const r=await fetch(url+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":key,"Authorization":"Bearer "+tok},body:JSON.stringify({password:np1})});
       const d=await r.json();
-      if(r.ok){setMsg("Mot de passe enregistré. Connectez-vous.");setTok(null);setMode("login");setNp1("");setNp2("");setPwd("");
+      if(r.ok){setMsg(fr?"Mot de passe enregistré. Connectez-vous.":"Password saved. Sign in now.");setTok(null);setMode("login");setNp1("");setNp2("");setPwd("");
         try{window.history.replaceState({},"",window.location.pathname);}catch(e){}}
-      else setErr(d.msg||d.message||"Enregistrement impossible.");
-    }catch(e){setErr("Connexion échouée.");}
+      else setErr(d.msg||d.message||(fr?"Enregistrement impossible.":"Couldn't save."));
+    }catch(e){setErr(fr?"Connexion échouée.":"Connection failed.");}
     setBusy(false);
   }
 
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:C.ink}}>
       <div style={{width:"100%",maxWidth:378}}>
-        <div style={{marginBottom:26}}>
-          <div style={{color:"#fff",fontSize:26,fontWeight:650,letterSpacing:"-.025em"}}>NarcoSync</div>
-          <div style={{color:"rgba(255,255,255,.44)",fontSize:13,marginTop:5}}>Registre des substances contrôlées</div>
+        <div style={{marginBottom:26,display:"flex",alignItems:"center",gap:9}}>
+          <div style={{width:8,height:26,background:C.teal,borderRadius:2}}/>
+          <div>
+            <div style={{color:"#fff",fontSize:25,fontWeight:650,letterSpacing:"-.025em",lineHeight:1.1}}>NarcoSync</div>
+            <div style={{color:"rgba(255,255,255,.44)",fontSize:12.5,marginTop:3}}>
+              {fr?"Registre des substances contrôlées":"Controlled substance records"}
+            </div>
+          </div>
         </div>
         <div className="ns-panel" style={{padding:26,border:"none"}}>
           {mode==="reset"?(
             <div>
-              <div style={{fontSize:16,fontWeight:650,marginBottom:16}}>Choisissez votre mot de passe</div>
-              <FieldLabel>Nouveau mot de passe</FieldLabel>
-              <input type="password" value={np1} onChange={e=>setNp1(e.target.value)} placeholder="6 caractères minimum" className="ns-in" style={{marginBottom:12}}/>
-              <FieldLabel>Répétez-le</FieldLabel>
+              <div style={{fontSize:16,fontWeight:650,marginBottom:16}}>{fr?"Choisissez votre mot de passe":"Choose your password"}</div>
+              <FieldLabel>{fr?"Nouveau mot de passe":"New password"}</FieldLabel>
+              <input type="password" value={np1} onChange={e=>setNp1(e.target.value)} placeholder={fr?"6 caractères minimum":"6 characters minimum"} className="ns-in" style={{marginBottom:12}}/>
+              <FieldLabel>{fr?"Répétez-le":"Repeat it"}</FieldLabel>
               <input type="password" value={np2} onChange={e=>setNp2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&applyNew()} className="ns-in" style={{marginBottom:14}}/>
               {err&&<div style={{color:C.flag,fontSize:12.5,marginBottom:12}}>{err}</div>}
               {msg&&<div style={{color:C.ok,fontSize:12.5,marginBottom:12}}>{msg}</div>}
-              <button onClick={applyNew} disabled={busy} className="ns-btn ns-btn-primary" style={{width:"100%"}}>{busy?"Enregistrement":"Enregistrer"}</button>
+              <button onClick={applyNew} disabled={busy} className="ns-btn ns-btn-primary" style={{width:"100%"}}>{busy?tr(lang,"saving"):(fr?"Enregistrer":"Save")}</button>
             </div>
           ):mode==="forgot"?(
             <div>
-              <div style={{fontSize:16,fontWeight:650,marginBottom:6}}>Mot de passe oublié</div>
-              <div style={{fontSize:13,color:C.text2,marginBottom:16,lineHeight:1.5}}>Nous enverrons un lien pour en choisir un nouveau.</div>
-              <FieldLabel>Courriel</FieldLabel>
+              <div style={{fontSize:16,fontWeight:650,marginBottom:6}}>{fr?"Mot de passe oublié":"Forgot your password"}</div>
+              <div style={{fontSize:13,color:C.text2,marginBottom:16,lineHeight:1.5}}>{fr?"Nous enverrons un lien pour en choisir un nouveau.":"We'll send a link to choose a new one."}</div>
+              <FieldLabel>{fr?"Courriel":"Email"}</FieldLabel>
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendRecovery()} className="ns-in" style={{marginBottom:14}}/>
               {err&&<div style={{color:C.flag,fontSize:12.5,marginBottom:12}}>{err}</div>}
               {msg&&<div style={{color:C.ok,fontSize:12.5,marginBottom:12}}>{msg}</div>}
-              <button onClick={sendRecovery} disabled={busy} className="ns-btn ns-btn-primary" style={{width:"100%",marginBottom:9}}>{busy?"Envoi":"Envoyer le lien"}</button>
-              <button onClick={()=>{setMode("login");setErr("");setMsg("");}} className="ns-btn ns-btn-quiet" style={{width:"100%"}}>Retour</button>
+              <button onClick={sendRecovery} disabled={busy} className="ns-btn ns-btn-primary" style={{width:"100%",marginBottom:9}}>{busy?"…":(fr?"Envoyer le lien":"Send the link")}</button>
+              <button onClick={()=>{setMode("login");setErr("");setMsg("");}} className="ns-btn ns-btn-quiet" style={{width:"100%"}}>{tr(lang,"back")}</button>
             </div>
           ):(
             <div>
               <div style={{display:"flex",gap:16,marginBottom:22,borderBottom:"1px solid "+C.line}}>
-                {[["login","Connexion"],["signup","Créer un compte"]].map(([m,l])=>(
+                {[["login",tr(lang,"signIn")],["signup",tr(lang,"createAccount")]].map(([m,l])=>(
                   <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{border:"none",background:"none",cursor:"pointer",
                     padding:"0 0 11px",fontSize:13.5,fontWeight:mode===m?650:500,color:mode===m?C.text:C.text3,
-                    borderBottom:"2px solid "+(mode===m?C.ink:"transparent"),marginBottom:-1}}>{l}</button>
+                    borderBottom:"2px solid "+(mode===m?C.teal:"transparent"),marginBottom:-1}}>{l}</button>
                 ))}
               </div>
-              <FieldLabel>Courriel</FieldLabel>
+              <FieldLabel>{fr?"Courriel":"Email"}</FieldLabel>
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="ns-in" style={{marginBottom:13}} autoComplete="off"/>
-              <FieldLabel>Mot de passe</FieldLabel>
+              <FieldLabel>{fr?"Mot de passe":"Password"}</FieldLabel>
               <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} className="ns-in" style={{marginBottom:15}} autoComplete="off"/>
               {err&&<div style={{color:C.flag,fontSize:12.5,marginBottom:12}}>{err}</div>}
               {msg&&<div style={{color:C.ok,fontSize:12.5,marginBottom:12}}>{msg}</div>}
               <button onClick={submit} disabled={busy} className="ns-btn ns-btn-primary" style={{width:"100%"}}>
-                {busy?"…":mode==="login"?"Se connecter":"Créer le compte"}
+                {busy?"…":mode==="login"?tr(lang,"signIn"):tr(lang,"createAccount")}
               </button>
-              {mode==="login"&&<button onClick={()=>{setMode("forgot");setErr("");}} style={{width:"100%",marginTop:14,border:"none",background:"none",cursor:"pointer",fontSize:12.5,color:C.text2}}>Mot de passe oublié?</button>}
+              {mode==="login"&&<button onClick={()=>{setMode("forgot");setErr("");}} style={{width:"100%",marginTop:14,border:"none",background:"none",cursor:"pointer",fontSize:12.5,color:C.text2}}>{fr?"Mot de passe oublié?":"Forgot your password?"}</button>}
             </div>
           )}
+        </div>
+        <div style={{marginTop:18,display:"flex",gap:12,justifyContent:"center"}}>
+          {LANGS.filter(l=>READY.indexOf(l.c)>=0).map(l=>(
+            <button key={l.c} onClick={()=>{SB.setLang(l.c);setLang(l.c);}} style={{border:"none",background:"none",cursor:"pointer",
+              fontSize:12.5,color:lang===l.c?"#fff":"rgba(255,255,255,.38)",fontWeight:lang===l.c?600:400}}>{l.n}</button>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function OnboardingWizard({userEmail,onComplete,session}){
+function OnboardingWizard({userEmail,onComplete,session,lang,setLang}){
+  const fr=lang==="fr";
   const [step,setStep]=useState(1);
   const [language,setLanguage]=useState("");const [country,setCountry]=useState("Canada");const [province,setProvince]=useState("");
   const [pharmacyName,setPharmacyName]=useState("");const [dispensingSystem,setDispensingSystem]=useState("");const [inventorySystem,setInventorySystem]=useState("");
@@ -1497,48 +1793,55 @@ function OnboardingWizard({userEmail,onComplete,session}){
   const [pharmacyAddress,setPharmacyAddress]=useState("");const [permitNumber,setPermitNumber]=useState("");
   const [pharmacistOwner,setPharmacistOwner]=useState("");const [pharmacistEmail,setPharmacistEmail]=useState("");
   const [managerName,setManagerName]=useState("");const [plan,setPlan]=useState("");const [saving,setSaving]=useState(false);
-  const lang=getLang(language);
-  const t=(k)=>T[lang][k]||T.en[k]||k;
+  const t=(k)=>tr(lang,k);
   const cc=COUNTRY_CODES[country]||"+1";
   useEffect(()=>{setPharmacyName("");setPharmacyAddress("");setDispensingSystem("");setInventorySystem("");},[country]);
   const ok=pharmacyName.trim()&&pharmacyAddress.trim()&&pharmacyPhone.trim()&&pharmacistOwner.trim()&&dispensingSystem.trim()&&inventorySystem.trim()&&plan;
+  function fmtPhone(d){if(!d)return "";if(d.length<=3)return d;if(d.length<=6)return d.slice(0,3)+"-"+d.slice(3);return d.slice(0,3)+"-"+d.slice(3,6)+"-"+d.slice(6,10);}
   async function finish(){
     if(!ok) return;
     setSaving(true);
-    const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,
-      dispensing_system:dispensingSystem,inventory_system:inventorySystem,pharmacy_phone:cc+" "+pharmacyPhone,
-      pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,
-      pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
+    const profile={id:session.user.id,email:userEmail,language:language||(fr?"Français":"English"),country,province,
+      pharmacy_name:pharmacyName,dispensing_system:dispensingSystem,inventory_system:inventorySystem,
+      pharmacy_phone:cc+" "+pharmacyPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,
+      permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
     try{await MEM.add({pharmacy_id:session.user.id,user_id:session.user.id,email:userEmail,full_name:pharmacistOwner,licence:permitNumber||null,role:"owner",active:true});}catch{}
     onComplete(profile);setSaving(false);
   }
-  const sel={cursor:"pointer"};
   return(
     <div style={{minHeight:"100vh",background:C.bg,padding:"40px 20px"}}>
       <div style={{maxWidth:520,margin:"0 auto"}}>
-        <div style={{marginBottom:8,fontSize:13,color:C.text2}}>{t("stepOf")} {step} {t("ofTotal")} 3</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:13,color:C.text2}}>{t("stepOf")} {step} {t("ofTotal")} 3</div>
+          <div style={{display:"flex",gap:11}}>
+            {LANGS.filter(l=>READY.indexOf(l.c)>=0).map(l=>(
+              <button key={l.c} onClick={()=>{SB.setLang(l.c);setLang(l.c);}} style={{border:"none",background:"none",cursor:"pointer",
+                fontSize:12.5,color:lang===l.c?C.teal:C.text3,fontWeight:lang===l.c?600:400}}>{l.n}</button>
+            ))}
+          </div>
+        </div>
         <div style={{height:3,background:C.line,borderRadius:3,marginBottom:26,overflow:"hidden"}}>
-          <div style={{height:"100%",width:(step/3)*100+"%",background:C.ink,borderRadius:3,transition:"width .25s"}}/>
+          <div style={{height:"100%",width:(step/3)*100+"%",background:C.teal,borderRadius:3,transition:"width .25s"}}/>
         </div>
         <div className="ns-panel" style={{padding:28,marginBottom:30}}>
           {step===1&&(<div>
             <div style={{fontSize:20,fontWeight:650,marginBottom:5,letterSpacing:"-.02em"}}>{t("language")}</div>
             <div style={{fontSize:13.5,color:C.text2,marginBottom:20}}>{t("langSubtitle")}</div>
             <div style={{marginBottom:20}}><FieldLabel>{t("searchLanguage")}</FieldLabel>
-              <SearchableSelect options={ALL_LANGUAGES} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
+              <SearchableSelect options={LANGS.map(l=>l.n)} value={language} onChange={setLanguage} placeholder={t("langPlaceholder")}/></div>
             <button onClick={()=>setStep(2)} disabled={!language.trim()} className="ns-btn ns-btn-primary" style={{width:"100%"}}>{t("next")}</button>
           </div>)}
           {step===2&&(<div>
             <div style={{fontSize:20,fontWeight:650,marginBottom:5,letterSpacing:"-.02em"}}>{t("location")}</div>
             <div style={{fontSize:13.5,color:C.text2,marginBottom:20}}>{t("locationSubtitle")}</div>
             <div style={{marginBottom:14}}><FieldLabel>{t("country")}</FieldLabel>
-              <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} className="ns-in" style={sel}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
+              <select value={country} onChange={e=>{setCountry(e.target.value);setProvince("");}} className="ns-in" style={{cursor:"pointer"}}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select></div>
             <div style={{marginBottom:22}}>
               <FieldLabel>{country==="Canada"?t("province"):country==="United States"?t("state"):t("regionCity")}</FieldLabel>
-              {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} className="ns-in" style={sel}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>)
-                :country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} className="ns-in" style={sel}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>)
+              {country==="Canada"?(<select value={province} onChange={e=>setProvince(e.target.value)} className="ns-in" style={{cursor:"pointer"}}><option value="">{t("selectProvince")}</option>{CA_PROVINCES.map(p=><option key={p}>{p}</option>)}</select>)
+                :country==="United States"?(<select value={province} onChange={e=>setProvince(e.target.value)} className="ns-in" style={{cursor:"pointer"}}><option value="">{t("selectState")}</option>{US_STATES.map(p=><option key={p}>{p}</option>)}</select>)
                 :(<input value={province} onChange={e=>setProvince(e.target.value)} placeholder={t("enterRegion")} className="ns-in"/>)}
             </div>
             <div style={{display:"flex",gap:9}}>
@@ -1552,20 +1855,26 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <SectionLabel>{t("pharmacyInfoSection")}</SectionLabel>
             <div style={{marginBottom:14}}>
               <FieldLabel required>{t("pharmacyName")}</FieldLabel>
-              <SearchableSelect key={"c-"+country} options={PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS} value={pharmacyName} onChange={setPharmacyName} placeholder={t("pharmacyPlaceholder")} required/>
+              <SearchableSelect key={"c-"+country} options={PHARMACY_CHAINS_BY_COUNTRY[country]||DEFAULT_CHAINS} value={pharmacyName} onChange={setPharmacyName} placeholder={t("startTyping")} required/>
             </div>
             <Field label={t("permitNumber")} value={permitNumber} onChange={setPermitNumber} placeholder={t("permitPlaceholder")} num/>
             <AddressAutocomplete key={"a-"+country} value={pharmacyAddress} onChange={setPharmacyAddress} placeholder={t("pharmacyAddress")} hint={t("addressHint")} countryIso={COUNTRY_ISO[country]||""} province={province} required/>
-            <PhoneField label={t("pharmacyPhone")} value={pharmacyPhone} onChange={setPharmacyPhone} countryCode={cc} required/>
+            <div style={{marginBottom:14}}>
+              <FieldLabel required>{t("pharmacyPhone")}</FieldLabel>
+              <div style={{display:"flex",gap:8}}>
+                <div className="ns-num" style={{padding:"9px 12px",borderRadius:6,border:"1px solid "+C.line,fontSize:13.5,background:C.bg,color:C.text2,flexShrink:0}}>{cc}</div>
+                <input type="tel" value={pharmacyPhone} onChange={e=>setPharmacyPhone(fmtPhone(e.target.value.replace(/\D/g,"").slice(0,10)))} placeholder="514-000-0000" className="ns-in ns-num" style={{flex:1,borderColor:!pharmacyPhone.trim()?C.flagLine:C.line}}/>
+              </div>
+            </div>
             <Field label={t("pharmacyEmail")} value={pharmacyEmail} onChange={setPharmacyEmail} placeholder={t("emailPlaceholder")} type="email"/>
             <SectionLabel>{t("softwareSection")}</SectionLabel>
             <div style={{marginBottom:14}}>
               <FieldLabel required>{t("dispensingSystem")}</FieldLabel>
-              <SearchableSelect key={"d-"+country} options={DISPENSING_SYSTEMS[country]||DEFAULT_DISPENSING} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("dispensingSystemPlaceholder")} required/>
+              <SearchableSelect key={"d-"+country} options={DISPENSING_SYSTEMS[country]||DEFAULT_LIST} value={dispensingSystem} onChange={setDispensingSystem} placeholder={t("startTyping")} required/>
             </div>
             <div style={{marginBottom:14}}>
               <FieldLabel required>{t("inventorySystem")}</FieldLabel>
-              <SearchableSelect key={"i-"+country} options={INVENTORY_SYSTEMS[country]||DEFAULT_INVENTORY} value={inventorySystem} onChange={setInventorySystem} placeholder={t("inventorySystemPlaceholder")} required/>
+              <SearchableSelect key={"i-"+country} options={INVENTORY_SYSTEMS[country]||DEFAULT_LIST} value={inventorySystem} onChange={setInventorySystem} placeholder={t("startTyping")} required/>
             </div>
             <SectionLabel>{t("teamSection")}</SectionLabel>
             <Field label={t("pharmacistOwner")} value={pharmacistOwner} onChange={setPharmacistOwner} placeholder={t("ownerPlaceholder")} required/>
@@ -1575,11 +1884,11 @@ function OnboardingWizard({userEmail,onComplete,session}){
             <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
               {[{v:"basic",lk:"basicLabel",dk:"basicDesc",pk:"basicPrice"},{v:"pro",lk:"proLabel",dk:"proDesc",pk:"proPrice"},{v:"enterprise",lk:"enterpriseLabel",dk:"enterpriseDesc",pk:"enterprisePrice"}].map(p=>(
                 <button key={p.v} onClick={()=>setPlan(p.v)} style={{padding:"14px 16px",borderRadius:8,
-                  border:"1px solid "+(plan===p.v?C.ink:C.line),background:plan===p.v?C.ink:C.paper,cursor:"pointer",textAlign:"left"}}>
+                  border:"1px solid "+(plan===p.v?C.teal:C.line),background:plan===p.v?C.teal:C.paper,cursor:"pointer",textAlign:"left"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:12}}>
                     <div>
                       <div style={{fontSize:13.5,fontWeight:650,color:plan===p.v?"#fff":C.text}}>{t(p.lk)}</div>
-                      <div style={{fontSize:12,color:plan===p.v?"rgba(255,255,255,.6)":C.text2,marginTop:2}}>{t(p.dk)}</div>
+                      <div style={{fontSize:12,color:plan===p.v?"rgba(255,255,255,.68)":C.text2,marginTop:2}}>{t(p.dk)}</div>
                     </div>
                     <span className="ns-num" style={{fontSize:15,fontWeight:650,color:plan===p.v?"#fff":C.text}}>{t(p.pk)}</span>
                   </div>
@@ -1600,39 +1909,41 @@ function OnboardingWizard({userEmail,onComplete,session}){
 function Dashboard({session,profile,member,onLogout,lang,setLang}){
   const [page,setPage]=useState("home");
   const email=session?.user?.email||"";
-  const fr=lang==="fr";
-  const t=(k)=>T[lang][k]||T.en[k]||k;
+  const t=(k)=>tr(lang,k);
   const role=member?member.role:"owner";
   const items=[
     {id:"home",label:t("dashboard")},{id:"inv",label:t("inventory")},{id:"reco",label:t("reconciliation")},
-    {id:"history",label:t("history")},{id:"team",label:t("team")},{id:"audit",label:fr?"Journal":"Audit log"},
+    {id:"history",label:t("history")},{id:"team",label:t("team")},{id:"audit",label:t("audit")},
     {id:"clinical",label:t("clinical")},{id:"pricing",label:t("plans")}
   ];
   const r=ROLES[role]||ROLES.pharmacist;
   return(
     <Shell items={items} page={page} setPage={setPage} lang={lang} setLang={setLang} onLogout={onLogout}
       signOutLabel={t("signOut")} name={member?.full_name||email}
-      sub={(fr?r.fr:r.en)+(member?.licence?" · "+member.licence:"")}>
-      {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile} session={session} member={member} fr={fr}/>}
-      {page==="inv"&&<InventoryPage session={session} member={member} fr={fr} profile={profile}/>}
-      {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session} member={member} onGoInv={()=>setPage("inv")} fr={fr}/>}
-      {page==="history"&&<HistoryPage session={session} member={member} fr={fr} profile={profile}/>}
-      {page==="team"&&<TeamPage session={session} member={member} fr={fr}/>}
-      {page==="audit"&&<AuditPage session={session} member={member} fr={fr}/>}
-      {page==="clinical"&&<Empty title={t("clinical")} desc={t("clinicalDesc")}/>}
-      {page==="pricing"&&<Empty title={t("plans")} desc={t("plansDesc")}/>}
+      sub={(lang==="fr"?r.fr:r.en)+(member?.licence?" · "+member.licence:"")}>
+      {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} lang={lang} profile={profile} session={session} member={member}/>}
+      {page==="inv"&&<InventoryPage session={session} member={member} lang={lang} profile={profile}/>}
+      {page==="reco"&&<RecoPage onBack={()=>setPage("home")} lang={lang} profile={profile} session={session} member={member} onGoInv={()=>setPage("inv")}/>}
+      {page==="history"&&<HistoryPage session={session} member={member} lang={lang} profile={profile}/>}
+      {page==="team"&&<TeamPage session={session} member={member} lang={lang}/>}
+      {page==="audit"&&<AuditPage session={session} member={member} lang={lang}/>}
+      {page==="clinical"&&<ClinicalPage profile={profile} member={member} lang={lang} session={session}/>}
+      {page==="pricing"&&(
+        <div style={{padding:"30px 34px",maxWidth:640}}>
+          <H1 sub={tr(lang,"plansDesc")||"Basic $49 · Pro $99 · Enterprise $249 CAD per month."}>{t("plans")}</H1>
+          {profile?.plan&&<div className="ns-panel" style={{padding:20}}>
+            <div style={{fontSize:12.5,color:C.text2,marginBottom:5}}>{lang==="fr"?"Forfait actuel":"Current plan"}</div>
+            <div style={{fontSize:18,fontWeight:650,textTransform:"capitalize"}}>{profile.plan}</div>
+            {profile.clinical_addon&&<div style={{marginTop:10}}><Tag tone="teal">{lang==="fr"?"Module clinique actif":"Clinical module active"}</Tag></div>}
+          </div>}
+        </div>
+      )}
     </Shell>
   );
 }
-function Empty({title,desc}){
-  return(
-    <div style={{padding:"30px 34px",maxWidth:640}}>
-      <H1 sub={desc}>{title}</H1>
-    </div>
-  );
-}
 
-function HistoryPage({session,member,fr,profile}){
+function HistoryPage({session,member,lang,profile}){
+  const fr=lang==="fr";
   const pid=member?member.pharmacy_id:session.user.id;
   const role=member?member.role:"owner";
   const [cycles,setCycles]=useState([]);
@@ -1650,12 +1961,11 @@ function HistoryPage({session,member,fr,profile}){
       await AUDIT.log(member,"delete_cycle","reconciliations",c.id,fd(c.completed_at));
       setCycles(cycles.filter(x=>x.id!==c.id));}catch(e){alert(e.message);}
   }
-
   if(sel){
     const mols=typeof sel.molecules==="string"?JSON.parse(sel.molecules||"[]"):sel.molecules||[];
     return(
       <div style={{padding:"30px 34px",maxWidth:1320}}>
-        <button className="ns-noprint ns-btn ns-btn-quiet" onClick={()=>setSel(null)} style={{marginBottom:20,padding:"6px 13px",fontSize:12.5}}>{fr?"Retour":"Back"}</button>
+        <button className="ns-noprint ns-btn ns-btn-quiet" onClick={()=>setSel(null)} style={{marginBottom:20,padding:"6px 13px",fontSize:12.5}}>{tr(lang,"back")}</button>
         <div className="ns-print-only" style={{marginBottom:13}}>
           <div style={{fontSize:15,fontWeight:650}}>{profile?.pharmacy_name||""} — {fr?"Rapport de réconciliation":"Reconciliation report"}</div>
           <div style={{fontSize:11,marginTop:3}}>{fd(sel.completed_at)}</div>
@@ -1684,9 +1994,7 @@ function HistoryPage({session,member,fr,profile}){
                   <td style={{fontWeight:600}}>{m.name||"—"}</td>
                   <td style={{color:C.text2}}>{m.format||"—"}</td>
                   <td className="ns-num" style={{fontSize:12}}>{m.din||"—"}</td>
-                  {[m.opening,m.received,m.dispensed,theo].map((v,j)=>(
-                    <td key={j} className="ns-num" style={{textAlign:"right"}}>{v||0}</td>
-                  ))}
+                  {[m.opening,m.received,m.dispensed,theo].map((v,j)=>(<td key={j} className="ns-num" style={{textAlign:"right"}}>{v||0}</td>))}
                   <td className="ns-num" style={{textAlign:"right",fontWeight:600}}>{m.physical!==""?m.physical:"—"}</td>
                   <td className="ns-num" style={{textAlign:"right",fontWeight:650,color:d===null?C.text3:d===0?C.ok:C.flag}}>
                     {d===null?"—":d===0?"0":(d>0?"+":"")+d}
@@ -1700,11 +2008,10 @@ function HistoryPage({session,member,fr,profile}){
       </div>
     );
   }
-
   return(
     <div style={{padding:"30px 34px",maxWidth:900}}>
       <H1 sub={fr?"Chaque cycle sauvegardé reste au dossier.":"Every saved cycle stays on file."}>
-        {cycles.length} {fr?(cycles.length===1?"cycle":"cycles"):(cycles.length===1?"cycle":"cycles")}
+        {cycles.length} {cycles.length===1?"cycle":"cycles"}
       </H1>
       {loading?<div style={{color:C.text3}}>{fr?"Chargement":"Loading"}</div>:
        cycles.length===0?(
@@ -1733,7 +2040,8 @@ function HistoryPage({session,member,fr,profile}){
   );
 }
 
-function HomePage({onNewReco,email,t,profile,session,member,fr}){
+function HomePage({onNewReco,email,lang,profile,session,member}){
+  const fr=lang==="fr";
   const pid=member?member.pharmacy_id:session.user.id;
   const [cycles,setCycles]=useState([]);
   const [invCount,setInvCount]=useState(null);
@@ -1747,8 +2055,7 @@ function HomePage({onNewReco,email,t,profile,session,member,fr}){
   const last=cycles[0];
   return(
     <div style={{padding:"30px 34px",maxWidth:900}}>
-      <H1 sub={profile?.pharmacy_name||""}>{t("welcomeMsg")}</H1>
-
+      <H1 sub={profile?.pharmacy_name||""}>{tr(lang,"welcomeMsg")}</H1>
       {total>0?(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(168px,1fr))",gap:13,marginBottom:24}}>
           {[[invCount===null?"—":invCount,fr?"produits en inventaire":"products on hand",null],
@@ -1762,17 +2069,17 @@ function HomePage({onNewReco,email,t,profile,session,member,fr}){
         </div>
       ):(
         <div className="ns-panel" style={{padding:24,marginBottom:22}}>
-          <div style={{fontSize:15,fontWeight:650,marginBottom:5}}>{t("liveMsg")}</div>
-          <div style={{fontSize:13.5,color:C.text2,lineHeight:1.55}}>{t("liveSubMsg")}</div>
+          <div style={{fontSize:15,fontWeight:650,marginBottom:5}}>{tr(lang,"liveMsg")}</div>
+          <div style={{fontSize:13.5,color:C.text2,lineHeight:1.55}}>{tr(lang,"liveSubMsg")}</div>
         </div>
       )}
-
-      <button onClick={onNewReco} className="ns-btn ns-btn-primary" style={{padding:"13px 24px",fontSize:14}}>{t("newReco")}</button>
+      <button onClick={onNewReco} className="ns-btn ns-btn-primary" style={{padding:"13px 24px",fontSize:14}}>{tr(lang,"newReco")}</button>
     </div>
   );
 }
 
-function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
+function RecoTable({session,profile,member,onComplete,onGoInv,lang}){
+  const fr=lang==="fr";
   const pid=member?member.pharmacy_id:session.user.id;
   const role=member?member.role:"owner";
   const [mols,setMols]=useState([]);
@@ -1781,7 +2088,6 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
   const [nextId,setNextId]=useState(1);
   const [err,setErr]=useState("");
   const [printMode,setPrintMode]=useState("all");
-
   useEffect(()=>{
     (async()=>{
       try{
@@ -1793,7 +2099,6 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
       setLoading(false);
     })();
   },[]);
-
   function upd(id,f,v){setMols(p=>p.map(m=>m.id===id?{...m,[f]:v}:m));}
   function addRow(){setMols(p=>[...p,{id:nextId,name:"",strength:"",cup:"",format:"",din:"",opening:0,received:0,dispensed:0,physical:"",notes:""}]);setNextId(n=>n+1);}
   function delRow(id){setMols(p=>p.filter(m=>m.id!==id));}
@@ -1803,11 +2108,7 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
   const filled=mols.filter(m=>m.physical!=="").length;
   const gaps=mols.filter(m=>diff(m)!==null&&diff(m)!==0);
   const shown=printMode==="gaps"?gaps:mols;
-
-  function doPrint(mode){
-    setPrintMode(mode);
-    setTimeout(()=>{window.print();setTimeout(()=>setPrintMode("all"),500);},120);
-  }
+  function doPrint(mode){setPrintMode(mode);setTimeout(()=>{window.print();setTimeout(()=>setPrintMode("all"),500);},120);}
   async function save(){
     setSaving(true);
     const {url,key}=SB.get();
@@ -1821,9 +2122,7 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
     await AUDIT.log(member,"save_cycle","reconciliations",null,mols.length+(fr?" produits, ":" products, ")+totalDisc+(fr?" écarts":" variances"));
     setSaving(false);onComplete({totalDisc,totalMolecules:mols.length});
   }
-
   if(loading) return <div style={{padding:40,color:C.text3}}>{fr?"Chargement":"Loading"}</div>;
-
   if(mols.length===0){
     return(
       <div className="ns-panel" style={{padding:30,maxWidth:520}}>
@@ -1835,14 +2134,12 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
       </div>
     );
   }
-
   return(
     <div>
       <div className="ns-print-only" style={{marginBottom:13}}>
         <div style={{fontSize:15,fontWeight:650}}>{profile?.pharmacy_name||""} — {printMode==="gaps"?(fr?"Écarts à recompter":"Variances to recount"):(fr?"Feuille de décompte":"Count sheet")}</div>
         <div style={{fontSize:11,marginTop:3}}>{new Date().toLocaleDateString(fr?"fr-CA":"en-CA")} · {shown.length} {fr?"produits":"products"} · {fr?"Compté par":"Counted by"} ____________________</div>
       </div>
-
       <div className="ns-noprint" style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12}}>
         <div>
           <div style={{fontSize:24,fontWeight:650,letterSpacing:"-.021em"}}>{mols.length} {fr?"produits à compter":"products to count"}</div>
@@ -1852,17 +2149,14 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={()=>doPrint("all")} className="ns-btn ns-btn-quiet">{fr?"Feuille de décompte":"Count sheet"}</button>
-          {gaps.length>0&&(
-            <button onClick={()=>doPrint("gaps")} className="ns-btn ns-btn-quiet" style={{color:C.flag,borderColor:"#E9A3A3"}}>
-              {fr?"Écarts à recompter":"Variances to recount"} ({gaps.length})
-            </button>
-          )}
+          {gaps.length>0&&<button onClick={()=>doPrint("gaps")} className="ns-btn ns-btn-quiet" style={{color:C.flag,borderColor:C.flagLine}}>
+            {fr?"Écarts à recompter":"Variances to recount"} ({gaps.length})
+          </button>}
           {totalDisc>0&&<Tag tone="flag">{totalDisc} {fr?(totalDisc===1?"écart":"écarts"):(totalDisc===1?"variance":"variances")}</Tag>}
           {totalDisc===0&&filled===mols.length&&<Tag tone="ok">{fr?"Tout balance":"All balanced"}</Tag>}
         </div>
       </div>
       {err&&<div className="ns-noprint"><Note tone="flag">{err}</Note></div>}
-
       <div className="ns-panel" style={{overflowX:"auto",marginBottom:15}}>
         <table style={{width:"100%",minWidth:1180}}>
           <thead><tr>
@@ -1872,7 +2166,7 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
             <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Dispensé":"Dispensed"}</th>
             <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Théorique":"Expected"}</th>
             {printMode==="gaps"&&<th className="ns-print-only" style={{textAlign:"right"}}>{fr?"Écart":"Variance"}</th>}
-            <th style={{textAlign:"right",background:"#EEF3FF",color:C.accent}}>{fr?"Compté":"Counted"}</th>
+            <th style={{textAlign:"right",background:C.tealSoft,color:C.teal2}}>{fr?"Compté":"Counted"}</th>
             <th className="ns-noprint" style={{textAlign:"right"}}>{fr?"Écart":"Variance"}</th>
             <th>{fr?"Note":"Note"}</th>
             <th className="ns-noprint"></th>
@@ -1882,20 +2176,20 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
               const t2=theo(m);const d=diff(m);
               return(
                 <tr key={m.id} style={{background:d!==null&&d!==0?C.flagBg:"transparent"}}>
-                  <td><input value={m.cup} onChange={e=>upd(m.id,"cup",e.target.value)} className="ns-cell ns-num" style={{width:86,fontSize:12}}/></td>
-                  <td><input value={m.name} onChange={e=>upd(m.id,"name",e.target.value)} className="ns-cell" style={{width:168,fontWeight:600}}/></td>
-                  <td><input value={m.strength} onChange={e=>upd(m.id,"strength",e.target.value)} className="ns-cell" style={{width:56}}/></td>
-                  <td><input value={m.format} onChange={e=>upd(m.id,"format",e.target.value)} className="ns-cell" style={{width:70}}/></td>
-                  <td><input value={m.din} onChange={e=>upd(m.id,"din",e.target.value)} className="ns-cell ns-num" style={{width:72,fontSize:12}}/></td>
-                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.opening} onChange={e=>upd(m.id,"opening",e.target.value)} className="ns-cell ns-num" style={{width:58,textAlign:"right"}} min="0"/></td>
-                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.received} onChange={e=>upd(m.id,"received",e.target.value)} className="ns-cell ns-num" style={{width:54,textAlign:"right"}} min="0"/></td>
-                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.dispensed} onChange={e=>upd(m.id,"dispensed",e.target.value)} className="ns-cell ns-num" style={{width:54,textAlign:"right"}} min="0"/></td>
+                  <td><input value={m.cup} onChange={e=>upd(m.id,"cup",e.target.value)} className="ns-cell ns-num" style={{width:84,fontSize:12}}/></td>
+                  <td><input value={m.name} onChange={e=>upd(m.id,"name",e.target.value)} className="ns-cell" style={{width:166,fontWeight:600}}/></td>
+                  <td><input value={m.strength} onChange={e=>upd(m.id,"strength",e.target.value)} className="ns-cell" style={{width:54}}/></td>
+                  <td><input value={m.format} onChange={e=>upd(m.id,"format",e.target.value)} className="ns-cell" style={{width:68}}/></td>
+                  <td><input value={m.din} onChange={e=>upd(m.id,"din",e.target.value)} className="ns-cell ns-num" style={{width:70,fontSize:12}}/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.opening} onChange={e=>upd(m.id,"opening",e.target.value)} className="ns-cell ns-num" style={{width:56,textAlign:"right"}} min="0"/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.received} onChange={e=>upd(m.id,"received",e.target.value)} className="ns-cell ns-num" style={{width:52,textAlign:"right"}} min="0"/></td>
+                  <td className="ns-noprint" style={{textAlign:"right"}}><input type="number" value={m.dispensed} onChange={e=>upd(m.id,"dispensed",e.target.value)} className="ns-cell ns-num" style={{width:52,textAlign:"right"}} min="0"/></td>
                   <td className="ns-noprint ns-num" style={{textAlign:"right",fontWeight:650}}>{t2}</td>
                   {printMode==="gaps"&&<td className="ns-print-only ns-num" style={{textAlign:"right",fontWeight:650,color:C.flag}}>{d>0?"+":""}{d}</td>}
-                  <td style={{textAlign:"right",background:"#F7F9FF"}}>
+                  <td style={{textAlign:"right",background:"#F4FAFA"}}>
                     <input type="number" value={m.physical} onChange={e=>upd(m.id,"physical",e.target.value)}
                       className="ns-cell ns-num ns-noprint" placeholder="—" min="0"
-                      style={{width:66,textAlign:"right",fontWeight:650,borderColor:C.accent}}/>
+                      style={{width:64,textAlign:"right",fontWeight:650,borderColor:C.teal}}/>
                     <span className="ns-print-only ns-writebox"></span>
                   </td>
                   <td className="ns-noprint ns-num" style={{textAlign:"right",fontWeight:650,color:d===null?C.text3:d===0?C.ok:C.flag}}>
@@ -1904,7 +2198,7 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
                   <td>
                     <input value={m.notes} onChange={e=>upd(m.id,"notes",e.target.value)} className="ns-cell ns-noprint"
                       placeholder={d!==null&&d!==0?(fr?"Justification":"Reason"):""}
-                      style={{width:118,borderColor:(d!==null&&d!==0&&!m.notes)?"#E9A3A3":C.line}}/>
+                      style={{width:116,borderColor:(d!==null&&d!==0&&!m.notes)?C.flagLine:C.line}}/>
                     <span className="ns-print-only ns-writebox" style={{width:"130px"}}></span>
                   </td>
                   <td className="ns-noprint"><button onClick={()=>delRow(m.id)} className="ns-x">×</button></td>
@@ -1914,17 +2208,12 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
           </tbody>
         </table>
       </div>
-
       <button className="ns-noprint ns-btn ns-btn-quiet" onClick={addRow} style={{marginBottom:20,fontSize:12.5,padding:"8px 14px"}}>
         {fr?"Ajouter une ligne":"Add a row"}
       </button>
-
-      {totalDisc>0&&(
-        <div className="ns-noprint"><Note tone="flag">
-          {fr?"Imprimez la liste des écarts, recomptez, puis inscrivez une justification. Les écarts qui persistent après recomptage doivent être approuvés par un pharmacien.":"Print the variance list, recount, then write a reason. Variances that persist after a recount need pharmacist approval."}
-        </Note></div>
-      )}
-
+      {totalDisc>0&&<div className="ns-noprint"><Note tone="flag">
+        {fr?"Imprimez la liste des écarts, recomptez, puis inscrivez une justification. Les écarts qui persistent après recomptage doivent être approuvés par un pharmacien.":"Print the variance list, recount, then write a reason. Variances that persist after a recount need pharmacist approval."}
+      </Note></div>}
       {can(role,"edit")?(
         <button className="ns-noprint ns-btn ns-btn-primary" onClick={save} disabled={saving} style={{padding:"13px 26px",fontSize:14}}>
           {saving?(fr?"Enregistrement":"Saving"):(fr?"Valider et enregistrer ce cycle":"Validate and save this cycle")}
@@ -1940,29 +2229,30 @@ function RecoTable({session,profile,member,onComplete,onGoInv,fr}){
   );
 }
 
-function RecoPage({onBack,t,profile,session,member,onGoInv,fr}){
+function RecoPage({onBack,lang,profile,session,member,onGoInv}){
+  const fr=lang==="fr";
   const [step,setStep]=useState("table");
   const [result,setResult]=useState(null);
   if(step==="done"){
     return(
       <div style={{padding:"30px 34px",maxWidth:560}}>
         <div className="ns-panel" style={{padding:28}}>
-          <div style={{fontSize:20,fontWeight:650,marginBottom:6,letterSpacing:"-.02em"}}>{t("recoComplete")}</div>
+          <div style={{fontSize:20,fontWeight:650,marginBottom:6,letterSpacing:"-.02em"}}>{tr(lang,"recoComplete")}</div>
           <div style={{fontSize:13.5,color:C.text2,marginBottom:16}}>{result?.totalMolecules} {fr?"produits":"products"}</div>
           <div style={{marginBottom:22}}>
             {result?.totalDisc>0
               ?<Tag tone="flag">{result.totalDisc} {fr?(result.totalDisc===1?"écart":"écarts"):(result.totalDisc===1?"variance":"variances")}</Tag>
               :<Tag tone="ok">{fr?"Tout balance":"All balanced"}</Tag>}
           </div>
-          <button onClick={()=>{setStep("table");setResult(null);}} className="ns-btn ns-btn-primary">{t("newRecoBtn")}</button>
+          <button onClick={()=>{setStep("table");setResult(null);}} className="ns-btn ns-btn-primary">{tr(lang,"newRecoBtn")}</button>
         </div>
       </div>
     );
   }
   return(
     <div style={{padding:"30px 34px",maxWidth:1400}}>
-      <button className="ns-noprint ns-btn ns-btn-quiet" onClick={onBack} style={{marginBottom:20,padding:"6px 13px",fontSize:12.5}}>{t("back")}</button>
-      <RecoTable session={session} profile={profile} member={member} onGoInv={onGoInv} fr={fr} onComplete={r=>{setResult(r);setStep("done");}}/>
+      <button className="ns-noprint ns-btn ns-btn-quiet" onClick={onBack} style={{marginBottom:20,padding:"6px 13px",fontSize:12.5}}>{tr(lang,"back")}</button>
+      <RecoTable session={session} profile={profile} member={member} onGoInv={onGoInv} lang={lang} onComplete={r=>{setResult(r);setStep("done");}}/>
     </div>
   );
 }
@@ -1980,7 +2270,7 @@ export default function App(){
 
   useEffect(()=>{
     const st=document.createElement("style");
-    st.textContent=GLOBAL_CSS;
+    st.textContent=CSS;
     document.head.appendChild(st);
     return()=>{try{document.head.removeChild(st);}catch(e){}};
   },[]);
@@ -2000,7 +2290,8 @@ export default function App(){
         const {url,key}=SB.get();
         const r=await fetch(url+"/rest/v1/profiles?id=eq."+pid,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}});
         const d=await r.json();
-        if(Array.isArray(d)&&d.length>0){SB.saveProfile(d[0]);setProfile(d[0]);setLang(getLang(d[0].language));}
+        if(Array.isArray(d)&&d.length>0){SB.saveProfile(d[0]);setProfile(d[0]);
+          try{if(!localStorage.getItem("ns_lang")) setLang(getLang(d[0].language));}catch(e){}}
       }catch(e){}
       setLoading(false);
     })();
@@ -2013,22 +2304,25 @@ export default function App(){
     let timer=null;
     function reset(){
       if(timer) clearTimeout(timer);
-      timer=setTimeout(()=>{alert("Session fermée après 5 minutes sans activité.");logout();},IDLE_MS);
+      timer=setTimeout(()=>{
+        alert(lang==="fr"?"Session fermée après 5 minutes sans activité.":"Session closed after 5 minutes of inactivity.");
+        logout();
+      },IDLE_MS);
     }
     const evts=["mousemove","mousedown","keydown","scroll","touchstart","click"];
     evts.forEach(e=>window.addEventListener(e,reset,{passive:true}));
     reset();
     const rf=setInterval(()=>{refreshToken();},45*60*1000);
     return()=>{if(timer)clearTimeout(timer);clearInterval(rf);evts.forEach(e=>window.removeEventListener(e,reset));};
-  },[session]);
+  },[session,lang]);
 
-  if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
+  if(!session) return <AuthScreen lang={lang} setLang={setLang} onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
   if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
   if(loading) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}}>
-      <div style={{fontSize:13.5,color:C.text2}}>Chargement…</div>
+      <div style={{fontSize:13.5,color:C.text2}}>{lang==="fr"?"Chargement…":"Loading…"}</div>
     </div>
   );
-  if(!profile&&!member) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);setLang(getLang(p.language));}} session={session}/>;
+  if(!profile&&!member) return <OnboardingWizard userEmail={session.user.email} lang={lang} setLang={setLang} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
   return <Dashboard session={session} profile={profile} member={member} onLogout={logout} lang={lang} setLang={setLang}/>;
 }
