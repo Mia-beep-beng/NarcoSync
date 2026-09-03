@@ -2058,7 +2058,7 @@ function HistoryPage({session,member,lang,profile}){
             </tr></thead>
             <tbody>
               {mols.map((m,i)=>{
-                const theo=(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);
+                const theo=(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);+(Number(m.prepared)||0)
                 const d=m.physical!==""?theo-(Number(m.physical)||0):null;
                 return(<tr key={i} style={{background:d!==null&&d!==0?C.flagBg:"transparent"}}>
                   <td style={{fontWeight:600}}>{m.name||"—"}</td>
