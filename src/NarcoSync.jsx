@@ -1754,18 +1754,7 @@ function AuthScreen({onAuth,lang,setLang}){
             {fr?"Chaque décompte est calculé, chaque écart est signalé, et chaque geste porte le nom et la licence de la personne qui l'a posé."
                :"Every count is calculated, every variance is flagged, and every action carries the name and licence of the person who took it."}
           </div>
-        </div>
-        <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-          {LANGS.map(l=>{
-            const ready=READY.indexOf(l.c)>=0;
-            return(
-              <button key={l.c} onClick={()=>{if(ready){SB.setLang(l.c);setLang(l.c);}}} disabled={!ready}
-                style={{border:"none",background:"none",cursor:ready?"pointer":"default",fontSize:12.5,
-                  color:lang===l.c?"#fff":(ready?"rgba(255,255,255,.42)":"rgba(255,255,255,.18)"),
-                  fontWeight:lang===l.c?600:400,padding:0}}>{l.n}</button>
-            );
-          })}
-        </div>
+           <LangSearch lang={lang} setLang={setLang}/>
       </div>
 
       <div style={{flex:"1 1 54%",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:"36px 28px",minWidth:0}}>
