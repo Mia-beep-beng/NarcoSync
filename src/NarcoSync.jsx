@@ -162,7 +162,7 @@ const PROVINCE_COORDS={
   "Newfoundland & Labrador":{lat:53.1,lon:-57.7},"Prince Edward Island":{lat:46.5,lon:-63.4},
 };
 
-const SB={
+const SB={const IDLE_MS=5*60*1000;
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
   get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
