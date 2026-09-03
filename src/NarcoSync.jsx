@@ -4,6 +4,8 @@ const NS_URL="https://lqykpjgqbhaprbtafimi.supabase.co";
 const NS_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxeWtwamdxYmhhcHJidGFmaW1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MzMzNjMsImV4cCI6MjA5OTMwOTM2M30.N2C5u-FmEqVyemYyqVlw64RQErQe7O-uGVzYulV8nOI";
 try{localStorage.setItem("ns_url",NS_URL);localStorage.setItem("ns_key",NS_KEY);}catch(e){}
 
+const IDLE_MS=5*60*1000;
+
 const C = {
   navy:"#0F2744",blue:"#1E4D8C",sky:"#2E86DE",
   green:"#1A9E5F",red:"#D63031",orange:"#E67E22",
@@ -162,7 +164,7 @@ const PROVINCE_COORDS={
   "Newfoundland & Labrador":{lat:53.1,lon:-57.7},"Prince Edward Island":{lat:46.5,lon:-63.4},
 };
 
-const SB={const IDLE_MS=5*60*1000;
+const SB={
   save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
   get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
@@ -222,6 +224,7 @@ function isDiscontinued(v){
   return s.indexOf("disc")>=0||s.indexOf("cesse")>=0||s.indexOf("retir")>=0;
 }
 function cleanDin(d){return String(d||"").replace(/\D/g,"").trim();}
+function cleanCup(v){return String(v||"").replace(/\s/g,"").trim();}
 
 const CAT={
   async list(search){
@@ -238,8 +241,18 @@ const CAT={
     for(let i=0;i<dins.length;i+=100){
       const chunk=dins.slice(i,i+100).filter(Boolean);
       if(!chunk.length) continue;
-      const q="drug_catalog?select=*&din=in.("+chunk.join(",")+")";
-      const r=await sbFetch(q);
+      const r=await sbFetch("drug_catalog?select=*&din=in.("+chunk.join(",")+")");
+      r.forEach(x=>out.push(x));
+    }
+    return out;
+  },
+  async byCups(cups){
+    if(!cups.length) return [];
+    const out=[];
+    for(let i=0;i<cups.length;i+=100){
+      const chunk=cups.slice(i,i+100).filter(Boolean);
+      if(!chunk.length) continue;
+      const r=await sbFetch("drug_catalog?select=*&cup=in.("+chunk.join(",")+")");
       r.forEach(x=>out.push(x));
     }
     return out;
@@ -249,7 +262,7 @@ const CAT={
       .filter(r=>r&&(r.description||r.molecule))
       .filter(r=>!isDiscontinued(r.status))
       .map(r=>({
-        cup:String(r.cup||"").trim()||null,
+        cup:cleanCup(r.cup)||null,
         molecule:String(r.description||r.molecule||"").trim(),
         strength:String(r.strength||"").trim()||null,
         format:String(r.format||"").trim()||null,
@@ -283,18 +296,22 @@ const INV={
     return await sbFetch(q);
   },
   async addMany(userId,rows){
-    const existing=await sbFetch("pharmacy_drugs?select=din&user_id=eq."+userId+"&limit=5000");
-    const have={};existing.forEach(e=>{if(e.din)have[e.din]=1;});
+    const existing=await sbFetch("pharmacy_drugs?select=din,cup&user_id=eq."+userId+"&limit=5000");
+    const haveDin={};const haveCup={};
+    existing.forEach(e=>{if(e.din)haveDin[e.din]=1;if(e.cup)haveCup[e.cup]=1;});
     const body=[];
     rows.forEach(r=>{
       const din=cleanDin(r.din);
-      if(din&&have[din]) return;
-      if(din) have[din]=1;
+      const cup=cleanCup(r.cup);
+      if(din&&haveDin[din]) return;
+      if(!din&&cup&&haveCup[cup]) return;
+      if(din) haveDin[din]=1;
+      if(cup) haveCup[cup]=1;
       body.push({
         user_id:userId,
         drug_id:r.drug_id||null,
         din:din||null,
-        cup:String(r.cup||"").trim()||null,
+        cup:cup||null,
         molecule:String(r.molecule||r.description||"").trim(),
         strength:String(r.strength||"").trim()||null,
         format:String(r.format||"").trim()||null,
@@ -339,7 +356,7 @@ const PROMPT_CATALOG="Ce document est une liste de produits d'une pharmacie cana
   +"Format: [{\"cup\":\"\",\"description\":\"\",\"strength\":\"\",\"format\":\"\",\"status\":\"\",\"din\":\"\"}]";
 
 const PROMPT_ORDER="Ce document est un bon de commande ou une liste d'inventaire d'une pharmacie canadienne. "
-  +"Pour CHAQUE ligne de produit extrais: cup (code produit), description (nom du medicament), strength (force ex 5mg), format (ex 100 comp), din (8 chiffres), qty (quantite recue ou en stock, un nombre). "
+  +"Pour CHAQUE ligne de produit extrais: cup (code produit), description (nom du medicament), strength (force ex 5mg), format (ex 100 comp), din (8 chiffres si present sinon vide), qty (quantite recue ou en stock, un nombre). "
   +"Si une valeur est absente mets une chaine vide, et qty a 0 si aucune quantite. "
   +"Retourne UNIQUEMENT un tableau JSON valide, sans markdown ni backticks. "
   +"Format: [{\"cup\":\"\",\"description\":\"\",\"strength\":\"\",\"format\":\"\",\"din\":\"\",\"qty\":0}]";
@@ -369,6 +386,22 @@ async function callClaudeRetry(block,aiKey,prompt){
       throw e;
     }
   }
+}
+
+async function refreshToken(){
+  const s=SB.getSession();
+  if(!s||!s.refresh_token) return null;
+  const g=SB.get();
+  try{
+    const r=await fetch(g.url+"/auth/v1/token?grant_type=refresh_token",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":g.key},
+      body:JSON.stringify({refresh_token:s.refresh_token})
+    });
+    const d=await r.json();
+    if(d.access_token){SB.saveSession(d);return d;}
+  }catch(e){}
+  return null;
 }
 
 async function scanFile(file,aiKey,prompt,onProgress,ctrl){
@@ -573,7 +606,26 @@ function InventoryPage({session,fr}){
     }
     setBusy("");e.target.value="";
     if(bad) setErr(bad);
-    if(all.length) setPending(all.map(r=>({...r,din:cleanDin(r.din)})));
+    if(all.length){
+      setBusy(fr?"Recherche des DIN par CUP…":"Matching DIN by CUP…");
+      let filled=0;
+      try{
+        const needCup=all.filter(r=>cleanDin(r.din).length!==8&&cleanCup(r.cup)).map(r=>cleanCup(r.cup));
+        if(needCup.length){
+          const hits=await CAT.byCups([...new Set(needCup)]);
+          const map={};hits.forEach(h=>{if(h.cup)map[cleanCup(h.cup)]=h;});
+          all=all.map(r=>{
+            if(cleanDin(r.din).length===8) return r;
+            const h=map[cleanCup(r.cup)];
+            if(h&&h.din){filled++;return{...r,din:h.din,strength:r.strength||h.strength||"",format:r.format||h.format||""};}
+            return r;
+          });
+        }
+      }catch(e3){}
+      setBusy("");
+      if(filled) setInfo((fr?"DIN retrouvés automatiquement par CUP : ":"DIN found by CUP: ")+filled);
+      setPending(all.map(r=>({...r,din:cleanDin(r.din)})));
+    }
     else if(!bad) setErr(fr?"Aucun produit détecté.":"No product detected.");
   }
 
@@ -1321,6 +1373,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
     const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,dispensing_system:dispensingSystem,inventory_system:inventorySystem,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
+    try{await sbFetch("pharmacy_members",{method:"POST",body:[{pharmacy_id:session.user.id,user_id:session.user.id,email:userEmail,full_name:pharmacistOwner,licence:permitNumber,role:"owner"}],prefer:"return=minimal"});}catch{}
     onComplete(profile);setSaving(false);
   }
   const pct=(step/3)*100;
@@ -1669,7 +1722,7 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
             {molecules.map((m,i)=>{
               const th2=theo(m);const d=diff(m);
               return(
-                <tr key={m.id} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
+                <tr key={m.id} style={{background:d===null?(i%2===0?"#fff":"#FAFAFA"):d===0?"#F0FDF4":"#FEF2F2"}}>
                   <td style={td}><input value={m.cup} onChange={e=>update(m.id,"cup",e.target.value)} style={{...ni,width:90,fontFamily:"monospace"}}/></td>
                   <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:180}}/></td>
                   <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:62}}/></td>
@@ -1745,6 +1798,7 @@ export default function App(){
   });
   const [profile,setProfile]=useState(SB.getProfile());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
+
   useEffect(()=>{
     if(session&&!profile&&session.user.email!==ADMIN_EMAIL){
       setLoading(true);
@@ -1755,7 +1809,30 @@ export default function App(){
         .catch(()=>setLoading(false));
     }
   },[session]);
+
   const logout=()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);};
+
+  useEffect(()=>{
+    if(!session) return;
+    let timer=null;
+    function reset(){
+      if(timer) clearTimeout(timer);
+      timer=setTimeout(()=>{
+        alert("Session expirée après 5 minutes d'inactivité. Reconnectez-vous.");
+        logout();
+      },IDLE_MS);
+    }
+    const evts=["mousemove","mousedown","keydown","scroll","touchstart","click"];
+    evts.forEach(e=>window.addEventListener(e,reset,{passive:true}));
+    reset();
+    const refresher=setInterval(()=>{refreshToken();},45*60*1000);
+    return ()=>{
+      if(timer) clearTimeout(timer);
+      clearInterval(refresher);
+      evts.forEach(e=>window.removeEventListener(e,reset));
+    };
+  },[session]);
+
   if(!session) return <AuthScreen onAuth={s=>{SB.saveSession(s);setSession(s);if(s.user.email!==ADMIN_EMAIL)setLoading(true);}}/>;
   if(session.user.email===ADMIN_EMAIL) return <AdminDashboard session={session} onLogout={logout}/>;
   if(loading) return(
