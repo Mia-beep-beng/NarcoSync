@@ -14,6 +14,18 @@ const C = {
 
 const ADMIN_EMAIL = "mtrofin@icloud.com";
 
+const ROLES={
+  owner:{fr:"Pharmacien-propriétaire",en:"Pharmacist-owner",col:"#1E4D8C"},
+  pharmacist:{fr:"Pharmacien",en:"Pharmacist",col:"#2E86DE"},
+  technician:{fr:"Chef technicien",en:"Chief technician",col:"#E67E22"},
+};
+function can(role,action){
+  if(role==="owner") return true;
+  if(role==="pharmacist") return action!=="manage_team";
+  if(role==="technician") return action==="view"||action==="count"||action==="print";
+  return false;
+}
+
 const T = {
   en:{
     login:"Login",createAccount:"Create account",signIn:"Sign in →",createMyAccount:"Create my account →",
@@ -47,20 +59,14 @@ const T = {
     requiredNote:"* Required fields",planRequired:"⚠️ Please select a plan to continue.",
     welcomeToNarco:"Welcome to NarcoSync",stepOf:"Step",ofTotal:"of",
     dashboard:"Dashboard",reconciliation:"Reconciliation",history:"History",
-    inventory:"My inventory",
+    inventory:"My inventory",team:"My team",
     clinical:"Clinical",plans:"Plans",signOut:"🔒 Sign out",loggedInAs:"LOGGED IN AS",
     welcomeMsg:"Welcome to NarcoSync 👋",liveMsg:"🎉 NarcoSync is live!",
     liveSubMsg:"Connected to Supabase · Ready for your first reconciliation",
     emptyState:"No cycles yet",emptyStateSub:"Complete your first reconciliation to see stats here.",
     newReco:"⚡ + New Reconciliation",newRecoTitle:"⚡ New Reconciliation",
-    newRecoSub:"Upload your 4 files · Any format",
-    inventoryLabel:"📦 Inventory",inventoryDesc:"Export from your ordering/inventory system",
-    salesLabel:"💊 Dispensing",salesDesc:"Export from your dispensing software",
-    cspLabel:"📋 CSP Purchase Order",cspDesc:"Narcotics receiving — Purdue, Paladin, McKesson, etc.",
-    regularOrderLabel:"📄 Regular Purchase Order",regularOrderDesc:"Regular orders — PharmaClik, Matrix, McKesson Connect",
     reconcileNow:"⚡ Proceed to reconciliation →",recoComplete:"Reconciliation complete!",
-    recoCompleteSub:"Cycle saved successfully.",newRecoBtn:"New reconciliation",
-    historyDesc:"Your past reconciliation cycles will appear here.",
+    newRecoBtn:"New reconciliation",
     clinicalDesc:"Calculators, minor ailments, global billing guide — coming soon.",
     plansDesc:"Basic $49 · Pro $99 · Enterprise $249 CAD/month.",
     basicLabel:"Basic",basicDesc:"1 pharmacy · Core reconciliation",basicPrice:"$49 CAD/mo",
@@ -99,20 +105,14 @@ const T = {
     requiredNote:"* Champs obligatoires",planRequired:"⚠️ Veuillez sélectionner un forfait pour continuer.",
     welcomeToNarco:"Bienvenue sur NarcoSync",stepOf:"Étape",ofTotal:"sur",
     dashboard:"Tableau de bord",reconciliation:"Réconciliation",history:"Historique",
-    inventory:"Mon inventaire",
+    inventory:"Mon inventaire",team:"Mon équipe",
     clinical:"Clinique",plans:"Forfaits",signOut:"🔒 Se déconnecter",loggedInAs:"CONNECTÉ EN TANT QUE",
     welcomeMsg:"Bienvenue sur NarcoSync 👋",liveMsg:"🎉 NarcoSync est en ligne!",
     liveSubMsg:"Connecté à Supabase · Prêt pour votre première réconciliation",
     emptyState:"Aucun cycle pour l'instant",emptyStateSub:"Complétez votre première réconciliation pour voir les statistiques ici.",
     newReco:"⚡ + Nouvelle réconciliation",newRecoTitle:"⚡ Nouvelle réconciliation",
-    newRecoSub:"Téléversez vos 4 fichiers · Tout format",
-    inventoryLabel:"📦 Inventaire",inventoryDesc:"Export de votre système de commande / inventaire",
-    salesLabel:"💊 Dispensation",salesDesc:"Export de votre logiciel de dispensation",
-    cspLabel:"📋 Bon de commande CSP",cspDesc:"Réceptions de narcotiques — Purdue, Paladin, McKesson, etc.",
-    regularOrderLabel:"📄 Bon de commande régulier",regularOrderDesc:"Commandes régulières — PharmaClik, Matrix, McKesson Connect",
     reconcileNow:"⚡ Procéder à la réconciliation →",recoComplete:"Réconciliation complète!",
-    recoCompleteSub:"Cycle sauvegardé avec succès.",newRecoBtn:"Nouvelle réconciliation",
-    historyDesc:"Vos cycles de réconciliation passés apparaîtront ici.",
+    newRecoBtn:"Nouvelle réconciliation",
     clinicalDesc:"Calculateurs, affections mineures, guide de facturation — à venir.",
     plansDesc:"Basique 49$ · Pro 99$ · Entreprise 249$ CAD/mois.",
     basicLabel:"Basique",basicDesc:"1 pharmacie · Réconciliation principale",basicPrice:"49$ CAD/mois",
@@ -165,7 +165,6 @@ const PROVINCE_COORDS={
 };
 
 const SB={
-  save:(url,key)=>{localStorage.setItem("ns_url",url);localStorage.setItem("ns_key",key);},
   get:()=>{try{return{url:localStorage.getItem("ns_url")||NS_URL,key:localStorage.getItem("ns_key")||NS_KEY};}catch{return{url:NS_URL,key:NS_KEY};}},
   getSession:()=>{try{const s=localStorage.getItem("ns_session");return s?JSON.parse(s):null;}catch{return null;}},
   saveSession:(s)=>{try{localStorage.setItem("ns_session",JSON.stringify(s));}catch{}},
@@ -173,6 +172,9 @@ const SB={
   getProfile:()=>{try{const p=localStorage.getItem("ns_profile");return p?JSON.parse(p):null;}catch{return null;}},
   saveProfile:(p)=>{try{localStorage.setItem("ns_profile",JSON.stringify(p));}catch{}},
   clearProfile:()=>{try{localStorage.removeItem("ns_profile");}catch{}},
+  getMember:()=>{try{const m=localStorage.getItem("ns_member");return m?JSON.parse(m):null;}catch{return null;}},
+  saveMember:(m)=>{try{localStorage.setItem("ns_member",JSON.stringify(m));}catch{}},
+  clearMember:()=>{try{localStorage.removeItem("ns_member");}catch{}},
   getAIKey:()=>{try{return localStorage.getItem("ns_ai_key")||"";}catch{return "";}},
   saveAIKey:(k)=>{try{localStorage.setItem("ns_ai_key",k);}catch{}},
 };
@@ -203,6 +205,10 @@ function PlanBadge({plan}){
   const s=PLAN_COLORS[plan]||{bg:"#F3F4F6",color:"#6B7280"};
   return <span style={{background:s.bg,color:s.color,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:.5}}>{plan}</span>;
 }
+function RoleBadge({role,fr}){
+  const r=ROLES[role]||ROLES.pharmacist;
+  return <span style={{background:r.col+"18",color:r.col,fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:20}}>{fr?r.fr:r.en}</span>;
+}
 
 /* ===== SUPABASE REST ===== */
 
@@ -225,6 +231,44 @@ function isDiscontinued(v){
 }
 function cleanDin(d){return String(d||"").replace(/\D/g,"").trim();}
 function cleanCup(v){return String(v||"").replace(/\s/g,"").trim();}
+
+const MEM={
+  async byEmail(email){
+    const q="pharmacy_members?select=*&email=eq."+encodeURIComponent(email.toLowerCase().trim())+"&active=eq.true&limit=1";
+    const r=await sbFetch(q);
+    return r&&r.length?r[0]:null;
+  },
+  async list(pharmacyId){
+    return await sbFetch("pharmacy_members?select=*&pharmacy_id=eq."+pharmacyId+"&order=created_at.asc");
+  },
+  async add(row){
+    return await sbFetch("pharmacy_members",{method:"POST",body:[row],prefer:"return=representation"});
+  },
+  async update(id,patch){await sbFetch("pharmacy_members?id=eq."+id,{method:"PATCH",body:patch});},
+  async remove(id){await sbFetch("pharmacy_members?id=eq."+id,{method:"DELETE"});},
+  async linkUser(id,userId){await sbFetch("pharmacy_members?id=eq."+id,{method:"PATCH",body:{user_id:userId}});}
+};
+
+const AUDIT={
+  async log(member,action,entity,entityId,details){
+    if(!member) return;
+    try{
+      await sbFetch("audit_log",{method:"POST",body:[{
+        user_id:member.user_id,
+        action:action,
+        entity:entity,
+        entity_id:entityId?String(entityId):null,
+        details:details||null,
+        pharmacist_licence:member.licence||"—",
+        pharmacist_name:member.full_name||member.email
+      }],prefer:"return=minimal"});
+    }catch(e){}
+  },
+  async list(userIds){
+    if(!userIds||!userIds.length) return [];
+    return await sbFetch("audit_log?select=*&user_id=in.("+userIds.join(",")+")&order=created_at.desc&limit=500");
+  }
+};
 
 const CAT={
   async list(search){
@@ -287,16 +331,16 @@ const CAT={
 };
 
 const INV={
-  async list(userId,search){
-    let q="pharmacy_drugs?select=*&user_id=eq."+userId+"&order=molecule.asc&limit=5000";
+  async list(pharmacyId,search){
+    let q="pharmacy_drugs?select=*&user_id=eq."+pharmacyId+"&order=molecule.asc&limit=5000";
     if(search&&search.trim()){
       const s=encodeURIComponent("*"+search.trim()+"*");
       q+="&or=(molecule.ilike."+s+",din.ilike."+s+",cup.ilike."+s+")";
     }
     return await sbFetch(q);
   },
-  async addMany(userId,rows){
-    const existing=await sbFetch("pharmacy_drugs?select=din,cup&user_id=eq."+userId+"&limit=5000");
+  async addMany(pharmacyId,rows){
+    const existing=await sbFetch("pharmacy_drugs?select=din,cup&user_id=eq."+pharmacyId+"&limit=5000");
     const haveDin={};const haveCup={};
     existing.forEach(e=>{if(e.din)haveDin[e.din]=1;if(e.cup)haveCup[e.cup]=1;});
     const body=[];
@@ -308,7 +352,8 @@ const INV={
       if(din) haveDin[din]=1;
       if(cup) haveCup[cup]=1;
       body.push({
-        user_id:userId,
+        user_id:pharmacyId,
+        pharmacy_id:pharmacyId,
         drug_id:r.drug_id||null,
         din:din||null,
         cup:cup||null,
@@ -483,7 +528,7 @@ function AIKeyModal({onClose,onSaved}){
 }
 
 /* ===== VALIDATION TABLE ===== */
-function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr}){
+function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr,member}){
   function up(i,f,v){ setRows(rows.map((r,j)=>j===i?{...r,[f]:v}:r)); }
   function del(i){ setRows(rows.filter((r,j)=>j!==i)); }
   const th={textAlign:"left",padding:"8px 10px",fontSize:10,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"2px solid #E2E8F0",whiteSpace:"nowrap"};
@@ -495,14 +540,17 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr}){
       <div style={{fontWeight:900,fontSize:15,color:"#92400E",marginBottom:4}}>
         ⚠️ {fr?"Validation requise par le pharmacien":"Pharmacist validation required"}
       </div>
-      <div style={{fontSize:12,color:"#92400E",marginBottom:14}}>
+      <div style={{fontSize:12,color:"#92400E",marginBottom:6}}>
         {rows.length} {fr?"lignes lues. Vérifiez et corrigez chaque valeur avant d'enregistrer.":"rows read. Check and correct each value before saving."}
         {badDin>0&&<span style={{fontWeight:800}}> · {badDin} DIN {fr?"à vérifier (≠ 8 chiffres)":"to check"}</span>}
       </div>
+      {member&&<div style={{fontSize:11,color:"#92400E",marginBottom:14,fontWeight:700}}>
+        ✍️ {fr?"Signé par":"Signed by"} : {member.full_name||member.email} · {fr?"licence":"licence"} {member.licence||"—"}
+      </div>}
       <div style={{maxHeight:420,overflowY:"auto",background:"#fff",borderRadius:10,marginBottom:14}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:820}}>
           <thead><tr>
-            <th style={th}>CUP</th><th style={th}>{fr?"Description":"Description"}</th><th style={th}>{fr?"Force":"Strength"}</th>
+            <th style={th}>CUP</th><th style={th}>Description</th><th style={th}>{fr?"Force":"Strength"}</th>
             <th style={th}>Format</th><th style={th}>DIN</th>{showQty&&<th style={th}>{fr?"Qté":"Qty"}</th>}<th style={th}></th>
           </tr></thead>
           <tbody>
@@ -533,9 +581,267 @@ function ValidationTable({rows,setRows,showQty,onConfirm,onCancel,busy,fr}){
   );
 }
 
+/* ===== TEAM PAGE ===== */
+function TeamPage({session,member,fr}){
+  const pharmacyId=member?member.pharmacy_id:session.user.id;
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [err,setErr]=useState("");
+  const [info,setInfo]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [nw,setNw]=useState({email:"",full_name:"",licence:"",role:"pharmacist"});
+  const isOwner=member&&member.role==="owner";
+
+  async function load(){
+    setLoading(true);setErr("");
+    try{setRows(await MEM.list(pharmacyId));}catch(e){setErr(e.message||String(e));}
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function invite(){
+    const email=nw.email.toLowerCase().trim();
+    if(!email||!nw.full_name.trim()){setErr(fr?"Courriel et nom requis.":"Email and name required.");return;}
+    if(nw.role!=="technician"&&!nw.licence.trim()){setErr(fr?"Le numéro de licence est obligatoire pour un pharmacien.":"Licence required for a pharmacist.");return;}
+    setBusy(true);setErr("");setInfo("");
+    try{
+      await MEM.add({
+        pharmacy_id:pharmacyId,
+        user_id:null,
+        email:email,
+        full_name:nw.full_name.trim(),
+        licence:nw.licence.trim()||null,
+        role:nw.role,
+        active:true
+      });
+      const g=SB.get();
+      let mailed=false;
+      try{
+        const r=await fetch(g.url+"/auth/v1/signup",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":g.key},
+          body:JSON.stringify({email:email,password:"Temp-"+Math.random().toString(36).slice(2,10)+"!A9"})
+        });
+        if(r.ok) mailed=true;
+      }catch(e){}
+      try{
+        await fetch(g.url+"/auth/v1/recover",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":g.key},
+          body:JSON.stringify({email:email,redirect_to:window.location.origin})
+        });
+        mailed=true;
+      }catch(e){}
+      await AUDIT.log(member,"invite_member","pharmacy_members",null,nw.role+" · "+email);
+      setNw({email:"",full_name:"",licence:"",role:"pharmacist"});
+      setInfo(mailed
+        ?(fr?"Invitation envoyée à ":"Invitation sent to ")+email+(fr?" — la personne reçoit un courriel pour choisir son mot de passe.":" — they get an email to set their password.")
+        :(fr?"Membre ajouté. Demandez-lui d'utiliser « Mot de passe oublié » pour activer son compte.":"Member added. Ask them to use \"Forgot password\" to activate."));
+      await load();
+    }catch(e){setErr(e.message||String(e));}
+    setBusy(false);
+  }
+
+  async function toggleActive(r){
+    try{
+      await MEM.update(r.id,{active:!r.active});
+      await AUDIT.log(member,r.active?"deactivate_member":"activate_member","pharmacy_members",r.id,r.email);
+      await load();
+    }catch(e){setErr(e.message||String(e));}
+  }
+
+  async function del(r){
+    if(r.role==="owner"){setErr(fr?"Le propriétaire ne peut pas être retiré.":"Owner cannot be removed.");return;}
+    if(!window.confirm(fr?("Retirer "+(r.full_name||r.email)+" de l'équipe?"):("Remove "+(r.full_name||r.email)+"?"))) return;
+    try{
+      await MEM.remove(r.id);
+      await AUDIT.log(member,"remove_member","pharmacy_members",r.id,r.email);
+      await load();
+    }catch(e){setErr(e.message||String(e));}
+  }
+
+  const th={textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"1.5px solid #E2E8F0",whiteSpace:"nowrap"};
+  const td={padding:"10px 12px",fontSize:13,borderBottom:"1px solid #F3F4F6",color:C.navy};
+
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{marginBottom:20}}>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>👥 {fr?"Mon équipe":"My team"}</div>
+        <div style={{fontSize:13,color:C.grey,marginTop:4}}>
+          {rows.length} {fr?"membre(s) · chaque action est signée par la personne connectée":"member(s) · every action is signed by the logged-in person"}
+        </div>
+      </div>
+
+      {!isOwner&&(
+        <div style={{background:"#FFFBEB",border:"1.5px solid #FCD34D",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#92400E",marginBottom:18}}>
+          🔒 {fr?"Seul le pharmacien-propriétaire peut ajouter ou retirer des membres.":"Only the pharmacist-owner can add or remove members."}
+        </div>
+      )}
+
+      {isOwner&&(
+        <div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:12,padding:18,marginBottom:20}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:12}}>➕ {fr?"Inviter un membre":"Invite a member"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1.4fr 1.2fr 1fr 1fr",gap:10,marginBottom:12}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{fr?"Courriel *":"Email *"}</label>
+              <input value={nw.email} onChange={e=>setNw({...nw,email:e.target.value})} placeholder="prenom@pharmacie.com" style={{...inputStyle,fontSize:12,padding:"8px 10px"}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{fr?"Nom complet *":"Full name *"}</label>
+              <input value={nw.full_name} onChange={e=>setNw({...nw,full_name:e.target.value})} placeholder={fr?"Prénom Nom":"First Last"} style={{...inputStyle,fontSize:12,padding:"8px 10px"}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>{fr?"Rôle":"Role"}</label>
+              <select value={nw.role} onChange={e=>setNw({...nw,role:e.target.value})} style={{...inputStyle,fontSize:12,padding:"8px 10px",cursor:"pointer"}}>
+                <option value="pharmacist">{fr?ROLES.pharmacist.fr:ROLES.pharmacist.en}</option>
+                <option value="technician">{fr?ROLES.technician.fr:ROLES.technician.en}</option>
+                <option value="owner">{fr?ROLES.owner.fr:ROLES.owner.en}</option>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.grey,display:"block",marginBottom:3}}>
+                {fr?"Licence":"Licence"}{nw.role!=="technician"&&<span style={{color:C.red}}> *</span>}
+              </label>
+              <input value={nw.licence} onChange={e=>setNw({...nw,licence:e.target.value})} placeholder="OPQ-12345" style={{...inputStyle,fontSize:12,padding:"8px 10px"}}/>
+            </div>
+          </div>
+          <button onClick={invite} disabled={busy} style={{padding:"10px 20px",borderRadius:9,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:C.sky,opacity:busy?.5:1}}>
+            {busy?(fr?"Envoi…":"Sending…"):(fr?"✉️ Envoyer l'invitation":"✉️ Send invitation")}
+          </button>
+          <div style={{fontSize:11,color:C.grey,marginTop:8}}>
+            {fr?"La personne reçoit un courriel pour choisir son propre mot de passe. Sa licence sera automatiquement attachée à chaque action qu'elle pose.":"They receive an email to set their own password."}
+          </div>
+        </div>
+      )}
+
+      {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
+      {info&&<div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#166534",marginBottom:14}}>✅ {info}</div>}
+
+      <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+          <thead><tr>
+            <th style={th}>{fr?"Nom":"Name"}</th><th style={th}>{fr?"Courriel":"Email"}</th>
+            <th style={th}>{fr?"Licence":"Licence"}</th><th style={th}>{fr?"Rôle":"Role"}</th>
+            <th style={th}>{fr?"Statut":"Status"}</th><th style={th}></th>
+          </tr></thead>
+          <tbody>
+            {loading&&<tr><td style={td} colSpan={6}>{fr?"Chargement…":"Loading…"}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={6}>{fr?"Aucun membre.":"No members."}</td></tr>}
+            {rows.map(r=>(
+              <tr key={r.id} style={{opacity:r.active?1:.45}}>
+                <td style={{...td,fontWeight:700}}>{r.full_name||"—"}</td>
+                <td style={td}>{r.email}</td>
+                <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.licence||"—"}</td>
+                <td style={td}><RoleBadge role={r.role} fr={fr}/></td>
+                <td style={td}>
+                  {r.user_id
+                    ?<span style={{color:C.green,fontSize:11,fontWeight:700}}>✅ {fr?"Actif":"Active"}</span>
+                    :<span style={{color:C.orange,fontSize:11,fontWeight:700}}>⏳ {fr?"Invitation envoyée":"Invited"}</span>}
+                </td>
+                <td style={td}>
+                  {isOwner&&r.role!=="owner"&&(
+                    <span style={{display:"flex",gap:8}}>
+                      <button onClick={()=>toggleActive(r)} style={{border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontSize:11,padding:"4px 10px",borderRadius:7,fontFamily:"inherit",color:C.grey}}>
+                        {r.active?(fr?"Désactiver":"Disable"):(fr?"Activer":"Enable")}
+                      </button>
+                      <button onClick={()=>del(r)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:15}}>×</button>
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{marginTop:24,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+        {[
+          {r:"owner",items:fr?["Tout l'accès","Gestion de l'équipe","Suppression et ajustement","Validation des écarts"]:["Full access","Team management","Delete and adjust","Approve variances"]},
+          {r:"pharmacist",items:fr?["Inventaire et réconciliation","Validation des imports","Validation des écarts","Pas de gestion d'équipe"]:["Inventory and reconciliation","Validate imports","Approve variances","No team management"]},
+          {r:"technician",items:fr?["Consultation seulement","Saisie du décompte physique","Impression des rapports","Aucune suppression"]:["View only","Enter physical counts","Print reports","No deletion"]},
+        ].map(x=>(
+          <div key={x.r} style={{background:"#fff",borderRadius:12,padding:16,border:"1.5px solid #E2E8F0",borderTop:"4px solid "+ROLES[x.r].col}}>
+            <div style={{marginBottom:10}}><RoleBadge role={x.r} fr={fr}/></div>
+            {x.items.map((it,i)=>(
+              <div key={i} style={{fontSize:11,color:C.grey,marginBottom:5}}>· {it}</div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===== AUDIT PAGE ===== */
+function AuditPage({session,member,fr}){
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [err,setErr]=useState("");
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const mems=await MEM.list(member?member.pharmacy_id:session.user.id);
+        const ids=mems.map(m=>m.user_id).filter(Boolean);
+        if(!ids.length){setRows([]);setLoading(false);return;}
+        setRows(await AUDIT.list(ids));
+      }catch(e){setErr(e.message||String(e));}
+      setLoading(false);
+    })();
+  },[]);
+  function fd(d){ if(!d) return "—"; return new Date(d).toLocaleDateString(fr?"fr-CA":"en-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+  const LABELS={
+    invite_member:fr?"Invitation d'un membre":"Member invited",
+    remove_member:fr?"Retrait d'un membre":"Member removed",
+    activate_member:fr?"Activation d'un membre":"Member activated",
+    deactivate_member:fr?"Désactivation d'un membre":"Member deactivated",
+    delete_drug:fr?"Suppression d'un produit":"Product deleted",
+    adjust_qty:fr?"Ajustement de quantité":"Quantity adjusted",
+    import_inventory:fr?"Import validé":"Import validated",
+    save_cycle:fr?"Cycle de réconciliation sauvegardé":"Reconciliation cycle saved",
+    delete_cycle:fr?"Suppression d'un cycle":"Cycle deleted",
+    add_drug:fr?"Ajout d'un produit":"Product added",
+  };
+  const th={textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"1.5px solid #E2E8F0",whiteSpace:"nowrap"};
+  const td={padding:"9px 12px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.navy};
+  return(
+    <div style={{padding:"28px 32px"}}>
+      <div style={{marginBottom:8}}>
+        <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📋 {fr?"Journal d'audit":"Audit log"}</div>
+        <div style={{fontSize:13,color:C.grey,marginTop:4}}>
+          {fr?"Chaque action est inscrite avec le nom, la licence, la date et l'heure. Le journal ne peut être ni modifié ni effacé.":"Every action is recorded. The log cannot be edited or deleted."}
+        </div>
+      </div>
+      {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,margin:"14px 0"}}>{err}</div>}
+      <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff",marginTop:16}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+          <thead><tr>
+            <th style={th}>{fr?"Date":"Date"}</th><th style={th}>{fr?"Action":"Action"}</th>
+            <th style={th}>{fr?"Détail":"Detail"}</th><th style={th}>{fr?"Par":"By"}</th><th style={th}>{fr?"Licence":"Licence"}</th>
+          </tr></thead>
+          <tbody>
+            {loading&&<tr><td style={td} colSpan={5}>{fr?"Chargement…":"Loading…"}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={5}>{fr?"Aucune action enregistrée pour l'instant.":"No actions logged yet."}</td></tr>}
+            {rows.map(r=>(
+              <tr key={r.id}>
+                <td style={{...td,whiteSpace:"nowrap",color:C.grey}}>{fd(r.created_at)}</td>
+                <td style={{...td,fontWeight:700}}>{LABELS[r.action]||r.action}</td>
+                <td style={td}>{r.details||"—"}</td>
+                <td style={td}>{r.pharmacist_name||"—"}</td>
+                <td style={{...td,fontFamily:"monospace"}}>{r.pharmacist_licence||"—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ===== CLIENT: MY INVENTORY ===== */
-function InventoryPage({session,fr}){
-  const uid=session.user.id;
+function InventoryPage({session,member,fr}){
+  const pid=member?member.pharmacy_id:session.user.id;
+  const role=member?member.role:"owner";
+  const canEdit=can(role,"edit");
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
   const [search,setSearch]=useState("");
@@ -554,7 +860,7 @@ function InventoryPage({session,fr}){
 
   async function load(s){
     setLoading(true);setErr("");
-    try{setRows(await INV.list(uid,s));}catch(e){setErr(e.message||String(e));}
+    try{setRows(await INV.list(pid,s));}catch(e){setErr(e.message||String(e));}
     setLoading(false);
   }
   useEffect(()=>{load("");},[]);
@@ -567,7 +873,8 @@ function InventoryPage({session,fr}){
 
   async function addFromCatalog(d){
     try{
-      await INV.addMany(uid,[{drug_id:d.id,din:d.din,cup:d.cup,molecule:d.molecule,strength:d.strength,format:d.format,qty:0}]);
+      await INV.addMany(pid,[{drug_id:d.id,din:d.din,cup:d.cup,molecule:d.molecule,strength:d.strength,format:d.format,qty:0}]);
+      await AUDIT.log(member,"add_drug","pharmacy_drugs",null,d.molecule+" · DIN "+(d.din||"—"));
       setCatQuery("");setCatRes([]);setInfo(fr?"Ajouté à votre inventaire.":"Added.");
       await load(search);
     }catch(e){setErr(e.message||String(e));}
@@ -581,7 +888,8 @@ function InventoryPage({session,fr}){
         const hit=await CAT.byDins([din]);
         if(!hit.length) await CAT.upsertMany([{din:din,description:nw.molecule,strength:nw.strength,format:nw.format,cup:nw.cup}]);
       }
-      await INV.addMany(uid,[{din:din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format,qty:nw.qty}]);
+      await INV.addMany(pid,[{din:din,cup:nw.cup,molecule:nw.molecule,strength:nw.strength,format:nw.format,qty:nw.qty}]);
+      await AUDIT.log(member,"add_drug","pharmacy_drugs",null,nw.molecule+" · DIN "+(din||"—")+" · qté "+(nw.qty||0));
       setNw({cup:"",molecule:"",strength:"",format:"",din:"",qty:""});setShowAdd(false);
       setInfo(fr?"Produit ajouté.":"Product added.");
       await load(search);
@@ -637,11 +945,12 @@ function InventoryPage({session,fr}){
       const map={};known.forEach(k=>{if(k.din)map[k.din]=k;});
       const newOnes=pending.filter(r=>{const d=cleanDin(r.din);return d.length===8&&!map[d];});
       if(newOnes.length) await CAT.upsertMany(newOnes);
-      const nAdded=await INV.addMany(uid,pending.map(r=>{
+      const nAdded=await INV.addMany(pid,pending.map(r=>{
         const d=cleanDin(r.din);
         const hit=map[d];
         return {drug_id:hit?hit.id:null,din:d,cup:r.cup||(hit?hit.cup:""),molecule:r.description||r.molecule||(hit?hit.molecule:""),strength:r.strength||(hit?hit.strength:""),format:r.format||(hit?hit.format:""),qty:r.qty};
       }));
+      await AUDIT.log(member,"import_inventory","pharmacy_drugs",null,pending.length+(fr?" lignes validées · ":" lines validated · ")+nAdded+(fr?" ajoutées":" added"));
       setPending(null);setBusy("");
       setInfo((fr?"Inventaire mis à jour : ":"Inventory updated: ")+nAdded+(newOnes.length?(fr?" · nouveaux au catalogue : ":" · new to catalog: ")+newOnes.length:""));
       await load(search);
@@ -650,15 +959,21 @@ function InventoryPage({session,fr}){
 
   async function saveQty(r,v){
     const val=Number(v)||0;
+    if(val===(Number(r.qty)||0)) return;
     try{
       await INV.update(r.id,{qty:val,last_count_at:new Date().toISOString()});
+      await AUDIT.log(member,"adjust_qty","pharmacy_drugs",r.id,(r.molecule||"")+" : "+(r.qty||0)+" → "+val);
       setInfo((fr?"Quantité mise à jour : ":"Qty updated: ")+(r.molecule||"")+" → "+val);
     }catch(e){setErr(e.message||String(e));}
   }
 
-  async function del(id){
+  async function del(r){
     if(!window.confirm(fr?"Retirer ce produit de votre inventaire?":"Remove this product?")) return;
-    try{await INV.remove(id);setRows(rows.filter(r=>r.id!==id));}catch(e){setErr(e.message||String(e));}
+    try{
+      await INV.remove(r.id);
+      await AUDIT.log(member,"delete_drug","pharmacy_drugs",r.id,(r.molecule||"")+" · DIN "+(r.din||"—"));
+      setRows(rows.filter(x=>x.id!==r.id));
+    }catch(e){setErr(e.message||String(e));}
   }
 
   const th={textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:800,color:C.grey,background:"#F8FAFC",borderBottom:"1.5px solid #E2E8F0",whiteSpace:"nowrap"};
@@ -673,18 +988,26 @@ function InventoryPage({session,fr}){
           <div style={{fontWeight:900,fontSize:22,color:C.navy}}>📦 {fr?"Mon inventaire":"My inventory"}</div>
           <div style={{fontSize:13,color:C.grey,marginTop:4}}>{rows.length} {fr?"produits détenus par votre pharmacie":"products held by your pharmacy"}</div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
-          <button onClick={()=>setShowAdd(!showAdd)} style={{padding:"10px 16px",borderRadius:10,border:"1.5px solid "+C.sky,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.sky,background:"#fff"}}>
-            + {fr?"Ajout manuel":"Add manually"}
-          </button>
-          <button onClick={()=>{if(!SB.getAIKey()){setShowKey(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
-            🤖 {fr?"Scanner inventaire / bon d'achat":"Scan inventory / order"}
-          </button>
-        </div>
+        {canEdit&&(
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} style={{display:"none"}}/>
+            <button onClick={()=>setShowAdd(!showAdd)} style={{padding:"10px 16px",borderRadius:10,border:"1.5px solid "+C.sky,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:C.sky,background:"#fff"}}>
+              + {fr?"Ajout manuel":"Add manually"}
+            </button>
+            <button onClick={()=>{if(!SB.getAIKey()){setShowKey(true);}else{fileRef.current?.click();}}} disabled={busy?true:false} style={{padding:"10px 16px",borderRadius:10,border:"none",cursor:busy?"wait":"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,color:"#fff",background:"linear-gradient(135deg,#7C3AED,#5B21B6)"}}>
+              🤖 {fr?"Scanner inventaire / bon d'achat":"Scan inventory / order"}
+            </button>
+          </div>
+        )}
       </div>
 
-      {showAdd&&(
+      {!canEdit&&(
+        <div style={{background:"#FFF7ED",border:"1.5px solid #FDBA74",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#9A3412",marginBottom:18}}>
+          👁 {fr?"Consultation seulement. Comme chef technicien, vous pouvez imprimer le rapport et saisir le décompte physique, mais pas modifier l'inventaire.":"View only. As chief technician you can print and enter counts, but not modify the inventory."}
+        </div>
+      )}
+
+      {showAdd&&canEdit&&(
         <div style={{background:"#EFF6FF",border:"1.5px solid "+C.sky,borderRadius:12,padding:16,marginBottom:18}}>
           <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:10}}>🔍 {fr?"Chercher dans le catalogue":"Search the catalog"}</div>
           <input value={catQuery} onChange={e=>searchCatalog(e.target.value)} placeholder={fr?"Nom, DIN ou CUP…":"Name, DIN or CUP…"} style={{...inputStyle,marginBottom:10}}/>
@@ -727,17 +1050,17 @@ function InventoryPage({session,fr}){
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",fontSize:12,color:C.red,marginBottom:14}}>{err}</div>}
       {info&&<div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#166534",marginBottom:14}}>✅ {info}</div>}
 
-      {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={true} onConfirm={confirmPending} onCancel={()=>setPending(null)} busy={!!busy} fr={fr}/>}
+      {pending&&<ValidationTable rows={pending} setRows={setPending} showQty={true} onConfirm={confirmPending} onCancel={()=>setPending(null)} busy={!!busy} fr={fr} member={member}/>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
           <thead><tr>
             <th style={th}>CUP</th><th style={th}>Description</th><th style={th}>{fr?"Force":"Strength"}</th><th style={th}>Format</th><th style={th}>DIN</th>
-            <th style={{...th,background:"#EFF6FF",color:C.sky}}>🔵 {fr?"Qté actuelle":"Current qty"}</th><th style={th}></th>
+            <th style={{...th,background:"#EFF6FF",color:C.sky}}>🔵 {fr?"Qté actuelle":"Current qty"}</th>{canEdit&&<th style={th}></th>}
           </tr></thead>
           <tbody>
             {loading&&<tr><td style={td} colSpan={7}>{fr?"Chargement…":"Loading…"}</td></tr>}
-            {!loading&&rows.length===0&&<tr><td style={td} colSpan={7}>{fr?"Inventaire vide — scannez votre inventaire ou ajoutez manuellement.":"Empty — scan your inventory or add manually."}</td></tr>}
+            {!loading&&rows.length===0&&<tr><td style={td} colSpan={7}>{fr?"Inventaire vide.":"Empty."}</td></tr>}
             {rows.map(r=>(
               <tr key={r.id}>
                 <td style={{...td,fontFamily:"monospace",fontSize:12}}>{r.cup||"—"}</td>
@@ -746,16 +1069,18 @@ function InventoryPage({session,fr}){
                 <td style={td}>{r.format||"—"}</td>
                 <td style={{...td,fontFamily:"monospace"}}>{r.din||"—"}</td>
                 <td style={{...td,background:"#EFF6FF"}}>
-                  <input type="number" defaultValue={r.qty||0} onBlur={e=>saveQty(r,e.target.value)}
-                    style={{padding:"5px 7px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,textAlign:"center",fontWeight:700,background:"#fff",width:72,fontFamily:"inherit"}}/>
+                  {canEdit
+                    ?<input type="number" defaultValue={r.qty||0} onBlur={e=>saveQty(r,e.target.value)}
+                      style={{padding:"5px 7px",borderRadius:6,border:"2px solid "+C.sky,fontSize:12,textAlign:"center",fontWeight:700,background:"#fff",width:72,fontFamily:"inherit"}}/>
+                    :<span style={{fontWeight:800,color:C.sky}}>{r.qty||0}</span>}
                 </td>
-                <td style={td}><button onClick={()=>del(r.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>
+                {canEdit&&<td style={td}><button onClick={()=>del(r)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>×</button></td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {rows.length>0&&<div style={{fontSize:11,color:C.grey,marginTop:8}}>💡 {fr?"Modifiez la quantité et cliquez ailleurs — l'ajustement s'enregistre automatiquement.":"Edit the qty and click away — it saves automatically."}</div>}
+      {rows.length>0&&canEdit&&<div style={{fontSize:11,color:C.grey,marginTop:8}}>💡 {fr?"Modifiez la quantité et cliquez ailleurs — l'ajustement est enregistré au journal avec votre licence.":"Edit and click away — logged with your licence."}</div>}
     </div>
   );
 }
@@ -1260,7 +1585,7 @@ function AuthScreen({onAuth}){
       const r=await fetch(url+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":key,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({password:np1})});
       const d=await r.json();
       if(r.ok){
-        setMsg("Mot de passe mis à jour.");
+        setMsg("Mot de passe mis à jour. Connectez-vous maintenant.");
         setRecoveryToken(null);setMode("login");setNp1("");setNp2("");setPwd("");
         try{window.history.replaceState({},"",window.location.pathname);}catch(e){}
       } else setErr((d.msg||d.message||"Erreur")+" ["+r.status+"]");
@@ -1373,7 +1698,7 @@ function OnboardingWizard({userEmail,onComplete,session}){
     const profile={id:session.user.id,email:userEmail,language,country,province,pharmacy_name:pharmacyName,dispensing_system:dispensingSystem,inventory_system:inventorySystem,pharmacy_phone:fullPhone,pharmacy_email:pharmacyEmail,pharmacy_address:pharmacyAddress,permit_number:permitNumber,pharmacist_owner:pharmacistOwner,pharmacist_email:pharmacistEmail,owner_name:managerName,plan};
     const {url,key}=SB.get();
     try{await fetch(url+"/rest/v1/profiles",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(profile)});}catch{}
-    try{await sbFetch("pharmacy_members",{method:"POST",body:[{pharmacy_id:session.user.id,user_id:session.user.id,email:userEmail,full_name:pharmacistOwner,licence:permitNumber,role:"owner"}],prefer:"return=minimal"});}catch{}
+    try{await MEM.add({pharmacy_id:session.user.id,user_id:session.user.id,email:userEmail,full_name:pharmacistOwner,licence:permitNumber||null,role:"owner",active:true});}catch{}
     onComplete(profile);setSaving(false);
   }
   const pct=(step/3)*100;
@@ -1452,23 +1777,26 @@ function OnboardingWizard({userEmail,onComplete,session}){
   );
 }
 
-function Dashboard({session,profile,onLogout}){
+function Dashboard({session,profile,member,onLogout}){
   const [page,setPage]=useState("home");
   const email=session?.user?.email||"pharmacist@clinic.com";
   const lang=getLang(profile?.language);
   const fr=lang==="fr";
   const t=(k)=>T[lang][k]||T.en[k]||k;
+  const role=member?member.role:"owner";
   const nav=[
     {id:"home",icon:"🏠",label:t("dashboard")},
     {id:"inv",icon:"📦",label:t("inventory")},
     {id:"reco",icon:"⚡",label:t("reconciliation")},
     {id:"history",icon:"📝",label:t("history")},
+    {id:"team",icon:"👥",label:t("team")},
+    {id:"audit",icon:"📋",label:fr?"Journal":"Audit log"},
     {id:"clinical",icon:"🏥",label:t("clinical")},
     {id:"pricing",icon:"💳",label:t("plans")}
   ];
   return(
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
-      <div style={{width:200,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{width:210,background:"linear-gradient(180deg,#0F2744,#1E4D8C)",display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"20px 14px 12px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
             <div style={{fontSize:22}}>💊</div>
@@ -1476,7 +1804,9 @@ function Dashboard({session,profile,onLogout}){
           </div>
           <div style={{background:"rgba(255,255,255,.07)",borderRadius:10,padding:"8px 10px"}}>
             <div style={{color:"rgba(255,255,255,.4)",fontSize:9}}>{t("loggedInAs")}</div>
-            <div style={{color:"#fff",fontSize:10,fontWeight:600,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</div>
+            <div style={{color:"#fff",fontSize:10,fontWeight:600,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{member?.full_name||email}</div>
+            <div style={{marginTop:5}}><RoleBadge role={role} fr={fr}/></div>
+            {member?.licence&&<div style={{color:"rgba(255,255,255,.35)",fontSize:9,marginTop:4,fontFamily:"monospace"}}>{member.licence}</div>}
           </div>
         </div>
         <div style={{flex:1,padding:"0 8px"}}>
@@ -1491,10 +1821,12 @@ function Dashboard({session,profile,onLogout}){
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",background:C.light}}>
-        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile} session={session}/>}
-        {page==="inv"&&<InventoryPage session={session} fr={fr}/>}
-        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session} onGoInv={()=>setPage("inv")}/>}
-        {page==="history"&&<HistoryPage t={t} profile={profile} session={session} fr={fr}/>}
+        {page==="home"&&<HomePage onNewReco={()=>setPage("reco")} email={email} t={t} profile={profile} session={session} member={member}/>}
+        {page==="inv"&&<InventoryPage session={session} member={member} fr={fr}/>}
+        {page==="reco"&&<RecoPage onBack={()=>setPage("home")} t={t} profile={profile} session={session} member={member} onGoInv={()=>setPage("inv")}/>}
+        {page==="history"&&<HistoryPage session={session} member={member} fr={fr}/>}
+        {page==="team"&&<TeamPage session={session} member={member} fr={fr}/>}
+        {page==="audit"&&<AuditPage session={session} member={member} fr={fr}/>}
         {page==="clinical"&&<PlaceholderPage icon="🏥" title={t("clinical")} desc={t("clinicalDesc")}/>}
         {page==="pricing"&&<PlaceholderPage icon="💳" title={t("plans")} desc={t("plansDesc")}/>}
       </div>
@@ -1506,13 +1838,15 @@ function PlaceholderPage({icon,title,desc}){
   return(<div style={{padding:"60px 40px",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontWeight:800,fontSize:22,color:C.navy,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.grey,maxWidth:400,margin:"0 auto"}}>{desc}</div></div>);
 }
 
-function HistoryPage({session,fr}){
+function HistoryPage({session,member,fr}){
+  const pid=member?member.pharmacy_id:session.user.id;
+  const role=member?member.role:"owner";
   const [cycles,setCycles]=useState([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
   useEffect(()=>{
     const {url,key}=SB.get();
-    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc",{
+    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+pid+"&order=completed_at.desc",{
       headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
     }).then(r=>r.json()).then(d=>{if(Array.isArray(d))setCycles(d);setLoading(false);}).catch(()=>setLoading(false));
   },[]);
@@ -1522,6 +1856,7 @@ function HistoryPage({session,fr}){
     if(!window.confirm(fr?"Supprimer ce cycle?":"Delete this cycle?")) return;
     try{
       await sbFetch("reconciliations?id=eq."+c.id,{method:"DELETE"});
+      await AUDIT.log(member,"delete_cycle","reconciliations",c.id,fd(c.completed_at));
       setCycles(cycles.filter(x=>x.id!==c.id));
     }catch(e){alert(e.message||String(e));}
   }
@@ -1531,7 +1866,12 @@ function HistoryPage({session,fr}){
     return(
       <div style={{padding:"28px 32px"}}>
         <button onClick={()=>setSelected(null)} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>← {fr?"Retour":"Back"}</button>
-        <div style={{fontWeight:900,fontSize:20,color:C.navy,marginBottom:12}}>📋 {fd(selected.completed_at)}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:12}}>
+          <div style={{fontWeight:900,fontSize:20,color:C.navy}}>📋 {fd(selected.completed_at)}</div>
+          <button onClick={()=>window.print()} style={{padding:"9px 18px",borderRadius:9,border:"1.5px solid "+C.sky,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:C.sky}}>
+            🖨 {fr?"Imprimer ce rapport":"Print this report"}
+          </button>
+        </div>
         <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",background:"#fff"}}>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
             <thead><tr style={{background:"#F8FAFC"}}>
@@ -1543,7 +1883,7 @@ function HistoryPage({session,fr}){
               {mols.map((m,i)=>{
                 const theo=(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);
                 const disc=m.physical!==""?theo-(Number(m.physical)||0):null;
-                return(<tr key={i} style={{background:i%2===0?"#fff":"#FAFAFA"}}>
+                return(<tr key={i} style={{background:disc===null?(i%2===0?"#fff":"#FAFAFA"):disc===0?"#F0FDF4":"#FEF2F2"}}>
                   {[m.name,m.format,m.din,m.opening,m.received,m.dispensed,theo].map((v,j)=>(
                     <td key={j} style={{padding:"6px 10px",fontSize:12,borderBottom:"1px solid #F3F4F6",color:C.navy}}>{v||"—"}</td>
                   ))}
@@ -1576,13 +1916,13 @@ function HistoryPage({session,fr}){
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                 <div onClick={()=>setSelected(c)} style={{cursor:"pointer",flex:1}}>
                   <div style={{fontWeight:800,fontSize:15,color:C.navy}}>📋 {fd(c.completed_at)}</div>
-                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"produits":"products"} · {fr?"cliquer pour le détail":"click for detail"}</div>
+                  <div style={{fontSize:12,color:C.grey,marginTop:2}}>{c.total_molecules} {fr?"produits · cliquer pour le détail et l'impression":"products · click for detail"}</div>
                 </div>
                 <span style={{display:"flex",alignItems:"center",gap:10}}>
                   <span style={{background:c.total_discrepancies>0?"#FEF2F2":"#F0FDF4",color:c.total_discrepancies>0?C.red:C.green,fontSize:11,fontWeight:800,padding:"4px 12px",borderRadius:20}}>
                     {c.total_discrepancies>0?"⚠️ "+c.total_discrepancies:"✅"}
                   </span>
-                  <button onClick={()=>delCycle(c)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>🗑</button>
+                  {can(role,"edit")&&<button onClick={()=>delCycle(c)} style={{border:"none",background:"none",cursor:"pointer",color:C.red,fontSize:16}}>🗑</button>}
                 </span>
               </div>
             </div>
@@ -1593,13 +1933,14 @@ function HistoryPage({session,fr}){
   );
 }
 
-function HomePage({onNewReco,email,t,profile,session}){
+function HomePage({onNewReco,email,t,profile,session,member}){
+  const pid=member?member.pharmacy_id:session.user.id;
   const [cycles,setCycles]=useState([]);
   const pharmacyName=profile?.pharmacy_name||"";
   const fr=getLang(profile?.language)==="fr";
   useEffect(()=>{
     const {url,key}=SB.get();
-    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+session.user.id+"&order=completed_at.desc&limit=5",{
+    fetch(url+"/rest/v1/reconciliations?pharmacy_id=eq."+pid+"&order=completed_at.desc&limit=5",{
       headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}
     }).then(r=>r.json()).then(d=>{if(Array.isArray(d))setCycles(d);}).catch(()=>{});
   },[]);
@@ -1609,7 +1950,7 @@ function HomePage({onNewReco,email,t,profile,session}){
     <div style={{padding:"28px 32px"}}>
       <div style={{marginBottom:24}}>
         <div style={{fontWeight:900,fontSize:22,color:C.navy}}>{t("welcomeMsg")}</div>
-        <div style={{color:C.grey,fontSize:13,marginTop:4}}>{email}</div>
+        <div style={{color:C.grey,fontSize:13,marginTop:4}}>{member?.full_name||email}</div>
         {pharmacyName&&<div style={{color:C.sky,fontSize:12,fontWeight:600,marginTop:2}}>🏥 {pharmacyName}</div>}
       </div>
       {total>0?(
@@ -1637,8 +1978,9 @@ function HomePage({onNewReco,email,t,profile,session}){
   );
 }
 
-function RecoTable({session,profile,onComplete,lang,onGoInv}){
-  const uid=session.user.id;
+function RecoTable({session,profile,member,onComplete,lang,onGoInv}){
+  const pid=member?member.pharmacy_id:session.user.id;
+  const role=member?member.role:"owner";
   const [molecules,setMolecules]=useState([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
@@ -1649,7 +1991,7 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
   useEffect(()=>{
     (async()=>{
       try{
-        const inv=await INV.list(uid,"");
+        const inv=await INV.list(pid,"");
         let id=1;
         setMolecules(inv.map(r=>({id:id++,inv_id:r.id,name:r.molecule||"",strength:r.strength||"",cup:r.cup||"",format:r.format||"",din:r.din||"",opening:Number(r.qty)||0,received:0,dispensed:0,physical:"",notes:""})));
         setNextId(id);
@@ -1664,17 +2006,19 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
   function theo(m){return(Number(m.opening)||0)+(Number(m.received)||0)-(Number(m.dispensed)||0);}
   function diff(m){if(m.physical==="")return null;return theo(m)-(Number(m.physical)||0);}
   const totalDisc=molecules.filter(m=>diff(m)!==null&&diff(m)!==0).length;
+  const filled=molecules.filter(m=>m.physical!=="").length;
 
   async function save(){
     setSaving(true);
     const {url,key}=SB.get();
-    const cycle={pharmacy_id:uid,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
+    const cycle={pharmacy_id:pid,pharmacy_name:profile?.pharmacy_name,dispensing_system:profile?.dispensing_system,inventory_system:profile?.inventory_system,molecules:JSON.stringify(molecules),total_molecules:molecules.length,total_discrepancies:totalDisc,completed_at:new Date().toISOString()};
     try{await fetch(url+"/rest/v1/reconciliations",{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(cycle)});}catch{}
     for(const m of molecules){
       if(m.inv_id&&m.physical!==""){
         try{await INV.update(m.inv_id,{qty:Number(m.physical)||0,last_count_at:new Date().toISOString()});}catch(e){}
       }
     }
+    await AUDIT.log(member,"save_cycle","reconciliations",null,molecules.length+(fr?" produits · ":" products · ")+totalDisc+(fr?" écart(s)":" variance(s)"));
     setSaving(false);onComplete({totalDisc,totalMolecules:molecules.length});
   }
 
@@ -1691,7 +2035,7 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
         <div style={{fontSize:40,marginBottom:12}}>📦</div>
         <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:8}}>{fr?"Votre inventaire est vide":"Your inventory is empty"}</div>
         <div style={{fontSize:13,color:C.grey,marginBottom:18,maxWidth:380,margin:"0 auto 18px"}}>
-          {fr?"Ajoutez d'abord vos produits dans « Mon inventaire » — la réconciliation partira de cette liste.":"Add your products in \"My inventory\" first."}
+          {fr?"Ajoutez d'abord vos produits dans « Mon inventaire ».":"Add your products in \"My inventory\" first."}
         </div>
         <button onClick={onGoInv} style={{padding:"11px 22px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:"#fff",background:C.sky}}>
           📦 {fr?"Aller à Mon inventaire":"Go to My inventory"}
@@ -1705,16 +2049,23 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:900,fontSize:18,color:C.navy}}>📋 {fr?"Tableau de réconciliation":"Reconciliation Table"}</div>
-          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{molecules.length} {fr?"produits · ouverture = qté de votre inventaire":"products · opening = your inventory qty"}</div>
+          <div style={{fontSize:12,color:C.grey,marginTop:2}}>{molecules.length} {fr?"produits · ouverture = qté de votre inventaire":"products"}</div>
         </div>
-        {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"diff"}</span>}
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:9,border:"1.5px solid "+C.sky,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:C.sky}}>
+            🖨 {fr?"Imprimer pour le décompte":"Print for counting"}
+          </button>
+          {filled>0&&<span style={{background:"#EFF6FF",color:C.sky,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>{filled}/{molecules.length} {fr?"comptés":"counted"}</span>}
+          {totalDisc>0&&<span style={{background:"#FEF2F2",color:C.red,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>⚠️ {totalDisc} {fr?"écart(s)":"diff"}</span>}
+          {totalDisc===0&&filled===molecules.length&&<span style={{background:"#F0FDF4",color:C.green,fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:20}}>✅ {fr?"Tout balance":"All balanced"}</span>}
+        </div>
       </div>
       {err&&<div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"8px 14px",fontSize:12,color:C.red,marginBottom:12}}>{err}</div>}
 
       <div style={{overflowX:"auto",borderRadius:12,border:"1.5px solid #E2E8F0",marginBottom:14,background:"#fff"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:1150}}>
           <thead><tr>
-            {["CUP",fr?"Description":"Description",fr?"Force":"Strength","Format","DIN",fr?"Ouverture":"Opening","+ "+(fr?"Reçu":"Received"),"− "+(fr?"Dispensé":"Dispensed"),"= "+(fr?"Théorique":"Theo"),"🔵 "+(fr?"Physique":"Physical"),fr?"Écart":"Diff",""].map((h,i)=>(
+            {["CUP","Description",fr?"Force":"Strength","Format","DIN",fr?"Ouverture":"Opening","+ "+(fr?"Reçu":"Received"),"− "+(fr?"Dispensé":"Dispensed"),"= "+(fr?"Théorique":"Theo"),"🔵 "+(fr?"Physique":"Physical"),fr?"Écart":"Diff",fr?"Note":"Note",""].map((h,i)=>(
               <th key={i} style={{...th,background:i===9?"#EFF6FF":"#F8FAFC",color:i===6?C.orange:i===7?C.red:i===8?"#7C3AED":i===9?C.sky:C.grey}}>{h}</th>
             ))}
           </tr></thead>
@@ -1723,18 +2074,23 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
               const th2=theo(m);const d=diff(m);
               return(
                 <tr key={m.id} style={{background:d===null?(i%2===0?"#fff":"#FAFAFA"):d===0?"#F0FDF4":"#FEF2F2"}}>
-                  <td style={td}><input value={m.cup} onChange={e=>update(m.id,"cup",e.target.value)} style={{...ni,width:90,fontFamily:"monospace"}}/></td>
-                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:180}}/></td>
-                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:62}}/></td>
-                  <td style={td}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:80}}/></td>
-                  <td style={td}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:76,fontFamily:"monospace"}}/></td>
-                  <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={{...ni,width:54,textAlign:"center"}} min="0"/></td>
-                  <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.orange}} min="0"/></td>
-                  <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,width:54,textAlign:"center",borderColor:C.red}} min="0"/></td>
+                  <td style={td}><input value={m.cup} onChange={e=>update(m.id,"cup",e.target.value)} style={{...ni,width:88,fontFamily:"monospace"}}/></td>
+                  <td style={td}><input value={m.name} onChange={e=>update(m.id,"name",e.target.value)} style={{...ni,width:170}}/></td>
+                  <td style={td}><input value={m.strength} onChange={e=>update(m.id,"strength",e.target.value)} style={{...ni,width:58}}/></td>
+                  <td style={td}><input value={m.format} onChange={e=>update(m.id,"format",e.target.value)} style={{...ni,width:74}}/></td>
+                  <td style={td}><input value={m.din} onChange={e=>update(m.id,"din",e.target.value)} style={{...ni,width:74,fontFamily:"monospace"}}/></td>
+                  <td style={td}><input type="number" value={m.opening} onChange={e=>update(m.id,"opening",e.target.value)} style={{...ni,width:52,textAlign:"center"}} min="0"/></td>
+                  <td style={td}><input type="number" value={m.received} onChange={e=>update(m.id,"received",e.target.value)} style={{...ni,width:52,textAlign:"center",borderColor:C.orange}} min="0"/></td>
+                  <td style={td}><input type="number" value={m.dispensed} onChange={e=>update(m.id,"dispensed",e.target.value)} style={{...ni,width:52,textAlign:"center",borderColor:C.red}} min="0"/></td>
                   <td style={{...td,textAlign:"center"}}><span style={{fontWeight:900,fontSize:15,color:"#7C3AED"}}>{th2}</span></td>
                   <td style={{...td,background:"#EFF6FF"}}><input type="number" value={m.physical} onChange={e=>update(m.id,"physical",e.target.value)} style={pi} placeholder="—" min="0"/></td>
                   <td style={{...td,textAlign:"center"}}>
                     {d===null?<span style={{color:"#D1D5DB",fontSize:11}}>—</span>:d===0?<span style={{color:C.green,fontWeight:800}}>✓ 0</span>:<span style={{color:C.red,fontWeight:800}}>⚠️ {d>0?"+":""}{d}</span>}
+                  </td>
+                  <td style={td}>
+                    {d!==null&&d!==0
+                      ?<input value={m.notes} onChange={e=>update(m.id,"notes",e.target.value)} placeholder={fr?"Justification…":"Reason…"} style={{...ni,width:130,borderColor:m.notes?"#E2E8F0":"#FCA5A5"}}/>
+                      :<span style={{color:"#D1D5DB",fontSize:11}}>—</span>}
                   </td>
                   <td style={td}><button onClick={()=>removeRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D1D5DB",fontSize:18}}>×</button></td>
                 </tr>
@@ -1748,17 +2104,34 @@ function RecoTable({session,profile,onComplete,lang,onGoInv}){
         + {fr?"Ajouter une ligne":"Add row"}
       </button>
 
-      <button onClick={save} disabled={saving} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving?.5:1}}>
-        {saving?"…":fr?"💾 Sauvegarder ce cycle":"💾 Save this cycle"}
-      </button>
-      <div style={{fontSize:11,color:C.grey,marginTop:8,textAlign:"center"}}>
-        {fr?"Les quantités physiques saisies mettront à jour votre inventaire.":"Physical counts will update your inventory."}
-      </div>
+      {totalDisc>0&&(
+        <div style={{background:"#FEF2F2",border:"1.5px solid #FCA5A5",borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.red,marginBottom:6}}>
+            ⚠️ {totalDisc} {fr?"écart(s) à valider par le pharmacien":"variance(s) to validate"}
+          </div>
+          <div style={{fontSize:12,color:"#991B1B"}}>
+            {fr?"Recomptez les produits en rouge. Si l'écart persiste, inscrivez une justification avant de sauvegarder — elle sera signée avec votre licence.":"Recount the red rows and add a reason before saving."}
+          </div>
+        </div>
+      )}
+
+      {can(role,"edit")?(
+        <button onClick={save} disabled={saving} style={{width:"100%",padding:14,borderRadius:12,border:"none",cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:"#fff",background:"linear-gradient(135deg,#1A9E5F,#1E4D8C)",opacity:saving?.5:1}}>
+          {saving?"…":fr?"💾 Valider et sauvegarder ce cycle":"💾 Validate and save this cycle"}
+        </button>
+      ):(
+        <div style={{background:"#FFF7ED",border:"1.5px solid #FDBA74",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#9A3412",textAlign:"center"}}>
+          👁 {fr?"Un pharmacien doit valider et sauvegarder ce cycle.":"A pharmacist must validate and save this cycle."}
+        </div>
+      )}
+      {member&&can(role,"edit")&&<div style={{fontSize:11,color:C.grey,marginTop:8,textAlign:"center"}}>
+        {fr?"Signé par":"Signed by"} {member.full_name||member.email} · {fr?"licence":"licence"} {member.licence||"—"}
+      </div>}
     </div>
   );
 }
 
-function RecoPage({onBack,t,profile,session,onGoInv}){
+function RecoPage({onBack,t,profile,session,member,onGoInv}){
   const [step,setStep]=useState("table");
   const [result,setResult]=useState(null);
   const lang=getLang(profile?.language);
@@ -1785,7 +2158,7 @@ function RecoPage({onBack,t,profile,session,onGoInv}){
   return(
     <div style={{padding:"28px 32px"}}>
       <button onClick={onBack} style={{marginBottom:20,padding:"7px 14px",borderRadius:8,border:"1px solid "+C.border,background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:C.grey}}>{t("back")}</button>
-      <RecoTable session={session} profile={profile} lang={lang} onGoInv={onGoInv} onComplete={r=>{setResult(r);setStep("done");}}/>
+      <RecoTable session={session} profile={profile} member={member} lang={lang} onGoInv={onGoInv} onComplete={r=>{setResult(r);setStep("done");}}/>
     </div>
   );
 }
@@ -1797,20 +2170,33 @@ export default function App(){
     return SB.getSession();
   });
   const [profile,setProfile]=useState(SB.getProfile());
+  const [member,setMember]=useState(SB.getMember());
   const [loading,setLoading]=useState(()=>!!(SB.getSession()&&!SB.getProfile()));
 
   useEffect(()=>{
-    if(session&&!profile&&session.user.email!==ADMIN_EMAIL){
+    if(!session||session.user.email===ADMIN_EMAIL) return;
+    (async()=>{
       setLoading(true);
-      const {url,key}=SB.get();
-      fetch(url+"/rest/v1/profiles?id=eq."+session.user.id,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}})
-        .then(r=>r.json())
-        .then(d=>{if(Array.isArray(d)&&d.length>0){SB.saveProfile(d[0]);setProfile(d[0]);}setLoading(false);})
-        .catch(()=>setLoading(false));
-    }
+      let mem=member;
+      try{
+        mem=await MEM.byEmail(session.user.email);
+        if(mem&&!mem.user_id){
+          try{await MEM.linkUser(mem.id,session.user.id);mem.user_id=session.user.id;}catch(e){}
+        }
+        if(mem){SB.saveMember(mem);setMember(mem);}
+      }catch(e){}
+      const pid=mem?mem.pharmacy_id:session.user.id;
+      try{
+        const {url,key}=SB.get();
+        const r=await fetch(url+"/rest/v1/profiles?id=eq."+pid,{headers:{"apikey":key,"Authorization":"Bearer "+session.access_token}});
+        const d=await r.json();
+        if(Array.isArray(d)&&d.length>0){SB.saveProfile(d[0]);setProfile(d[0]);}
+      }catch(e){}
+      setLoading(false);
+    })();
   },[session]);
 
-  const logout=()=>{SB.clearSession();SB.clearProfile();setSession(null);setProfile(null);};
+  const logout=()=>{SB.clearSession();SB.clearProfile();SB.clearMember();setSession(null);setProfile(null);setMember(null);};
 
   useEffect(()=>{
     if(!session) return;
@@ -1840,6 +2226,6 @@ export default function App(){
       <div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>💊</div><div style={{fontSize:14,color:C.grey,fontWeight:600}}>Loading NarcoSync…</div></div>
     </div>
   );
-  if(!profile) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
-  return <Dashboard session={session} profile={profile} onLogout={logout}/>;
+  if(!profile&&!member) return <OnboardingWizard userEmail={session.user.email} onComplete={p=>{SB.saveProfile(p);setProfile(p);}} session={session}/>;
+  return <Dashboard session={session} profile={profile} member={member} onLogout={logout}/>;
 }
