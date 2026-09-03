@@ -1606,6 +1606,53 @@ function SearchableSelect({options,value,onChange,placeholder,required}){
   );
 }
 
+function LangSearch({lang,setLang}){
+  const [open,setOpen]=useState(false);
+  const [q,setQ]=useState("");
+  const ref=useRef();const inRef=useRef();
+  useEffect(()=>{
+    function out(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener("mousedown",out);return()=>document.removeEventListener("mousedown",out);
+  },[]);
+  useEffect(()=>{if(open&&inRef.current) inRef.current.focus();},[open]);
+  const cur=LANGS.find(l=>l.c===lang)||LANGS[1];
+  const hits=LANGS.filter(l=>!q||l.n.toLowerCase().indexOf(q.toLowerCase())>=0);
+  return(
+    <div ref={ref} style={{position:"relative",maxWidth:262}}>
+      <button onClick={()=>{setOpen(!open);setQ("");}} style={{display:"flex",alignItems:"center",gap:8,
+        border:"1px solid rgba(255,255,255,.16)",background:"transparent",borderRadius:7,cursor:"pointer",
+        padding:"9px 13px",color:"rgba(255,255,255,.74)",fontSize:13,width:"100%",justifyContent:"space-between"}}>
+        <span>{cur.n}</span><span style={{fontSize:9,opacity:.5}}>▾</span>
+      </button>
+      {open&&(
+        <div className="ns-panel" style={{position:"absolute",bottom:"100%",left:0,width:262,marginBottom:6,
+          zIndex:80,overflow:"hidden",boxShadow:"0 14px 40px rgba(0,0,0,.42)"}}>
+          <div style={{padding:9,borderBottom:"1px solid "+C.line2}}>
+            <input ref={inRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search a language"
+              className="ns-in" style={{fontSize:13,padding:"7px 10px"}}/>
+          </div>
+          <div style={{maxHeight:220,overflowY:"auto"}}>
+            {hits.length===0&&<div style={{padding:"13px",fontSize:12.5,color:C.text3}}>Nothing matches.</div>}
+            {hits.map(l=>{
+              const ready=READY.indexOf(l.c)>=0;
+              return(
+                <button key={l.c} onClick={()=>{if(ready){SB.setLang(l.c);setLang(l.c);setOpen(false);}}} disabled={!ready}
+                  style={{width:"100%",padding:"10px 13px",border:"none",borderBottom:"1px solid "+C.line2,
+                    cursor:ready?"pointer":"not-allowed",background:l.c===lang?C.tealSoft:C.paper,
+                    color:ready?(l.c===lang?C.teal2:C.text):C.text3,fontSize:13,textAlign:"left",
+                    display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                  <span>{l.n}</span>
+                  {l.c===lang&&<span style={{fontSize:11,color:C.teal}}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AuthScreen({onAuth,lang,setLang}){
   const fr=lang==="fr";
   const t=(k)=>tr(lang,k);
