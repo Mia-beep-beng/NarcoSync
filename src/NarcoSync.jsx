@@ -1754,6 +1754,7 @@ function AuthScreen({onAuth,lang,setLang}){
             {fr?"Chaque décompte est calculé, chaque écart est signalé, et chaque geste porte le nom et la licence de la personne qui l'a posé."
                :"Every count is calculated, every variance is flagged, and every action carries the name and licence of the person who took it."}
           </div>
+          </div>
            <LangSearch lang={lang} setLang={setLang}/>
       </div>
 
